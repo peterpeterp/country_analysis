@@ -17,32 +17,37 @@ class country_analysis(object):
 
 	def __init__(self,iso,var_name,working_directory):
 		self._iso=iso
-		self._var_name=var_name
 		self._working_directory=working_directory
 
 
-	def create_mask(self,filename,var_name,shape_file,shift_lon=0.0,mask_style='lat_weighted'):
+	def create_mask(self,filename,var_name,shape_file,shift_lon=0.0,mask_style='lat_weighted',pop_mask_file=''):
 
 		if '_masks' not in dir(self): self._masks={}
 
-		mask_file=self._working_directory+'tmp/masks/'+self._iso+'_'+mask_style+'.nc4'
+		# get information about grid of input data
+		nc_in=Dataset(filename,'r')
+		input_data=nc_in.variables[var_name][1,:,:]
+		lat = nc_in.variables['lat'][:]								
+		lon = nc_in.variables['lon'][:].squeeze()+shift_lon 	
+		nx = len(lon)	;	ny = len(lat)
+		grid=str(ny)+'x'+str(nx)
+
+		if grid not in self._masks.keys():self._masks[grid]={}
+		self._masks[grid]['lat_mask']=lat
+		self._masks[grid]['lon_mask']=lon
+		if mask_style not in self._masks[grid].keys():self._masks[grid][mask_style]={}
+
+
+		mask_file=self._working_directory+'output/masks/'+self._iso+'_'+grid+'_'+mask_style+'.nc4'
 
 		if os.path.isfile(mask_file):
 			# load existing mask
 			nc_mask=Dataset(mask_file,'r')
-			self._masks[mask_style] = nc_mask.variables[self._iso][:,:]  
-			self._masks['lat_mask'] = nc_mask.variables['lat'][:]  
-			self._masks['lon_mask'] = nc_mask.variables['lon'][:]  
+			self._masks[grid][mask_style] = nc_mask.variables[self._iso][:,:]  
+			self._masks[grid]['lat_mask'] = nc_mask.variables['lat'][:]  
+			self._masks[grid]['lon_mask'] = nc_mask.variables['lon'][:]  
 
 		else:
-			# get information about grid of input data
-			nc_in=Dataset(filename,'r')
-			input_data=nc_in.variables[var_name][1,:,:]
-			lat = nc_in.variables['lat'][:]								; self._masks['lat_mask']=lat
-			lon = nc_in.variables['lon'][:].squeeze()+shift_lon 		; self._masks['lon_mask']=lon
-			nx = len(lon)
-			ny = len(lat)
-
 			# loop over the grid to get grid polygons
 			grid_polygons = np.empty((nx,ny),dtype=Polygon)
 			dx = np.zeros((nx))
@@ -83,6 +88,20 @@ class country_analysis(object):
 			ext = [(xmin,ymin),(xmin,ymax),(xmax,ymax),(xmax,ymin),(xmin,ymin)]
 			ext_poly = Polygon(ext)
 
+			# load population mask		
+			if pop_mask_file=='':	
+				pop_mask = np.ones((len(lat),len(lon)))
+			else:
+				# regrid population mask 
+				mygrid=open(self._working_directory+'output/masks/'+grid+'.txt','w')
+				mygrid.write('gridtype=lonlat\nxsize='+str(len(lon))+'\nysize='+str(len(lat))+'\nxfirst='+str(lon[0])+'\nxinc='+str(np.mean(np.diff(lon,1)))+'\nyfirst='+str(lat[0])+'\nyinc='+str(np.mean(np.diff(lat,1))))
+				mygrid.close()
+				os.system('cdo remapbil,'+self._working_directory+'output/masks/'+grid+'.txt '+pop_mask_file+' '+self._working_directory+'output/masks/'+grid+'_'+mask_style+'.nc')	
+				nc_pop_mask = Dataset(self._working_directory+'output/masks/'+grid+'_'+mask_style+'.nc')
+				pop_mask = np.array(nc_pop_mask.variables['mask'][:,:]).squeeze()
+				pop_mask = np.roll(pop_mask,shift,axis=1)
+
+			# compute overlap
 			overlap = np.zeros((ny,nx))
 			for i in range(nx):
 				for j in range(ny):
@@ -90,8 +109,12 @@ class country_analysis(object):
 					if grid_polygons[i,j].intersects(ext_poly):
 						# get fraction of grid-cell covered by polygon
 						intersect = grid_polygons[i,j].intersection(country_polygons).area/grid_polygons[i,j].area*country_polygons.area
-						# multiply overlap with latitude weighting
-						overlap[j,i] = intersect*np.cos(np.radians(lat[j]))
+						if pop_mask_file!='':
+							# population weighting
+							overlap[j,i] = intersect*pop_mask[j,i]
+						if mask_style=='lat_weighted':
+							# multiply overlap with latitude weighting
+							overlap[j,i] = intersect*np.cos(np.radians(lat[j]))
 
 			# renormalize overlap to get sum(mask)=1
 			overlap_zwi=overlap.copy()
@@ -103,21 +126,23 @@ class country_analysis(object):
 				output[output==0]=np.nan
 				output=np.ma.masked_invalid(output)
 				# shift back to original longitudes
-				self._masks[mask_style]=np.roll(output,shift,axis=1)
+				self._masks[grid][mask_style]=np.roll(output,shift,axis=1)
 
 			# save mask
+			print mask_file
 			nc_mask=Dataset(mask_file,'w')
 			nc_mask.createDimension('lat', len(lat))
 			nc_mask.createDimension('lon', len(lon))
  			outVar = nc_mask.createVariable('lat', 'f', ('lat',)) ; outVar[:]=lat[:]	;	outVar.setncattr('units','deg south')
  			outVar = nc_mask.createVariable('lon', 'f', ('lon',)) ; outVar[:]=lon[:]	;	outVar.setncattr('units','deg east')
- 			outVar = nc_mask.createVariable(self._iso, 'f', ('lat','lon',),fill_value='NaN') ; outVar[:]=self._masks[mask_style][:,:]
+ 			print self._masks[grid][mask_style]
+ 			outVar = nc_mask.createVariable(self._iso, 'f', ('lat','lon',),fill_value='NaN') ; outVar[:]=self._masks[grid][mask_style][:,:]
 
  			# close nc_files
 			nc_in.close()
 			nc_mask.close()
 
-	def country_zoom(self,in_file,var_name,mask_style='lat_weighted',meta_data=['CMIP5','rcp2p6','hadgem2-es']):
+	def country_zoom(self,in_file,var_name,meta_data=['CMIP5','rcp2p6','hadgem2-es'],mask_style='lat_weighted',time_units=None,time_calendar=None):
 		'''
 		compute weighted country average for each timestep
 		in_file: type str: file to be processed
@@ -127,77 +152,165 @@ class country_analysis(object):
 		mask_path: type str: path to where the masks are stored
 		'''
 
-		if '_data' not in dir(self): self._data={}
+		if '_data' not in dir(self): 
+			self._data={}
+			self._meta=[]
 
-		# open file to get information
-		print in_file
-		nc_in=Dataset(in_file,"r")
-		lon_in=nc_in.variables['lon'][:]
-		lat_in=nc_in.variables['lat'][:]
-
-		# find relevant area (as rectangle)
-		lon_mean=np.mean(self._masks[mask_style],0)
-		lons=np.where(lon_mean!=0)[0]
-
-		lat_mean=np.mean(self._masks[mask_style],1)
-		lats=np.where(lat_mean!=0)[0]
-
-		nx,ny=len(lons),len(lats)
-
-		# copy netcdf and write zoomed file
-		out_file=self._working_directory+'tmp/raw/'+in_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
+		out_file=self._working_directory+'output/raw/'+in_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
 		print out_file
-		os.system("rm "+out_file)
-		nc_out=Dataset(out_file,"w")
-		for dname, the_dim in nc_in.dimensions.iteritems():
-			if dname=='lon':nc_out.createDimension(dname, nx)
-			elif dname=='lat':nc_out.createDimension(dname, ny)
-			else:nc_out.createDimension(dname, len(the_dim) if not the_dim.isunlimited() else None)
 
-		# Copy variables
-		for v_name, varin in nc_in.variables.iteritems():
-			print v_name
-			outVar = nc_out.createVariable(v_name, varin.datatype, varin.dimensions)
-						    
-			# Copy variable attributes
-			outVar.setncatts({k: varin.getncattr(k) for k in varin.ncattrs()})
-						    
-			if v_name=='lat':	outVar[:] = self._masks['lat_mask'][list(lats)]
-			elif v_name=='lon':	outVar[:] = self._masks['lon_mask'][list(lons)]
+		if os.path.isfile(out_file):
+			nc_out=Dataset(out_file,"r")
 
-			elif v_name==var_name:	
-				# check whether lon and lat are similarly defined in mask and in_file
-				if (lat_in in self._masks['lat_mask']) == False:	lats= -np.array(lats)+len(lat_in)
-				if (lon_in in self._masks['lon_mask']) == False:	lons= -np.array(lons)+len(lon_in)
-				lats,lons=sorted(lats),sorted(lons)
+			tmp = self._data
+			for meta_info in meta_data:
+				if meta_info not in tmp:
+					tmp[meta_info]={}
+				tmp=tmp[meta_info]
 
-				var_in=nc_in.variables[var_name][:,list(lats),list(lons)]
-				try:	# handle masked array
-					masked=np.ma.getmask(var_in)
-					var_in=np.ma.getdata(var_in)
-					var_in[masked]=np.nan
-				except: pass
-				# creat a 1-NA mask
-				red_mask = self._masks[mask_style][np.ix_(list(lats),list(lons))]
-				red_mask[red_mask>0]=1
-				red_mask[red_mask==0]=np.nan
-				country_data=var_in*red_mask
-				outVar[:] = country_data[:,:,:]
+			tmp['data']=nc_out.variables[var_name][:,:,:]
+			tmp['lat']=nc_out.variables['lat'][:]
+			tmp['lon']=nc_out.variables['lon'][:]
+			tmp['time']=nc_out.variables['time'][:]
+			tmp['year']=nc_out.variables['year'][:]
+			tmp['month']=nc_out.variables['month'][:]
 
-			else:	outVar[:] = varin[:]
+			self._meta.append([var_name]+meta_data)
 
-		# close the output file
-		nc_out.close()
-		nc_in.close()
+			nc_out.close()
 
-		tmp = self._data
-		for meta_info in meta_data:
-			if meta_info not in tmp: tmp[meta_info]={}
-			tmp=tmp[meta_info]
 
-		tmp[self._var_name]=country_data
-		tmp['lat']=self._masks['lat_mask'][list(lats)]
-		tmp['lon']=self._masks['lon_mask'][list(lons)]
+		else:
+			# open file to get information
+			print in_file
+			nc_in=Dataset(in_file,"r")
+			lat_in=nc_in.variables['lat'][:]
+			lon_in=nc_in.variables['lon'][:]
+			grid=str(len(lat_in))+'x'+str(len(lon_in))
+
+			# find relevant area (as rectangle)
+			lon_mean=np.mean(self._masks[grid][mask_style],0)
+			lons=sorted(np.where(lon_mean!=0)[0])
+
+			lat_mean=np.mean(self._masks[grid][mask_style],1)
+			lats=sorted(np.where(lat_mean!=0)[0])
+
+			nx,ny=len(lons),len(lats)
+
+			# check whether lon and lat are similarly defined in mask and in_file
+			if (lat_in in self._masks[grid]['lat_mask']) == False:	lats= -np.array(lats)+len(lat_in)
+			if (lon_in in self._masks[grid]['lon_mask']) == False:	lons= -np.array(lons)+len(lon_in)
+
+			var_in=nc_in.variables[var_name][:,list(lats),list(lons)]
+			try:	# handle masked array
+				masked=np.ma.getmask(var_in)
+				var_in=np.ma.getdata(var_in)
+				var_in[masked]=np.nan
+			except: pass
+			# creat a 1-NA mask
+			red_mask = self._masks[grid][mask_style][np.ix_(list(lats),list(lons))]
+			red_mask[red_mask>0]=1
+			red_mask[red_mask==0]=np.nan
+			country_data=var_in*red_mask
+
+			# handle time information
+			time=nc_in.variables['time'][:]
+			datevar = []
+			# if specified units and calendar
+			if time_units!=None and time_calendar!=None:
+				datevar.append(num2date(time,units = time_units,calendar= time_calendar))
+			# if no specification
+			if time_units==None and time_calendar==None:
+				time_unit=nc_in.variables['time'].units
+				try:	
+					cal_temps = nc_in.variables['time'].calendar
+					datevar.append(num2date(time,units = time_unit,calendar = cal_temps))
+				except:
+					datevar.append(num2date(time,units = time_unit))
+			# create index variable
+			year=np.array([int(str(date).split("-")[0])	for date in datevar[0][:]])
+			month=np.array([int(str(date).split("-")[1])	for date in datevar[0][:]])
+
+			# write zoomed file
+			nc_out=Dataset(out_file,"w")
+			nc_out.createDimension('time', len(time))
+			nc_out.createDimension('lat', ny)
+			nc_out.createDimension('lon', nx)
+			# lat lon 
+ 			outVar = nc_out.createVariable('lat', 'f', ('lat',)) ; outVar[:]=self._masks[grid]['lat_mask'][list(lats)]	;	outVar.setncattr('units','deg south')
+ 			outVar = nc_out.createVariable('lon', 'f', ('lon',)) ; outVar[:]=self._masks[grid]['lon_mask'][list(lons)]	;	outVar.setncattr('units','deg east')
+ 			# time
+ 			outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=time	;	outVar.setncatts({k: nc_in.variables['time'].getncattr(k) for k in nc_in.variables['time'].ncattrs()})
+ 			outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=year
+ 			outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=month
+ 			# data
+ 			outVar = nc_out.createVariable(var_name, 'f', ('time','lat','lon',),fill_value=np.nan)
+ 			for k in nc_in.variables[var_name].ncattrs():
+ 				if k!='_FillValue':outVar.setncatts({k:nc_in.variables[var_name].getncattr(k)})
+			outVar[:] = country_data[:,:,:]
+			# close the output file
+			nc_out.close()
+			nc_in.close()
+
+			# store in dictionary
+			tmp = self._data
+			for meta_info in meta_data:
+				if meta_info not in tmp: tmp[meta_info]={}
+				tmp=tmp[meta_info]
+
+			tmp['data']=country_data
+			tmp['lat']=self._masks[grid]['lat_mask'][list(lats)]
+			tmp['lon']=self._masks[grid]['lon_mask'][list(lons)]
+			tmp['year']=year
+			tmp['month']=month
+			tmp['time']=time
+
+			self._meta.append([var_name]+meta_data)
+
+
+	def average():
+		'''
+		use self._meta to acces all data
+
+		identify grid and masks
+
+		check if lon_mask==lon_data etc
+
+		create reduced mask
+
+		create average and store
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
