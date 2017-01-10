@@ -7,13 +7,13 @@ sys.path.append('/Users/peterpfleiderer/Documents/Scripts/allgemeine_scripte/')
 from plot_functions import *
 sys.path.append('/Users/peterpfleiderer/Documents/')
 
-sys.path.append('/Users/peterpfleiderer/Documents/Scripts/country_analysis/country_analysis_scripts/')
+sys.path.append('/Users/peterpfleiderer/Documents/Projects/country_analysis/country_analysis_scripts/')
 try:del sys.modules['country_analysis'] 
 except:pass
 from country_analysis import country_analysis
 sys.path.append('/Users/peterpfleiderer/Documents/')
 
-GHA=country_analysis('GHA','Scripts/country_analysis/')
+GHA=country_analysis('GHA','Projects/country_analysis/')
 
 pkl_file = open(GHA._working_directory+GHA._iso+'/'+GHA._iso+'_masks.pkl', 'rb')
 GHA._masks = pickle.load(pkl_file)	;	pkl_file.close()  
@@ -23,12 +23,6 @@ GHA._data = pickle.load(pkl_file)	;	pkl_file.close()
 
 pkl_file = open(GHA._working_directory+GHA._iso+'/'+GHA._iso+'_meta.pkl', 'rb')
 GHA._meta = pickle.load(pkl_file)	;	pkl_file.close()  
-
-in_files=glob.glob('data/raw/mon_rx5/CMIP5/*/mon_rx5_*_1950-2099.nc4')
-for in_file in in_files:
-	rcp=in_file.split('_')[-2]
-	model=in_file.split('_')[-3]
-	GHA.country_zoom(in_file,'mon_rx5',meta_data=['rx5','CMIP5',rcp,model])
 
 # ensemble mean
 for rcp in ['rcp2.6','rcp8.5']:

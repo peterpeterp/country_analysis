@@ -37,8 +37,6 @@ class country_analysis(object):
 		grid=str(ny)+'x'+str(nx)
 
 		if grid not in self._masks.keys():self._masks[grid]={}
-		self._masks[grid]['lat_mask']=lat
-		self._masks[grid]['lon_mask']=lon
 		if mask_style not in self._masks[grid].keys():self._masks[grid][mask_style]={}
 
 
@@ -73,6 +71,9 @@ class country_analysis(object):
 			lon=lon-shift_lon
 			shift = len(lon)-np.where(lon==lon[0]-shift_lon)[0][0]
 
+			self._masks[grid]['lat_mask']=lat
+			self._masks[grid]['lon_mask']=lon
+			
 			# load shape file
 			m = Basemap()
 			m.readshapefile(shape_file, 'admin', drawbounds=False)
@@ -164,7 +165,7 @@ class country_analysis(object):
 		out_file=self._working_directory+self._iso+'/raw/'+in_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
 		print out_file
 
-		if os.path.isfile(out_file+'fadasd'):
+		if os.path.isfile(out_file):
 			nc_out=Dataset(out_file,"r")
 
 			tmp = self._data
