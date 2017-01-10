@@ -15,14 +15,18 @@ import matplotlib.pylab as plt
 
 class country_analysis(object):
 
-	def __init__(self,iso,var_name,working_directory):
+	def __init__(self,iso,working_directory):
 		self._iso=iso
 		self._working_directory=working_directory
+
+		if os.path.isdir(working_directory+iso)==False:os.system('mkdir '+working_directory+iso)
+		if os.path.isdir(self._working_directory+self._iso+'/plots')==False:os.system('mkdir '+self._working_directory+self._iso+'/plots')
 
 
 	def create_mask(self,filename,var_name,shape_file,shift_lon=0.0,mask_style='lat_weighted',pop_mask_file=''):
 
 		if '_masks' not in dir(self): self._masks={}
+		if os.path.isdir(self._working_directory+self._iso+'/masks')==False:os.system('mkdir '+self._working_directory+self._iso+'/masks')
 
 		# get information about grid of input data
 		nc_in=Dataset(filename,'r')
@@ -38,7 +42,7 @@ class country_analysis(object):
 		if mask_style not in self._masks[grid].keys():self._masks[grid][mask_style]={}
 
 
-		mask_file=self._working_directory+'output/masks/'+self._iso+'_'+grid+'_'+mask_style+'.nc4'
+		mask_file=self._working_directory+self._iso+'/masks/'+self._iso+'_'+grid+'_'+mask_style+'.nc4'
 
 		if os.path.isfile(mask_file):
 			# load existing mask
@@ -93,11 +97,11 @@ class country_analysis(object):
 				pop_mask = np.ones((len(lat),len(lon)))
 			else:
 				# regrid population mask 
-				mygrid=open(self._working_directory+'output/masks/'+grid+'.txt','w')
+				mygrid=open(self._working_directory+self._iso+'/masks/'+grid+'.txt','w')
 				mygrid.write('gridtype=lonlat\nxsize='+str(len(lon))+'\nysize='+str(len(lat))+'\nxfirst='+str(lon[0])+'\nxinc='+str(np.mean(np.diff(lon,1)))+'\nyfirst='+str(lat[0])+'\nyinc='+str(np.mean(np.diff(lat,1))))
 				mygrid.close()
-				os.system('cdo remapbil,'+self._working_directory+'output/masks/'+grid+'.txt '+pop_mask_file+' '+self._working_directory+'output/masks/'+grid+'_'+mask_style+'.nc')	
-				nc_pop_mask = Dataset(self._working_directory+'output/masks/'+grid+'_'+mask_style+'.nc')
+				os.system('cdo remapbil,'+self._working_directory+self._iso+'/masks/'+grid+'.txt '+pop_mask_file+' '+self._working_directory+self._iso+'/masks/'+grid+'_'+mask_style+'.nc')	
+				nc_pop_mask = Dataset(self._working_directory+self._iso+'/masks/'+grid+'_'+mask_style+'.nc')
 				pop_mask = np.array(nc_pop_mask.variables['mask'][:,:]).squeeze()
 				pop_mask = np.roll(pop_mask,shift,axis=1)
 
@@ -135,7 +139,6 @@ class country_analysis(object):
 			nc_mask.createDimension('lon', len(lon))
  			outVar = nc_mask.createVariable('lat', 'f', ('lat',)) ; outVar[:]=lat[:]	;	outVar.setncattr('units','deg south')
  			outVar = nc_mask.createVariable('lon', 'f', ('lon',)) ; outVar[:]=lon[:]	;	outVar.setncattr('units','deg east')
- 			print self._masks[grid][mask_style]
  			outVar = nc_mask.createVariable(self._iso, 'f', ('lat','lon',),fill_value='NaN') ; outVar[:]=self._masks[grid][mask_style][:,:]
 
  			# close nc_files
@@ -155,11 +158,13 @@ class country_analysis(object):
 		if '_data' not in dir(self): 
 			self._data={}
 			self._meta=[]
+		if os.path.isdir(self._working_directory+self._iso+'/raw')==False:os.system('mkdir '+self._working_directory+self._iso+'/raw')
 
-		out_file=self._working_directory+'output/raw/'+in_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
+
+		out_file=self._working_directory+self._iso+'/raw/'+in_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
 		print out_file
 
-		if os.path.isfile(out_file):
+		if os.path.isfile(out_file+'fadasd'):
 			nc_out=Dataset(out_file,"r")
 
 			tmp = self._data
@@ -188,27 +193,37 @@ class country_analysis(object):
 			lon_in=nc_in.variables['lon'][:]
 			grid=str(len(lat_in))+'x'+str(len(lon_in))
 
+			country_mask=self._masks[grid][mask_style]
+			lat_mask=self._masks[grid]['lat_mask']
+			lon_mask=self._masks[grid]['lon_mask']
+			
+			# check whether lon and lat are similarly defined in mask and in_file
+			if (lat_in in lat_mask) == False:
+				lat_mask=lat_mask[::-1]
+				country_mask=country_mask[::-1,:]
+			if (lon_in in lon_mask) == False:
+				lon_mask=lon_mask[::-1]
+				country_mask=country_mask[:,::-1]
+
 			# find relevant area (as rectangle)
-			lon_mean=np.mean(self._masks[grid][mask_style],0)
+			lon_mean=np.mean(country_mask,0)
 			lons=sorted(np.where(lon_mean!=0)[0])
 
-			lat_mean=np.mean(self._masks[grid][mask_style],1)
+			lat_mean=np.mean(country_mask,1)
 			lats=sorted(np.where(lat_mean!=0)[0])
 
 			nx,ny=len(lons),len(lats)
 
-			# check whether lon and lat are similarly defined in mask and in_file
-			if (lat_in in self._masks[grid]['lat_mask']) == False:	lats= -np.array(lats)+len(lat_in)
-			if (lon_in in self._masks[grid]['lon_mask']) == False:	lons= -np.array(lons)+len(lon_in)
-
 			var_in=nc_in.variables[var_name][:,list(lats),list(lons)]
+
+
 			try:	# handle masked array
 				masked=np.ma.getmask(var_in)
 				var_in=np.ma.getdata(var_in)
 				var_in[masked]=np.nan
 			except: pass
 			# creat a 1-NA mask
-			red_mask = self._masks[grid][mask_style][np.ix_(list(lats),list(lons))]
+			red_mask = country_mask[np.ix_(list(lats),list(lons))]
 			red_mask[red_mask>0]=1
 			red_mask[red_mask==0]=np.nan
 			country_data=var_in*red_mask
@@ -237,8 +252,8 @@ class country_analysis(object):
 			nc_out.createDimension('lat', ny)
 			nc_out.createDimension('lon', nx)
 			# lat lon 
- 			outVar = nc_out.createVariable('lat', 'f', ('lat',)) ; outVar[:]=self._masks[grid]['lat_mask'][list(lats)]	;	outVar.setncattr('units','deg south')
- 			outVar = nc_out.createVariable('lon', 'f', ('lon',)) ; outVar[:]=self._masks[grid]['lon_mask'][list(lons)]	;	outVar.setncattr('units','deg east')
+ 			outVar = nc_out.createVariable('lat', 'f', ('lat',)) ; outVar[:]=lat_mask[list(lats)]	;	outVar.setncattr('units','deg south')
+ 			outVar = nc_out.createVariable('lon', 'f', ('lon',)) ; outVar[:]=lon_mask[list(lons)]	;	outVar.setncattr('units','deg east')
  			# time
  			outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=time	;	outVar.setncatts({k: nc_in.variables['time'].getncattr(k) for k in nc_in.variables['time'].ncattrs()})
  			outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=year
@@ -272,12 +287,13 @@ class country_analysis(object):
 
 	def average(self,mask_style):
 		'''
-
+		mask_style: str: type of mask weighting 
+		computes country average for all loaded datasets
 		'''
 
-
-		#prepare dict
-		self._transcient={}
+		# preprare dictionary structure as for self._data
+		if '_transcient' not in dir(self): self._transcient={}
+		if os.path.isdir(self._working_directory+self._iso+'/country_average')==False:os.system('mkdir '+self._working_directory+self._iso+'/country_average')
 
 		for meta_list in self._meta:
 			tmp_in = self._data
@@ -287,14 +303,17 @@ class country_analysis(object):
 				tmp_in=tmp_in[meta_info]
 				tmp_out=tmp_out[meta_info]
 
-			out_file=self._working_directory+'output/country_average/country_mean_'+'_'.join(meta_list)+'_'+mask_style+'.csv'
+			# check if file has been saved
+			out_file=self._working_directory+self._iso+'/country_average/country_mean_'+'_'.join(meta_list)+'_'+mask_style+'.csv'
 			if os.path.isfile(out_file):
 				tmp_out['time']=pd.read_csv(out_file,sep=';')['time']
 				tmp_out['month']=pd.read_csv(out_file,sep=';')['month']
 				tmp_out['year']=pd.read_csv(out_file,sep=';')['year']
 				tmp_out[mask_style]=pd.read_csv(out_file,sep=';')['_'.join(meta_list)]		
 
+			# if not compute
 			else:
+				# load input data
 				var_in=tmp_in['data']			
 
 				# get mask
@@ -302,7 +321,7 @@ class country_analysis(object):
 				lat_mask=self._masks[tmp_in['grid']]['lat_mask']
 				lon_mask=self._masks[tmp_in['grid']]['lon_mask']
 
-				# find relevant area (as rectangle) and check whether lon and lat are correct
+				# find relevant area (as rectangle) and check whether lon and lat are correct (on same grid differences in lat decreasing or increasing could arise)
 				lat_mean=np.mean(mask,1)
 				lats=np.where(lat_mean!=0)
 				if lat_mask[lats][0]!=tmp_in['lat'][0]:
@@ -318,6 +337,7 @@ class country_analysis(object):
 					if lon_mask[lons][0]!=tmp_in['lon'][-1]:
 						print 'problem with lon' ; return('error')
 
+				# zoom mask to relevant area
 				mask=mask[np.ix_(list(lats[0]),list(lons[0]))]
 				country_area=np.where(mask>0)
 
@@ -342,22 +362,45 @@ class country_analysis(object):
 				country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index')
 
 
+	def plot_transcient(self,meta_data,mask_style):
+		'''
+
+		'''
+
+		tmp = self._transcient
+		for meta_info in meta_data:
+			tmp=tmp[meta_info]
+
+		fig, axes = plt.subplots(nrows=1, ncols=1,figsize=(5,5))
+
+		#plt.plot(tmp['time'],tmp[mask_style])
+		plt.plot(tmp['time'],tmp[mask_style],linestyle=':',color='blue')
+		plt.plot(tmp['time'],pd.rolling_mean(tmp[mask_style],20),linestyle='-',color='red')
+
+		plt.savefig(self._working_directory+self._iso+'/plots/'+'_'.join([self._iso]+meta_data+[mask_style])+'.png')
 
 
 
+	def period_averages(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]}):
+		'''
 
+		'''
 
+		# preprare dictionary structure as for self._data
+		for meta_list in self._meta:
+			tmp = self._data
+			for meta_info in meta_list:
+				tmp=tmp[meta_info]
 
+			tmp['period']={}
+			tmp['period_meta']=periods
 
+			for period_name in periods.keys():
+				tmp['period'][period_name]=np.mean(tmp['data'][np.where((tmp['year']>=periods[period_name][0]) & (tmp['year']<periods[period_name][1]))[0],:,:],axis=0)
 
-
-
-
-
-
-
-
-
+			for period_name in periods.keys():
+				if period_name!='ref' and 'ref' in periods.keys():
+					tmp['period'][period_name+'-'+'ref']=tmp['period'][period_name]-tmp['period']['ref']
 
 
 
