@@ -121,9 +121,9 @@ for rcp in ['rcp2.6','rcp8.5']:
 
 
 ##############
-# final result
+# plot final result
 ##############
-fig, axes = plt.subplots(nrows=2, ncols=2,figsize=(7,6))
+fig, axes = plt.subplots(nrows=2, ncols=3,figsize=(4,4))
 count=0
 lon=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lon']
 lat=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lat']
@@ -131,10 +131,13 @@ for rcp in ['rcp2.6','rcp8.5']:
 	for period in ['2030s-ref','2040s-ref']:
 		tmp=GHA._data['SPEI_12m_expo-2']['CMIP5'][rcp]
 		ax,im=plot_map(axes.flatten()[count],lon,lat,tmp['ensemble_mean'][period]*100,color_type=risk,color_range=[-7,28],color_label=None,subtitle='',grey_area=tmp['agreement'][period])
+		if rcp=='rcp2.6':ax.set_title(period)
 		if period=='2030s-ref':ax.set_ylabel(rcp)
-		if rcp=='rcp2.6':ax.set_title(model)
 		count+=1
-cbar_ax=fig.add_axes([0.8,0.1,0.1,0.8])
+		if period=='2040s-ref':
+			axes.flatten()[count].axis('off')
+			count+=1
+cbar_ax=fig.add_axes([0.45,0.2,0.3,0.6])
 cbar_ax.axis('off')
 cb=fig.colorbar(im,orientation='vertical',label='change in frequency of extreme dry events \n [percentage of affected months]')
 tick_locator = ticker.MaxNLocator(nbins=5)
@@ -143,7 +146,7 @@ cb.update_ticks()
 plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_X_sum.png')
 
 ####################
-# reference period
+# plot reference period
 ####################
 tmp=GHA._data['SPEI_12m_expo-2']
 fig,axes=plt.subplots(nrows=1,ncols=8,figsize=(8,3))
@@ -171,7 +174,7 @@ plt.suptitle('\n\nRefernce Period 1986-2005')
 plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_X_ref.png')
 
 ###############
-# exposure
+# plot exposure
 ###############
 lon=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lon']
 lat=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lat']
@@ -203,9 +206,8 @@ for rcp in ['rcp2.6','rcp8.5']:
 	cb.update_ticks()
 	plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_X_'+rcp+'.png')
 
-
 ###############
-# exposure diff
+# plot exposure diff
 ###############
 lon=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lon']
 lat=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lat']
@@ -234,7 +236,7 @@ for rcp in ['rcp2.6','rcp8.5']:
 
 	cbar_ax=fig.add_axes([0.8,0.2,0.1,0.6])
 	cbar_ax.axis('off')
-	cb=fig.colorbar(im,orientation='vertical',label='ratio of months affected by heat extremes [%]')
+	cb=fig.colorbar(im,orientation='vertical',label='change in frequency of extreme dry events \n [percentage of affected months]')
 	tick_locator = ticker.MaxNLocator(nbins=5)
 	cb.locator = tick_locator
 	cb.update_ticks()

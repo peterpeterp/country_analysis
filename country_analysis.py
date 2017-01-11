@@ -17,16 +17,16 @@ class country_analysis(object):
 
 	def __init__(self,iso,working_directory):
 		self._iso=iso
-		self._working_directory=working_directory
+		self._working_directory=working_directory+iso
 
-		if os.path.isdir(working_directory+iso)==False:os.system('mkdir '+working_directory+iso)
-		if os.path.isdir(self._working_directory+self._iso+'/plots')==False:os.system('mkdir '+self._working_directory+self._iso+'/plots')
+		if os.path.isdir(working_directory)==False:os.system('mkdir '+working_directory)
+		if os.path.isdir(self._working_directory+'/plots')==False:os.system('mkdir '+self._working_directory+'/plots')
 
 
 	def create_mask(self,filename,var_name,shape_file,shift_lon=0.0,mask_style='lat_weighted',pop_mask_file=''):
 
 		if '_masks' not in dir(self): self._masks={}
-		if os.path.isdir(self._working_directory+self._iso+'/masks')==False:os.system('mkdir '+self._working_directory+self._iso+'/masks')
+		if os.path.isdir(self._working_directory+'/masks')==False:os.system('mkdir '+self._working_directory+'/masks')
 
 		# get information about grid of input data
 		nc_in=Dataset(filename,'r')
@@ -40,7 +40,7 @@ class country_analysis(object):
 		if mask_style not in self._masks[grid].keys():self._masks[grid][mask_style]={}
 
 
-		mask_file=self._working_directory+self._iso+'/masks/'+self._iso+'_'+grid+'_'+mask_style+'.nc4'
+		mask_file=self._working_directory+'/masks/'+self._iso+'_'+grid+'_'+mask_style+'.nc4'
 
 		if os.path.isfile(mask_file):
 			# load existing mask
@@ -98,11 +98,11 @@ class country_analysis(object):
 				pop_mask = np.ones((len(lat),len(lon)))
 			else:
 				# regrid population mask 
-				mygrid=open(self._working_directory+self._iso+'/masks/'+grid+'.txt','w')
+				mygrid=open(self._working_directory+'/masks/'+grid+'.txt','w')
 				mygrid.write('gridtype=lonlat\nxsize='+str(len(lon))+'\nysize='+str(len(lat))+'\nxfirst='+str(lon[0])+'\nxinc='+str(np.mean(np.diff(lon,1)))+'\nyfirst='+str(lat[0])+'\nyinc='+str(np.mean(np.diff(lat,1))))
 				mygrid.close()
-				os.system('cdo remapbil,'+self._working_directory+self._iso+'/masks/'+grid+'.txt '+pop_mask_file+' '+self._working_directory+self._iso+'/masks/'+grid+'_'+mask_style+'.nc')	
-				nc_pop_mask = Dataset(self._working_directory+self._iso+'/masks/'+grid+'_'+mask_style+'.nc')
+				os.system('cdo remapbil,'+self._working_directory+'/masks/'+grid+'.txt '+pop_mask_file+' '+self._working_directory+'/masks/'+grid+'_'+mask_style+'.nc')	
+				nc_pop_mask = Dataset(self._working_directory+'/masks/'+grid+'_'+mask_style+'.nc')
 				pop_mask = np.array(nc_pop_mask.variables['mask'][:,:]).squeeze()
 				pop_mask = np.roll(pop_mask,shift,axis=1)
 
@@ -159,10 +159,10 @@ class country_analysis(object):
 		if '_data' not in dir(self): 
 			self._data={}
 			self._meta=[]
-		if os.path.isdir(self._working_directory+self._iso+'/raw')==False:os.system('mkdir '+self._working_directory+self._iso+'/raw')
+		if os.path.isdir(self._working_directory+'/raw')==False:os.system('mkdir '+self._working_directory+'/raw')
 
 
-		out_file=self._working_directory+self._iso+'/raw/'+in_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
+		out_file=self._working_directory+'/raw/'+in_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
 		print out_file
 
 		if os.path.isfile(out_file):
@@ -294,9 +294,10 @@ class country_analysis(object):
 
 		# preprare dictionary structure as for self._data
 		if '_transcient' not in dir(self): self._transcient={}
-		if os.path.isdir(self._working_directory+self._iso+'/country_average')==False:os.system('mkdir '+self._working_directory+self._iso+'/country_average')
+		if os.path.isdir(self._working_directory+'/country_average')==False:os.system('mkdir '+self._working_directory+'/country_average')
 
 		for meta_list in self._meta:
+			print meta_list
 			tmp_in = self._data
 			tmp_out = self._transcient
 			for meta_info in meta_list:
@@ -305,17 +306,22 @@ class country_analysis(object):
 				tmp_out=tmp_out[meta_info]
 
 			# check if file has been saved
-			out_file=self._working_directory+self._iso+'/country_average/country_mean_'+'_'.join(meta_list)+'_'+mask_style+'.csv'
+			out_file=self._working_directory+'/country_average/country_mean_'+'_'.join(meta_list)+'_'+mask_style+'.csv'
 			if os.path.isfile(out_file):
-				tmp_out['time']=pd.read_csv(out_file,sep=';')['time']
-				tmp_out['month']=pd.read_csv(out_file,sep=';')['month']
-				tmp_out['year']=pd.read_csv(out_file,sep=';')['year']
-				tmp_out[mask_style]=pd.read_csv(out_file,sep=';')['_'.join(meta_list)]		
+				tmp_out['time']=np.array(pd.read_csv(out_file,sep=';')['time'])
+				tmp_out['month']=np.array(pd.read_csv(out_file,sep=';')['month'])
+				tmp_out['year']=np.array(pd.read_csv(out_file,sep=';')['year'])
+				tmp_out[mask_style]=np.array(pd.read_csv(out_file,sep=';')['_'.join(meta_list)])	
 
 			# if not compute
 			else:
 				# load input data
-				var_in=tmp_in['data']			
+				var_in=tmp_in['data'][:,:,:]			
+				try:	# handle masked array
+					masked=np.ma.getmask(var_in)
+					var_in=np.ma.getdata(var_in)
+					var_in[masked]=np.nan
+				except: pass
 
 				# get mask
 				mask=self._masks[tmp_in['grid']][mask_style]
@@ -353,7 +359,6 @@ class country_analysis(object):
 					if len(not_missing_in_var)>0:
 						tmp_out[mask_style][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
 		
-
 				# save as csv 
 				country_mean_csv = pd.DataFrame(index=range(len(tmp_in['time'])))
 				country_mean_csv['time']=tmp_in['time']
@@ -378,7 +383,7 @@ class country_analysis(object):
 		plt.plot(tmp['time'],tmp[mask_style],linestyle=':',color='blue')
 		plt.plot(tmp['time'],pd.rolling_mean(tmp[mask_style],20),linestyle='-',color='red')
 
-		plt.savefig(self._working_directory+self._iso+'/plots/'+'_'.join([self._iso]+meta_data+[mask_style])+'.png')
+		plt.savefig(self._working_directory+'/plots/'+'_'.join([self._iso]+meta_data+[mask_style])+'.png')
 
 
 
@@ -396,13 +401,13 @@ class country_analysis(object):
 			tmp['period']={}
 			tmp['period_meta']=periods
 
-			for period_name in periods.keys():
-				tmp['period'][period_name]=np.mean(tmp['data'][np.where((tmp['year']>=periods[period_name][0]) & (tmp['year']<periods[period_name][1]))[0],:,:],axis=0)
+
+			for period_name in periods.keys():	
+				tmp['period'][period_name]=np.mean(np.ma.masked_invalid(tmp['data']),axis=0)
 
 			for period_name in periods.keys():
 				if period_name!='ref' and 'ref' in periods.keys():
 					tmp['period'][period_name+'-'+'ref']=tmp['period'][period_name]-tmp['period']['ref']
-
 
 
 
