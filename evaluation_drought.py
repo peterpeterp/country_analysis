@@ -61,6 +61,7 @@ for rcp in ['rcp2.6','rcp8.5']:
 
 GHA.period_averages(periods=periods)
 
+# exposure
 GHA._data['SPEI_12m_expo-2']={}
 for meta_list in GHA._meta:
 	if meta_list[0]=='SPEI_12m':
@@ -120,71 +121,34 @@ for rcp in ['rcp2.6','rcp8.5']:
 
 
 ##############
-# plots
+# final result
 ##############
-
-# plot result
-if False:
-	fig, axes = plt.subplots(nrows=2, ncols=2,figsize=(7,6))
-	count=0
-	lon=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lon']
-	lat=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lat']
-	for rcp in ['rcp2.6','rcp8.5']:
-		for period in ['2030s-ref','2040s-ref']:
-			tmp=GHA._data['SPEI_12m_expo-2']['CMIP5'][rcp]
-			ax,im=plot_map(axes.flatten()[count],lon,lat,tmp['ensemble_mean'][period]*100,color_type=risk,color_range=[-7,28],color_label=None,subtitle='',grey_area=tmp['agreement'][period])
-			if period=='2030s-ref':ax.set_ylabel(rcp)
-			if rcp=='rcp2.6':ax.set_title(model)
-			count+=1
-	cbar_ax=fig.add_axes([0.8,0.1,0.1,0.8])
-	cbar_ax.axis('off')
-	cb=fig.colorbar(im,orientation='vertical',label='change in frequency of extreme dry events \n [percentage of affected months]')
-	tick_locator = ticker.MaxNLocator(nbins=5)
-	cb.locator = tick_locator
-	cb.update_ticks()
-	plt.savefig(GHA._working_directory+GHA._iso+'/plots/drought.png')
-
-# plot exposure
-if False:
-	for rcp in ['rcp2.6','rcp8.5']:
-		fig,axes=plt.subplots(nrows=3,ncols=6,figsize=(10,6))
-		count=0
+fig, axes = plt.subplots(nrows=2, ncols=2,figsize=(7,6))
+count=0
+lon=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lon']
+lat=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lat']
+for rcp in ['rcp2.6','rcp8.5']:
+	for period in ['2030s-ref','2040s-ref']:
 		tmp=GHA._data['SPEI_12m_expo-2']['CMIP5'][rcp]
-		for period in periods:
-			for model in tmp.keys():
-				if model not in ['agreement','ensemble_mean']:
-					ax,im=plot_map(axes.flatten()[count],lon,lat,tmp[model][period]*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='')
-					if period=='ref':							ax.set_title(model)
-					#if model==tmp.keys()[0]:	ax.set_ylabel(period)
-					count+=1
-
-			ax=axes.flatten()[count]
-			ax.axis('off')
-			count+=1 
-
-		cbar_ax=fig.add_axes([0.8,0.2,0.1,0.6])
-		cbar_ax.axis('off')
-		cb=fig.colorbar(im,orientation='vertical',label='ratio of months affected by heat extremes [%]')
-		tick_locator = ticker.MaxNLocator(nbins=5)
-		cb.locator = tick_locator
-		cb.update_ticks()
-		plt.savefig(GHA._working_directory+GHA._iso+'/plots/_exposure_'+rcp+'.png')
-		plt.clf()
-
+		ax,im=plot_map(axes.flatten()[count],lon,lat,tmp['ensemble_mean'][period]*100,color_type=risk,color_range=[-7,28],color_label=None,subtitle='',grey_area=tmp['agreement'][period])
+		if period=='2030s-ref':ax.set_ylabel(rcp)
+		if rcp=='rcp2.6':ax.set_title(model)
+		count+=1
+cbar_ax=fig.add_axes([0.8,0.1,0.1,0.8])
+cbar_ax.axis('off')
+cb=fig.colorbar(im,orientation='vertical',label='change in frequency of extreme dry events \n [percentage of affected months]')
+tick_locator = ticker.MaxNLocator(nbins=5)
+cb.locator = tick_locator
+cb.update_ticks()
+plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_X_sum.png')
 
 ####################
 # reference period
 ####################
 tmp=GHA._data['SPEI_12m_expo-2']
-fig,axes=plt.subplots(nrows=1,ncols=8,figsize=(7,2))
-#ax,im=plot_map(axes.flatten()[0],GHA._data['SPEI_12m']['CRU']['lon'],GHA._data['SPEI_12m']['CRU']['lat'],GHA._data['SPEI_12m_expo-2']['CRU']['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='CRU')
-lon=GHA._data['SPEI_12m']['NCEP']['lon']
-
-
-Z=GHA._data['SPEI_12m_expo-2']['NCEP']['ref']*100
-Z[:,:]=np.array([[1,2,3,4],[2,3,4,5],[3,4,5,6],[8,4,5,6]])
-ax,im=plot_map_colormesh(axes.flatten()[1],lon,GHA._data['SPEI_12m']['NCEP']['lat'],Z,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='NCEP')
-ax,im=plot_map(axes.flatten()[5],range(-2,1),GHA._data['SPEI_12m']['NCEP']['lat'],Z,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='ens. mn.')
+fig,axes=plt.subplots(nrows=1,ncols=8,figsize=(8,3))
+ax,im=plot_map(axes.flatten()[0],GHA._data['SPEI_12m']['CRU']['lon'],GHA._data['SPEI_12m']['CRU']['lat'],GHA._data['SPEI_12m_expo-2']['CRU']['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='CRU')
+ax,im=plot_map(axes.flatten()[1],GHA._data['SPEI_12m']['NCEP']['lon'],GHA._data['SPEI_12m']['NCEP']['lat'],GHA._data['SPEI_12m_expo-2']['NCEP']['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='NCEP',limits=[-3.25,1.25,4.75,11.25])
 
 lon=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lon']
 lat=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lat']
@@ -193,7 +157,8 @@ count=3
 tmp=GHA._data['SPEI_12m_expo-2']['CMIP5']['rcp2.6']
 for model in tmp.keys():
 	if model not in ['ensemble_mean','agreement']:
-		#ax,im=plot_map(axes.flatten()[count],lon,lat,GHA._data['SPEI_12m_expo-2']['CMIP5']['rcp2.6'][model]['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle=model)
+		ax,im=plot_map(axes.flatten()[count],lon,lat,GHA._data['SPEI_12m_expo-2']['CMIP5']['rcp2.6'][model]['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='')
+		ax.set_title(model,fontsize=8)
 		count+=1
 cbar_ax=fig.add_axes([0,0.17,1,0.3])
 cbar_ax.axis('off')
@@ -202,67 +167,78 @@ tick_locator = ticker.MaxNLocator(nbins=5)
 cb.locator = tick_locator
 cb.update_ticks()
 
-plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_exposure_ref.png')
+plt.suptitle('\n\nRefernce Period 1986-2005')
+plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_X_ref.png')
+
+###############
+# exposure
+###############
+lon=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lon']
+lat=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lat']
+
+for rcp in ['rcp2.6','rcp8.5']:
+	fig,axes=plt.subplots(nrows=3,ncols=7,figsize=(10,6))
+	count=0
+	tmp=GHA._data['SPEI_12m_expo-2']['CMIP5'][rcp]
+	for period in ['ref','2030s','2040s']:
+		ax,im=plot_map(axes.flatten()[count],lon,lat,tmp['ensemble_mean'][period]*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='')
+		if period=='ref':ax.set_title('ens. mean')
+		ax.set_ylabel(period)
+		count+=1
+		for model in tmp.keys():
+			if model not in ['agreement','ensemble_mean']:
+				ax,im=plot_map(axes.flatten()[count],lon,lat,tmp[model][period]*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='')
+				if period=='ref':ax.set_title(model)
+				count+=1
+
+		ax=axes.flatten()[count]
+		ax.axis('off')
+		count+=1 
+
+	cbar_ax=fig.add_axes([0.8,0.2,0.1,0.6])
+	cbar_ax.axis('off')
+	cb=fig.colorbar(im,orientation='vertical',label='ratio of months affected by heat extremes [%]')
+	tick_locator = ticker.MaxNLocator(nbins=5)
+	cb.locator = tick_locator
+	cb.update_ticks()
+	plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_X_'+rcp+'.png')
 
 
-sys.path.append('/Users/peterpfleiderer/Documents/Scripts/allgemeine_scripte/')
-try:del sys.modules['plot_functions'] 
-except:pass
-from plot_functions import *
-sys.path.append('/Users/peterpfleiderer/Documents/')
+###############
+# exposure diff
+###############
+lon=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lon']
+lat=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lat']
 
+for rcp in ['rcp2.6','rcp8.5']:
+	fig,axes=plt.subplots(nrows=2,ncols=8,figsize=(10,4))
+	count=0
+	tmp=GHA._data['SPEI_12m_expo-2']['CMIP5'][rcp]
+	for period in ['2030s-ref','2040s-ref']:
+		ax,im=plot_map(axes.flatten()[count],lon,lat,tmp['ensemble_mean'][period]*100,color_type=risk,color_range=[-7,28],color_label=None,subtitle='')
+		if period=='2030s-ref':ax.set_title('ens. mean')
+		ax.set_ylabel(period)
+		count+=1
+		ax,im=plot_map(axes.flatten()[count],lon,lat,tmp['ensemble_mean'][period]*100,color_type=risk,color_range=[-7,28],color_label=None,subtitle='',grey_area=tmp['agreement'][period])
+		if period=='2030s-ref':ax.set_title('ens. mean')
+		count+=1
+		for model in tmp.keys():
+			if model not in ['agreement','ensemble_mean']:
+				ax,im=plot_map(axes.flatten()[count],lon,lat,tmp[model][period]*100,color_type=risk,color_range=[-7,28],color_label=None,subtitle='')
+				if period=='2030s-ref':ax.set_title(model)
+				count+=1
 
-Z=GHA._data['SPEI_12m_expo-2']['NCEP']['ref']*100
-Z[:,:]=np.array([[1,2,3,4],[2,3,4,5],[3,4,5,6],[8,4,5,6]])
-fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(7,7))
-ax,im=plot_map(axes.flatten()[1],GHA._data['SPEI_12m']['NCEP']['lon'],GHA._data['SPEI_12m']['NCEP']['lat'],Z,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='NCEP')
-plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_exposure_ref.png')
+		ax=axes.flatten()[count]
+		ax.axis('off')
+		count+=1 
 
-
-Z=GHA._data['SPEI_12m_expo-2']['NCEP']['ref']*100
-Z[:,:]=np.array([[1,2,3,4],[2,3,4,5],[3,4,5,6],[8,4,5,6]])
-
-
-lons=GHA._data['SPEI_12m']['NCEP']['lon'].copy()
-step=np.diff(lons,1)[0]
-lons-=step/2
-lons=np.append(lons,np.array(lons[-1]+step))
-
-lats=GHA._data['SPEI_12m']['NCEP']['lat'].copy()
-step=np.diff(lats,1)[0]
-lats-=step/2
-lats=np.append(lats,lats[-1]+step)
-
-lons,lats = np.meshgrid(lons,lats)
-fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(7,7))
-
-ax,im=plot_map_old(axes.flatten()[1],lons,lats,Z*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle=dataset,limits=)
-plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_exposure_ref.png')
-
-
-
-# fig, axes = plt.subplots(nrows=2, ncols=6,figsize=(12,4))
-# count=0
-# for rcp in ['rcp2.6','rcp8.5']:
-# 	tmp=GHA._data['SPEI_12m_expo-2']['CMIP5'][rcp]
-# 	tmp2=GHA._data['SPEI_12m']['CMIP5'][rcp]
-# 	ax,im=plot_map(axes.flatten()[count],tmp2['ensemble_mean']['lon'],tmp2['ensemble_mean']['lat'],tmp['ensemble_mean']['2040s-ref']*100,color_type=risk,color_range=[-7,28],color_label=None,subtitle='',grey_area=tmp['agreement']['2040s-ref'])
-# 	ax.set_ylabel(rcp)
-# 	if rcp=='rcp2.6':ax.set_title(model)
-# 	count+=1
-# 	for model in tmp.keys():
-# 		if model not in ['ensemble_mean','agreement']:
-# 			ax,im=plot_map(axes.flatten()[count],tmp2[model]['lon'],tmp2[model]['lat'],tmp[model]['2040s-ref']*100,color_type=risk,color_range=[-7,28],color_label=None,subtitle='')
-# 			if rcp=='rcp2.6':ax.set_title(model)
-# 			count+=1
-# cbar_ax=fig.add_axes([0.85,0.2,0.1,0.6])
-# cbar_ax.axis('off')
-# cb=fig.colorbar(im,orientation='vertical',label='increase in RX5 (2040s-ref) [mm]')
-# tick_locator = ticker.MaxNLocator(nbins=5)
-# cb.locator = tick_locator
-# cb.update_ticks()
-# plt.savefig(GHA._working_directory+GHA._iso+'/plots/drought.png')
-
+	cbar_ax=fig.add_axes([0.8,0.2,0.1,0.6])
+	cbar_ax.axis('off')
+	cb=fig.colorbar(im,orientation='vertical',label='ratio of months affected by heat extremes [%]')
+	tick_locator = ticker.MaxNLocator(nbins=5)
+	cb.locator = tick_locator
+	cb.update_ticks()
+	plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_X_diff_'+rcp+'.png')
 
 
 
