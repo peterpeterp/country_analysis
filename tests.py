@@ -7,13 +7,13 @@ sys.path.append('/Users/peterpfleiderer/Documents/Scripts/allgemeine_scripte/')
 from plot_functions import *
 sys.path.append('/Users/peterpfleiderer/Documents/')
 
-sys.path.append('/Users/peterpfleiderer/Documents/Scripts/country_analysis/country_analysis_scripts/')
+sys.path.append('/Users/peterpfleiderer/Documents/Projects/country_analysis/country_analysis_scripts/')
 try:del sys.modules['country_analysis'] 
 except:pass
 from country_analysis import country_analysis
 sys.path.append('/Users/peterpfleiderer/Documents/')
 
-GHA=country_analysis('GHA','Scripts/country_analysis/')
+GHA=country_analysis('GHA','Projects/country_analysis/')
 
 GHA.create_mask('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',-180.0)
 GHA.create_mask('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',-180.0,mask_style='pop1990_weighted',pop_mask_file='masks/population/population_1990_incrLat.nc')
@@ -29,7 +29,7 @@ for in_file in in_files:
 	model=in_file.split('_')[-3]
 	GHA.country_zoom(in_file,'mon_rx5',meta_data=['rx5','CMIP5',rcp,model])
 
-GHA.country_zoom('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI',meta_data=['SPEI_1m','OBS','NCEP'])
+GHA.country_zoom('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI',meta_data=['SPEI_1m','NCEP'])
 
 GHA.country_zoom('data/raw/cru/cru_ts3.23.1901.2014.pre.dat.nc','pre',meta_data=['pr','CRU'])
 

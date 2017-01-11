@@ -276,8 +276,8 @@ class country_analysis(object):
 				tmp=tmp[meta_info]
 
 			tmp['data']=country_data
-			tmp['lat']=self._masks[grid]['lat_mask'][list(lats)]
-			tmp['lon']=self._masks[grid]['lon_mask'][list(lons)]
+			tmp['lat']=lat_mask[list(lats)]
+			tmp['lon']=lon_mask[list(lons)]
 			tmp['year']=year
 			tmp['month']=month
 			tmp['time']=time

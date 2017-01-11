@@ -124,7 +124,7 @@ for rcp in ['rcp2.6','rcp8.5']:
 ##############
 
 # plot result
-if True:
+if False:
 	fig, axes = plt.subplots(nrows=2, ncols=2,figsize=(7,6))
 	count=0
 	lon=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lon']
@@ -145,7 +145,7 @@ if True:
 	plt.savefig(GHA._working_directory+GHA._iso+'/plots/drought.png')
 
 # plot exposure
-if True:
+if False:
 	for rcp in ['rcp2.6','rcp8.5']:
 		fig,axes=plt.subplots(nrows=3,ncols=6,figsize=(10,6))
 		count=0
@@ -178,7 +178,13 @@ if True:
 tmp=GHA._data['SPEI_12m_expo-2']
 fig,axes=plt.subplots(nrows=1,ncols=8,figsize=(7,2))
 #ax,im=plot_map(axes.flatten()[0],GHA._data['SPEI_12m']['CRU']['lon'],GHA._data['SPEI_12m']['CRU']['lat'],GHA._data['SPEI_12m_expo-2']['CRU']['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='CRU')
-ax,im=plot_map(axes.flatten()[1],GHA._data['SPEI_12m']['NCEP']['lon'],GHA._data['SPEI_12m']['NCEP']['lat'],GHA._data['SPEI_12m_expo-2']['NCEP']['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='NCEP')
+lon=GHA._data['SPEI_12m']['NCEP']['lon']
+
+
+Z=GHA._data['SPEI_12m_expo-2']['NCEP']['ref']*100
+Z[:,:]=np.array([[1,2,3,4],[2,3,4,5],[3,4,5,6],[8,4,5,6]])
+ax,im=plot_map_colormesh(axes.flatten()[1],lon,GHA._data['SPEI_12m']['NCEP']['lat'],Z,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='NCEP')
+ax,im=plot_map(axes.flatten()[5],range(-2,1),GHA._data['SPEI_12m']['NCEP']['lat'],Z,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='ens. mn.')
 
 lon=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lon']
 lat=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lat']
@@ -199,9 +205,39 @@ cb.update_ticks()
 plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_exposure_ref.png')
 
 
+sys.path.append('/Users/peterpfleiderer/Documents/Scripts/allgemeine_scripte/')
+try:del sys.modules['plot_functions'] 
+except:pass
+from plot_functions import *
+sys.path.append('/Users/peterpfleiderer/Documents/')
 
 
+Z=GHA._data['SPEI_12m_expo-2']['NCEP']['ref']*100
+Z[:,:]=np.array([[1,2,3,4],[2,3,4,5],[3,4,5,6],[8,4,5,6]])
+fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(7,7))
+ax,im=plot_map(axes.flatten()[1],GHA._data['SPEI_12m']['NCEP']['lon'],GHA._data['SPEI_12m']['NCEP']['lat'],Z,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='NCEP')
+plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_exposure_ref.png')
 
+
+Z=GHA._data['SPEI_12m_expo-2']['NCEP']['ref']*100
+Z[:,:]=np.array([[1,2,3,4],[2,3,4,5],[3,4,5,6],[8,4,5,6]])
+
+
+lons=GHA._data['SPEI_12m']['NCEP']['lon'].copy()
+step=np.diff(lons,1)[0]
+lons-=step/2
+lons=np.append(lons,np.array(lons[-1]+step))
+
+lats=GHA._data['SPEI_12m']['NCEP']['lat'].copy()
+step=np.diff(lats,1)[0]
+lats-=step/2
+lats=np.append(lats,lats[-1]+step)
+
+lons,lats = np.meshgrid(lons,lats)
+fig,axes=plt.subplots(nrows=1,ncols=2,figsize=(7,7))
+
+ax,im=plot_map_old(axes.flatten()[1],lons,lats,Z*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle=dataset,limits=)
+plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_exposure_ref.png')
 
 
 
