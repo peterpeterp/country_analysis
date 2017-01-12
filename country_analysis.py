@@ -11,7 +11,11 @@ import random as random
 from mpl_toolkits.basemap import Basemap
 from shapely.geometry import Polygon, MultiPolygon
 import matplotlib.pylab as plt 
-
+import matplotlib as mpl
+from matplotlib import ticker
+from matplotlib.ticker import MaxNLocator
+import seaborn as sns
+from matplotlib.colors import ListedColormap
 
 class country_analysis(object):
 
@@ -23,22 +27,26 @@ class country_analysis(object):
 		if os.path.isdir(self._working_directory+'/plots')==False:os.system('mkdir '+self._working_directory+'/plots')
 
 
-	def create_mask(self,filename,var_name,shape_file,shift_lon=0.0,mask_style='lat_weighted',pop_mask_file=''):
+	def create_mask(self,file_name,var_name,shape_file,mask_style='lat_weighted',pop_mask_file=''):
 
 		if '_masks' not in dir(self): self._masks={}
 		if os.path.isdir(self._working_directory+'/masks')==False:os.system('mkdir '+self._working_directory+'/masks')
 
 		# get information about grid of input data
-		nc_in=Dataset(filename,'r')
+		nc_in=Dataset(file_name,'r')
 		input_data=nc_in.variables[var_name][1,:,:]
 		lat = nc_in.variables['lat'][:]								
-		lon = nc_in.variables['lon'][:].squeeze()+shift_lon 	
+		lon = nc_in.variables['lon'][:].squeeze()
+		# formerly shift_lon
+		if max(lon)>200:	lon_shift=-180.0
+		else:				lon_shift=0.0	
+		lon+=lon_shift
+
 		nx = len(lon)	;	ny = len(lat)
 		grid=str(ny)+'x'+str(nx)
 
 		if grid not in self._masks.keys():self._masks[grid]={}
 		if mask_style not in self._masks[grid].keys():self._masks[grid][mask_style]={}
-
 
 		mask_file=self._working_directory+'/masks/'+self._iso+'_'+grid+'_'+mask_style+'.nc4'
 
@@ -68,8 +76,8 @@ class country_analysis(object):
 					#grid_polygons[i,j] = Polygon([(y1,x1),(y1,x2),(y2,x2),(y2,x1)])
 
 			# since the lon axis has been shifted, masks and outputs will have to be shifted as well. This shift is computed here
-			lon=lon-shift_lon
-			shift = len(lon)-np.where(lon==lon[0]-shift_lon)[0][0]
+			lon-=lon_shift
+			shift = len(lon)-np.where(lon==lon[0]-lon_shift)[0][0]
 
 			self._masks[grid]['lat_mask']=lat
 			self._masks[grid]['lon_mask']=lon
@@ -161,9 +169,7 @@ class country_analysis(object):
 			self._meta=[]
 		if os.path.isdir(self._working_directory+'/raw')==False:os.system('mkdir '+self._working_directory+'/raw')
 
-
 		out_file=self._working_directory+'/raw/'+in_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
-		print out_file
 
 		if os.path.isfile(out_file):
 			nc_out=Dataset(out_file,"r")
@@ -268,6 +274,7 @@ class country_analysis(object):
 			# close the output file
 			nc_out.close()
 			nc_in.close()
+			print out_file
 
 			# store in dictionary
 			tmp = self._data
@@ -293,13 +300,13 @@ class country_analysis(object):
 		'''
 
 		# preprare dictionary structure as for self._data
-		if '_transcient' not in dir(self): self._transcient={}
+		if '_transient' not in dir(self): self._transient={}
 		if os.path.isdir(self._working_directory+'/country_average')==False:os.system('mkdir '+self._working_directory+'/country_average')
 
 		for meta_list in self._meta:
-			print meta_list
+			#print meta_list
 			tmp_in = self._data
-			tmp_out = self._transcient
+			tmp_out = self._transient
 			for meta_info in meta_list:
 				if meta_info not in tmp_out: tmp_out[meta_info]={}
 				tmp_in=tmp_in[meta_info]
@@ -368,23 +375,6 @@ class country_analysis(object):
 				country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index')
 
 
-	def plot_transcient(self,meta_data,mask_style):
-		'''
-
-		'''
-
-		tmp = self._transcient
-		for meta_info in meta_data:
-			tmp=tmp[meta_info]
-
-		fig, axes = plt.subplots(nrows=1, ncols=1,figsize=(5,5))
-
-		#plt.plot(tmp['time'],tmp[mask_style])
-		plt.plot(tmp['time'],tmp[mask_style],linestyle=':',color='blue')
-		plt.plot(tmp['time'],pd.rolling_mean(tmp[mask_style],20),linestyle='-',color='red')
-
-		plt.savefig(self._working_directory+'/plots/'+'_'.join([self._iso]+meta_data+[mask_style])+'.png')
-
 
 
 	def period_averages(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]}):
@@ -410,13 +400,120 @@ class country_analysis(object):
 					tmp['period'][period_name+'-'+'ref']=tmp['period'][period_name]-tmp['period']['ref']
 
 
+	def plot_transient(self,meta_data,mask_style='lat_weighted',running_mean=1,ax=None,out_file=None,title=None,ylabel=None,show=True):
+		'''
+
+		'''
+
+		tmp = self._transient
+		for meta_info in meta_data:
+			tmp=tmp[meta_info]
+
+		if ax==None:
+			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
+
+		ax.plot(tmp['time'],pd.rolling_mean(tmp[mask_style],running_mean),linestyle='-',label=mask_style)
+
+		ax.set_xticks(tmp['time'][range(0,len(tmp['time']),240)]) 
+		ax.set_xticklabels(tmp['year'][range(0,len(tmp['time']),240)])
+
+		if ylabel==None:ylabel=meta_data[0]
+		ax.set_ylabel(ylabel)
+		if title==None:title=' '.join(meta_data)
+		ax.set_title(title)
+		ax.legend(loc='best')
+		
+		if out_file==None and show==True:plt.show()
+		if out_file!=None:plt.savefig(out_file)
 
 
 
 
+	def plot_map(self,meta_data,period=None,time=None,color_palette=plt.cm.plasma,color_range=None,color_bar=True,color_label=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,show=True):
+		'''
+
+		'''
+
+		tmp = self._data
+		for meta_info in meta_data:
+			tmp=tmp[meta_info]
+
+		if period==None:
+			if time==None:
+				time=int(len(tmp['time'])/2)
+				print 'no time specified. '+str(int(tmp['month'][time]))+'/'+str(int(tmp['year'][time]))+' selected'
+				to_plot=tmp['data'][time,:,:]
+				if title==None:title=' '.join(meta_data+[str(int(tmp['month'][time])),'/',str(int(tmp['year'][time]))])
+		else:
+			to_plot=tmp['period'][period]
+			if title==None:title=' '.join(meta_data+[period])
+
+		lat=tmp['lat']
+		lon=tmp['lon']
+
+
+		if ax==None:
+			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))		
+
+		# handle 0 to 360 lon
+		if max(lon)>180:
+			problem_start=np.where(lon>180)[0][0]
+			new_order=np.array(range(problem_start,len(lon))+range(0,problem_start))
+			to_plot=to_plot[:,new_order]
+			lon=lon[new_order]
+			lon[lon>180]-=360
+
+		# handle limits
+		if limits==None:
+			limits=[np.min(lon),np.max(lon),np.min(lat),np.max(lat)]
+		if limits!=None:
+			lon_select=np.where((lon>=limits[0])	&	(lon<=limits[1]))[0]
+			lat_select=np.where((lat>=limits[2])	&	(lat<=limits[3]))[0]
+			to_plot=to_plot[lat_select,:][:,lon_select]
+
+		m = Basemap(ax=ax,llcrnrlon=limits[0],urcrnrlon=limits[1],llcrnrlat=limits[2],urcrnrlat=limits[3],resolution="l",projection='cyl')
+		m.drawmapboundary(fill_color='1.')
+
+		# imshow does not support decreasing lat or lon
+		to_plot=np.ma.masked_invalid(to_plot)
+		if lat[0]>lat[1]:to_plot=to_plot[::-1,:]
+		if lon[0]>lon[1]:to_plot=to_plot[:,::-1]
 
 
 
+		# get volor_range
+		if color_range==None:
+			color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
+
+		im = m.imshow(to_plot,cmap=color_palette,vmin=color_range[0],vmax=color_range[1],interpolation='none',extent=[np.min(lon),np.max(lon),np.min(lat),np.max(lat)])
+
+		# mask some grid-cells
+		if grey_area!=None:
+			to_plot=np.ma.masked_invalid(grey_area.copy())
+			if lat[0]>lat[1]:to_plot=to_plot[::-1,:]
+			if lon[0]>lon[1]:to_plot=to_plot[:,::-1]
+			im2 = m.imshow(to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1,interpolation='none',extent=[np.min(lon),np.max(lon),np.min(lat),np.max(lat)])
+
+		# show coastlines and borders
+		m.drawcoastlines()
+		m.drawstates()
+		m.drawcountries()
+
+		# add colorbar
+		if color_bar==True:
+			cb = m.colorbar(im,'right', size="5%", pad="2%")
+			tick_locator = ticker.MaxNLocator(nbins=5)
+			cb.locator = tick_locator
+			cb.update_ticks()
+			if color_label==None:color_label=meta_data[0]
+			cb.set_label(color_label, rotation=90)
+
+		ax.set_title(title)
+		ax.legend(loc='best')
+		
+		if out_file==None and show==True:plt.show()
+		if out_file!=None:plt.savefig(out_file)
+		return(im)
 
 
 

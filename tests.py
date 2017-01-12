@@ -15,12 +15,12 @@ sys.path.append('/Users/peterpfleiderer/Documents/')
 
 GHA=country_analysis('GHA','Projects/country_analysis/')
 
-GHA.create_mask('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',-180.0)
-GHA.create_mask('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',-180.0,mask_style='pop1990_weighted',pop_mask_file='masks/population/population_1990_incrLat.nc')
-GHA.create_mask('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',-180.0,mask_style='pop2015_weighted',pop_mask_file='masks/population/population_1990_incrLat.nc')
+GHA.create_mask('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries')
+GHA.create_mask('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',mask_style='pop1990_weighted',pop_mask_file='masks/population/population_1990_incrLat.nc')
+GHA.create_mask('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',mask_style='pop2015_weighted',pop_mask_file='masks/population/population_1990_incrLat.nc')
 
-GHA.create_mask('data/raw/SPEI/CMIP5/spei_hadgem2-es_rcp2.6_1950-2099_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',0.0)
-GHA.create_mask('data/raw/SPEI/CMIP5/spei_hadgem2-es_rcp2.6_1950-2099_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',0.0,mask_style='pop2015_weighted',pop_mask_file='masks/population/population_1990_incrLat.nc')
+GHA.create_mask('data/raw/SPEI/CMIP5/spei_hadgem2-es_rcp2.6_1950-2099_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries')
+GHA.create_mask('data/raw/SPEI/CMIP5/spei_hadgem2-es_rcp2.6_1950-2099_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',mask_style='pop2015_weighted',pop_mask_file='masks/population/population_1990_incrLat.nc')
 
 
 in_files=glob.glob('data/raw/mon_rx5/CMIP5/*/mon_rx5_*_1950-2099.nc4')
@@ -33,6 +33,11 @@ GHA.country_zoom('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI',meta_data
 
 GHA.country_zoom('data/raw/cru/cru_ts3.23.1901.2014.pre.dat.nc','pre',meta_data=['pr','CRU'])
 
+#GHA.plot_map(meta_data=['pr','CRU'])
+GHA.period_averages(periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]})
+
+GHA.plot_map(meta_data=['pr','CRU'],period='ref')
+#GHA.plot_map(meta_data=['pr','CRU'],period='ref')
 
 GHA.average('pop2015_weighted')
 #GHA.plot_transcient(meta_data=['rx5','CMIP5','rcp8.5','gfdl-esm2m'],mask_style='pop2015_weighted')

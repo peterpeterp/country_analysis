@@ -34,13 +34,13 @@ sys.path.append('/Users/peterpfleiderer/Documents/')
 
 GHA=country_analysis('GHA','Projects/country_analysis/')
 
-pkl_file = open(GHA._working_directory+GHA._iso+'/'+GHA._iso+'_masks.pkl', 'rb')
+pkl_file = open(GHA._working_directory+'/'+GHA._iso+'_masks.pkl', 'rb')
 GHA._masks = pickle.load(pkl_file)	;	pkl_file.close()  
 
-pkl_file = open(GHA._working_directory+GHA._iso+'/'+GHA._iso+'_data.pkl', 'rb')
+pkl_file = open(GHA._working_directory+'/'+GHA._iso+'_data.pkl', 'rb')
 GHA._data = pickle.load(pkl_file)	;	pkl_file.close()  
 
-pkl_file = open(GHA._working_directory+GHA._iso+'/'+GHA._iso+'_meta.pkl', 'rb')
+pkl_file = open(GHA._working_directory+'/'+GHA._iso+'_meta.pkl', 'rb')
 GHA._meta = pickle.load(pkl_file)	;	pkl_file.close()  
 
 #################
@@ -143,24 +143,24 @@ cb=fig.colorbar(im,orientation='vertical',label='change in frequency of extreme 
 tick_locator = ticker.MaxNLocator(nbins=5)
 cb.locator = tick_locator
 cb.update_ticks()
-plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_X_sum.png')
+plt.savefig(GHA._working_directory+'/plots/spei_X_sum.png')
 
 ####################
 # plot reference period
 ####################
 tmp=GHA._data['SPEI_12m_expo-2']
 fig,axes=plt.subplots(nrows=1,ncols=8,figsize=(8,3))
-ax,im=plot_map(axes.flatten()[0],GHA._data['SPEI_12m']['CRU']['lon'],GHA._data['SPEI_12m']['CRU']['lat'],GHA._data['SPEI_12m_expo-2']['CRU']['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='CRU')
-ax,im=plot_map(axes.flatten()[1],GHA._data['SPEI_12m']['NCEP']['lon'],GHA._data['SPEI_12m']['NCEP']['lat'],GHA._data['SPEI_12m_expo-2']['NCEP']['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='NCEP',limits=[-3.25,1.25,4.75,11.25])
+ax,im=plot_map(axes.flatten()[0],GHA._data['SPEI_12m']['CRU']['lon'],GHA._data['SPEI_12m']['CRU']['lat'],GHA._data['SPEI_12m_expo-2']['CRU']['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,15],color_label=None,subtitle='CRU')
+ax,im=plot_map(axes.flatten()[1],GHA._data['SPEI_12m']['NCEP']['lon'],GHA._data['SPEI_12m']['NCEP']['lat'],GHA._data['SPEI_12m_expo-2']['NCEP']['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,15],color_label=None,subtitle='NCEP',limits=[-3.25,1.25,4.75,11.25])
 
 lon=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lon']
 lat=GHA._data['SPEI_12m']['CMIP5'][rcp]['ensemble_mean']['lat']
-ax,im=plot_map(axes.flatten()[2],lon,lat,GHA._data['SPEI_12m_expo-2']['CMIP5']['rcp2.6']['ensemble_mean']['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='ens. mn.')
+ax,im=plot_map(axes.flatten()[2],lon,lat,GHA._data['SPEI_12m_expo-2']['CMIP5']['rcp2.6']['ensemble_mean']['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,15],color_label=None,subtitle='ens. mn.')
 count=3
 tmp=GHA._data['SPEI_12m_expo-2']['CMIP5']['rcp2.6']
 for model in tmp.keys():
 	if model not in ['ensemble_mean','agreement']:
-		ax,im=plot_map(axes.flatten()[count],lon,lat,GHA._data['SPEI_12m_expo-2']['CMIP5']['rcp2.6'][model]['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,20],color_label=None,subtitle='')
+		ax,im=plot_map(axes.flatten()[count],lon,lat,GHA._data['SPEI_12m_expo-2']['CMIP5']['rcp2.6'][model]['ref']*100,color_type=plt.cm.YlOrBr,color_range=[0,15],color_label=None,subtitle='')
 		ax.set_title(model,fontsize=8)
 		count+=1
 cbar_ax=fig.add_axes([0,0.17,1,0.3])
@@ -171,7 +171,7 @@ cb.locator = tick_locator
 cb.update_ticks()
 
 plt.suptitle('\n\nRefernce Period 1986-2005')
-plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_X_ref.png')
+plt.savefig(GHA._working_directory+'/plots/spei_X_ref.png')
 
 ###############
 # plot exposure
@@ -204,7 +204,7 @@ for rcp in ['rcp2.6','rcp8.5']:
 	tick_locator = ticker.MaxNLocator(nbins=5)
 	cb.locator = tick_locator
 	cb.update_ticks()
-	plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_X_'+rcp+'.png')
+	plt.savefig(GHA._working_directory+'/plots/spei_X_'+rcp+'.png')
 
 ###############
 # plot exposure diff
@@ -240,7 +240,7 @@ for rcp in ['rcp2.6','rcp8.5']:
 	tick_locator = ticker.MaxNLocator(nbins=5)
 	cb.locator = tick_locator
 	cb.update_ticks()
-	plt.savefig(GHA._working_directory+GHA._iso+'/plots/spei_X_diff_'+rcp+'.png')
+	plt.savefig(GHA._working_directory+'/plots/spei_X_diff_'+rcp+'.png')
 
 
 
