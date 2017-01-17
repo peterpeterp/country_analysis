@@ -293,10 +293,11 @@ class country_analysis(object):
 			self._meta.append(meta_data)
 
 
-	def average(self,mask_style):
+	def average(self,mask_style='lat_weighted',meta_data=[]):
 		'''
-		mask_style: str: type of mask weighting 
-		computes country average for all loaded datasets
+		compute countrywide averages for all loaded datasets
+		mask_style: str: weighting used to compute countrywide averages
+		meta_data: list of strs: meta_data restrictions. data files for which the meta_data is as specified, the average is computed 
 		'''
 
 		# preprare dictionary structure as for self._data
@@ -304,105 +305,144 @@ class country_analysis(object):
 		if os.path.isdir(self._working_directory+'/country_average')==False:os.system('mkdir '+self._working_directory+'/country_average')
 
 		for meta_list in self._meta:
-			#print meta_list
 			tmp_in = self._data
 			tmp_out = self._transient
-			for meta_info in meta_list:
-				if meta_info not in tmp_out: tmp_out[meta_info]={}
-				tmp_in=tmp_in[meta_info]
-				tmp_out=tmp_out[meta_info]
+			compute=True
 
-			# check if file has been saved
-			out_file=self._working_directory+'/country_average/country_mean_'+'_'.join(meta_list)+'_'+mask_style+'.csv'
-			if os.path.isfile(out_file):
-				tmp_out['time']=np.array(pd.read_csv(out_file,sep=';')['time'])
-				tmp_out['month']=np.array(pd.read_csv(out_file,sep=';')['month'])
-				tmp_out['year']=np.array(pd.read_csv(out_file,sep=';')['year'])
-				tmp_out[mask_style]=np.array(pd.read_csv(out_file,sep=';')['_'.join(meta_list)])	
+			for i in range(len(meta_list)):
+				meta_info=meta_list[i]
+				if i>=len(meta_data):
+					if meta_info not in tmp_out: tmp_out[meta_info]={}
+					tmp_in=tmp_in[meta_info]
+					tmp_out=tmp_out[meta_info]
 
-			# if not compute
-			else:
-				# load input data
-				var_in=tmp_in['data'][:,:,:]			
-				try:	# handle masked array
-					masked=np.ma.getmask(var_in)
-					var_in=np.ma.getdata(var_in)
-					var_in[masked]=np.nan
-				except: pass
+				# in case of meta_data restrictions
+				if i<len(meta_data):
+					if meta_info==meta_data[i] or meta_data[i]==None:
+						if meta_info not in tmp_out: tmp_out[meta_info]={}
+						tmp_in=tmp_in[meta_info]
+						tmp_out=tmp_out[meta_info]
+						continue
+					else: 
+						compute=False
+						break
+					break
 
-				# get mask
-				mask=self._masks[tmp_in['grid']][mask_style]
-				lat_mask=self._masks[tmp_in['grid']]['lat_mask']
-				lon_mask=self._masks[tmp_in['grid']]['lon_mask']
+			if compute==True:
+				# check if file has been saved
+				out_file=self._working_directory+'/country_average/country_mean_'+'_'.join(meta_list)+'_'+mask_style+'.csv'
+				if os.path.isfile(out_file):
+					tmp_out['time']=np.array(pd.read_csv(out_file,sep=';')['time'])
+					tmp_out['month']=np.array(pd.read_csv(out_file,sep=';')['month'])
+					tmp_out['year']=np.array(pd.read_csv(out_file,sep=';')['year'])
+					tmp_out[mask_style]=np.array(pd.read_csv(out_file,sep=';')['_'.join(meta_list)])	
 
-				# find relevant area (as rectangle) and check whether lon and lat are correct (on same grid differences in lat decreasing or increasing could arise)
-				lat_mean=np.mean(mask,1)
-				lats=np.where(lat_mean!=0)
-				if lat_mask[lats][0]!=tmp_in['lat'][0]:
-					print lat_mask[lats][0],tmp_in['lat'][0]
-					var_in=var_in[:,:,::-1]
-					if lat_mask[lats][0]!=tmp_in['lat'][-1]:
-						print 'problem with lat' ; return('error')
+				# if not compute
+				else:
+					# load input data
+					var_in=tmp_in['data'][:,:,:]			
+					try:	# handle masked array
+						masked=np.ma.getmask(var_in)
+						var_in=np.ma.getdata(var_in)
+						var_in[masked]=np.nan
+					except: pass
 
-				lon_mean=np.mean(mask,0)
-				lons=np.where(lon_mean!=0)
-				if lon_mask[lons][0]!=tmp_in['lon'][0]:
-					var_in=var_in[:,:,::-1]
-					if lon_mask[lons][0]!=tmp_in['lon'][-1]:
-						print 'problem with lon' ; return('error')
+					# get mask
+					mask=self._masks[tmp_in['grid']][mask_style]
+					lat_mask=self._masks[tmp_in['grid']]['lat_mask']
+					lon_mask=self._masks[tmp_in['grid']]['lon_mask']
 
-				# zoom mask to relevant area
-				mask=mask[np.ix_(list(lats[0]),list(lons[0]))]
-				country_area=np.where(mask>0)
+					# find relevant area (as rectangle) and check whether lon and lat are correct (on same grid differences in lat decreasing or increasing could arise)
+					lat_mean=np.mean(mask,1)
+					lats=np.where(lat_mean!=0)
+					if lat_mask[lats][0]!=tmp_in['lat'][0]:
+						var_in=var_in[:,:,::-1]
+						if lat_mask[lats][0]!=tmp_in['lat'][-1]:
+							print 'problem with lat' ; return('error')
 
-				tmp_out['time']=tmp_in['time']
-				tmp_out['month']=tmp_in['month']
-				tmp_out['year']=tmp_in['year']
-				tmp_out[mask_style]=tmp_in['time'].copy()*np.nan
-				for i in range(len(tmp_in['time'])):
-					var_of_area=var_in[i,:,:][country_area]
-					# NA handling: sum(mask*var)/sum(mask) for the area where var is not NA
-					not_missing_in_var=np.where(np.isfinite(var_of_area))[0]	# np.where()[0] because of array([],)
-					if len(not_missing_in_var)>0:
-						tmp_out[mask_style][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
-		
-				# save as csv 
-				country_mean_csv = pd.DataFrame(index=range(len(tmp_in['time'])))
-				country_mean_csv['time']=tmp_in['time']
-				country_mean_csv['month']=tmp_in['month']
-				country_mean_csv['year']=tmp_in['year']
-				country_mean_csv['_'.join(meta_list)]=tmp_out[mask_style]
-				country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index')
+					lon_mean=np.mean(mask,0)
+					lons=np.where(lon_mean!=0)
+					if lon_mask[lons][0]!=tmp_in['lon'][0]:
+						var_in=var_in[:,:,::-1]
+						if lon_mask[lons][0]!=tmp_in['lon'][-1]:
+							print 'problem with lon' ; return('error')
+
+					# zoom mask to relevant area
+					mask=mask[np.ix_(list(lats[0]),list(lons[0]))]
+					country_area=np.where(mask>0)
+
+					tmp_out['time']=tmp_in['time']
+					tmp_out['month']=tmp_in['month']
+					tmp_out['year']=tmp_in['year']
+					tmp_out[mask_style]=tmp_in['time'].copy()*np.nan
+					for i in range(len(tmp_in['time'])):
+						var_of_area=var_in[i,:,:][country_area]
+						# NA handling: sum(mask*var)/sum(mask) for the area where var is not NA
+						not_missing_in_var=np.where(np.isfinite(var_of_area))[0]	# np.where()[0] because of array([],)
+						if len(not_missing_in_var)>0:
+							tmp_out[mask_style][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
+			
+					# save as csv 
+					country_mean_csv = pd.DataFrame(index=range(len(tmp_in['time'])))
+					country_mean_csv['time']=tmp_in['time']
+					country_mean_csv['month']=tmp_in['month']
+					country_mean_csv['year']=tmp_in['year']
+					country_mean_csv['_'.join(meta_list)]=tmp_out[mask_style]
+					country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index')
 
 
 
 
-	def period_averages(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]}):
+	def period_averages(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},meta_data=[]):
 		'''
-
+		computes time averages for each grid-cell for a given period
+		periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
+		meta_data: list of strs: meta_data restrictions. data files for which the meta_data is as specified, the average is computed 
 		'''
 
 		# preprare dictionary structure as for self._data
 		for meta_list in self._meta:
 			tmp = self._data
-			for meta_info in meta_list:
-				tmp=tmp[meta_info]
+			compute=True
 
-			tmp['period']={}
-			tmp['period_meta']=periods
+			for i in range(len(meta_list)):
+				meta_info=meta_list[i]
+				if i>=len(meta_data):
+					tmp=tmp[meta_info]
 
+				# in case of meta_data restrictions
+				if i<len(meta_data):
+					if meta_info==meta_data[i] or meta_data[i]==None:
+						tmp=tmp[meta_info]
+						continue
+					else: 
+						compute=False
+						break
+					break
 
-			for period_name in periods.keys():	
-				tmp['period'][period_name]=np.mean(np.ma.masked_invalid(tmp['data']),axis=0)
+			if compute==True:
+				tmp['period']={}
+				tmp['period_meta']=periods
 
-			for period_name in periods.keys():
-				if period_name!='ref' and 'ref' in periods.keys():
-					tmp['period'][period_name+'-'+'ref']=tmp['period'][period_name]-tmp['period']['ref']
+				for period_name in periods.keys():	
+					tmp['period'][period_name]=np.mean(np.ma.masked_invalid(tmp['data']),axis=0)
+
+				for period_name in periods.keys():
+					if period_name!='ref' and 'ref' in periods.keys():
+						tmp['period'][period_name+'-'+'ref']=tmp['period'][period_name]-tmp['period']['ref']
 
 
 	def plot_transient(self,meta_data,mask_style='lat_weighted',running_mean=1,ax=None,out_file=None,title=None,ylabel=None,show=True):
 		'''
-
+		plot transient of countrywide average
+		meta_data: list of strs: meta information required to acces data
+		mask_style: str: weighting used to compute countrywide averages
+		running_mean: int: years to be averaged in moving average		
+		ax: subplot: subplot on which the map will be plotted
+		out_file: str: location where the plot is saved
+		title: str: title of the plot
+		ylabel: str: labe to put on y-axis
+		show: logical: show the subplot?
 		'''
 
 		tmp = self._transient
@@ -411,6 +451,8 @@ class country_analysis(object):
 
 		if ax==None:
 			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
+
+		if int(np.mean(np.diff(tmp['year'],1)))!=1:print 'not yearly data! please consider this for the running mean'
 
 		ax.plot(tmp['time'],pd.rolling_mean(tmp[mask_style],running_mean),linestyle='-',label=mask_style)
 
@@ -429,9 +471,22 @@ class country_analysis(object):
 
 
 
-	def plot_map(self,meta_data,source='_data',period=None,time=None,color_palette=plt.cm.plasma,color_range=None,color_bar=True,color_label=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,show=True):
+	def plot_map(self,meta_data,source='_data',period=None,time=None,color_bar=True,color_label=None,color_palette=plt.cm.plasma,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,show=True):
 		'''
-
+		plot maps of data. 
+		meta_data: list of strs: meta information required to acces data
+		source: str: default='_data'. if masks are to be plotted, specify source='_masks'
+		period: str: if  the averag over a period is to be plotted specify the period name
+		time: int: index in time axis of data (to be plotted)
+		color_bar: logical: if True, color-scale is plotted besides the map
+		color_label: str: label of the color-scale
+		color_palette: plt.cm. object: colors used
+		color_range: [float,float]: minimal and maximal value on color-scale
+		limits: [lon_min,lon_max,lat_min,lat_max]: extend of the map
+		ax: subplot: subplot on which the map will be plotted
+		out_file: str: location where the plot is saved
+		title: str: title of the plot
+		show: logical: show the subplot?
 		'''
 		if source=='_masks':
 			tmp = self._masks[meta_data[0]]
