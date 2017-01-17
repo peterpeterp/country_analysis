@@ -36,12 +36,61 @@ GHA.country_zoom('data/raw/cru/cru_ts3.23.1901.2014.pre.dat.nc','pre',meta_data=
 #GHA.plot_map(meta_data=['pr','CRU'])
 GHA.period_averages(periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]})
 
-GHA.plot_map(meta_data=['pr','CRU'],period='ref')
-#GHA.plot_map(meta_data=['pr','CRU'],period='ref')
 
-GHA.average('pop2015_weighted')
+
+
+
+
+fig,axes=plt.subplots(nrows=1,ncols=1,figsize=(8,3))
+
+Z=GHA._data['rx5']['CMIP5']['rcp8.5']['gfdl-esm2m']['period']['ref']
+lat=GHA._data['rx5']['CMIP5']['rcp8.5']['gfdl-esm2m']['lat']
+lon=GHA._data['rx5']['CMIP5']['rcp8.5']['gfdl-esm2m']['lon']
+limits=[np.min(lon)-0.25,np.max(lon)+0.25,np.min(lat)-0.25,np.max(lat)+0.25]
+
+print limits
+if lat[0]>lat[1]:Z=Z[::-1,:]
+
+m = Basemap(ax=axes,llcrnrlon=limits[0],urcrnrlon=limits[1],llcrnrlat=limits[2],urcrnrlat=limits[3],resolution="l",projection='cyl')
+m.drawmapboundary(fill_color='1.')
+
+im1 = m.imshow(Z,cmap=plt.cm.plasma,interpolation='none',extent=limits)
+
+m.drawcoastlines()
+m.drawstates()
+m.drawcountries()
+plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#GHA.plot_map(meta_data=['94x192','lat_weighted'],source='_masks',limits=[-4,2,3,12])
+#GHA.plot_map(meta_data=['pr','CRU'],period='ref')
+#GHA.plot_map(meta_data=['rx5','CMIP5','rcp8.5','gfdl-esm2m'],period='ref',source='_data')
+GHA.plot_map(meta_data=['rx5','CMIP5','rcp8.5','gfdl-esm2m'],source='_data')
+#GHA.plot_map(meta_data=['rx5','CMIP5','rcp8.5','gfdl-esm2m'],period='ref',source='_data',limits=[-4,2,4,12])
+
+
+#GHA.average('pop2015_weighted')
 #GHA.plot_transcient(meta_data=['rx5','CMIP5','rcp8.5','gfdl-esm2m'],mask_style='pop2015_weighted')
 #GHA.plot_transcient(meta_data=['rx5','CMIP5','rcp8.5','ensemble_mean'],mask_style='pop2015_weighted')
+
+
 
 # ensemble mean
 for rcp in ['rcp2.6','rcp8.5']:

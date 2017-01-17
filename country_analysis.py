@@ -429,27 +429,38 @@ class country_analysis(object):
 
 
 
-	def plot_map(self,meta_data,period=None,time=None,color_palette=plt.cm.plasma,color_range=None,color_bar=True,color_label=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,show=True):
+	def plot_map(self,meta_data,source='_data',period=None,time=None,color_palette=plt.cm.plasma,color_range=None,color_bar=True,color_label=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,show=True):
 		'''
 
 		'''
+		if source=='_masks':
+			tmp = self._masks[meta_data[0]]
+			to_plot=tmp[meta_data[1]]
+			lat=tmp['lat_mask']
+			lon=tmp['lon_mask']				
 
-		tmp = self._data
-		for meta_info in meta_data:
-			tmp=tmp[meta_info]
+			if color_label==None:color_label='importance of grid-cell\nfor countrywide average'
+			if title==None:title=' '.join(meta_data)
 
-		if period==None:
-			if time==None:
-				time=int(len(tmp['time'])/2)
-				print 'no time specified. '+str(int(tmp['month'][time]))+'/'+str(int(tmp['year'][time]))+' selected'
-				to_plot=tmp['data'][time,:,:]
-				if title==None:title=' '.join(meta_data+[str(int(tmp['month'][time])),'/',str(int(tmp['year'][time]))])
-		else:
-			to_plot=tmp['period'][period]
-			if title==None:title=' '.join(meta_data+[period])
+		if source=='_data':
+			tmp = self._data
 
-		lat=tmp['lat']
-		lon=tmp['lon']
+			for meta_info in meta_data:
+				tmp=tmp[meta_info]
+
+			if period==None:
+				if time==None:
+					time=int(len(tmp['time'])/2)
+					print 'no time specified. '+str(int(tmp['month'][time]))+'/'+str(int(tmp['year'][time]))+' selected'
+					to_plot=tmp['data'][time,:,:]
+					if title==None:title=' '.join(meta_data+[str(int(tmp['month'][time])),'/',str(int(tmp['year'][time]))])
+			else:
+				to_plot=tmp['period'][period]
+				if title==None:title=' '.join(meta_data+[period])
+
+			lat=tmp['lat']
+			lon=tmp['lon']
+			if color_label==None:color_label=meta_data[0]
 
 
 		if ax==None:
@@ -464,12 +475,22 @@ class country_analysis(object):
 			lon[lon>180]-=360
 
 		# handle limits
+		half_lon_step=abs(np.diff(lon,1)[0]/2)
+		half_lat_step=abs(np.diff(lat,1)[0]/2)
 		if limits==None:
-			limits=[np.min(lon),np.max(lon),np.min(lat),np.max(lat)]
+			limits=[np.min(lon)-half_lon_step,np.max(lon)+half_lon_step,np.min(lat)-half_lat_step,np.max(lat)+half_lat_step]
 		if limits!=None:
 			lon_select=np.where((lon>=limits[0])	&	(lon<=limits[1]))[0]
 			lat_select=np.where((lat>=limits[2])	&	(lat<=limits[3]))[0]
 			to_plot=to_plot[lat_select,:][:,lon_select]
+		# correct limits if necessary
+		extent=[np.min(lon)-half_lon_step,np.max(lon)+half_lon_step,np.min(lat)-half_lat_step,np.max(lat)+half_lat_step]
+
+		if limits[0]<extent[0]:limits[0]=extent[0]; comment='limits changed to extend of data! new limits =',limits
+		if limits[1]>extent[1]:limits[1]=extent[1]; comment='limits changed to extend of data! new limits =',limits
+		if limits[2]<extent[2]:limits[2]=extent[2]; comment='limits changed to extend of data! new limits =',limits
+		if limits[3]>extent[3]:limits[3]=extent[3]; comment='limits changed to extend of data! new limits =',limits
+		if 'comment' in dir(): print comment
 
 		m = Basemap(ax=ax,llcrnrlon=limits[0],urcrnrlon=limits[1],llcrnrlat=limits[2],urcrnrlat=limits[3],resolution="l",projection='cyl')
 		m.drawmapboundary(fill_color='1.')
@@ -481,18 +502,18 @@ class country_analysis(object):
 
 
 
-		# get volor_range
+		# get color_range
 		if color_range==None:
 			color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
 
-		im = m.imshow(to_plot,cmap=color_palette,vmin=color_range[0],vmax=color_range[1],interpolation='none',extent=[np.min(lon),np.max(lon),np.min(lat),np.max(lat)])
+		im = m.imshow(to_plot,cmap=color_palette,vmin=color_range[0],vmax=color_range[1],interpolation='none',extent=extent)
 
 		# mask some grid-cells
 		if grey_area!=None:
 			to_plot=np.ma.masked_invalid(grey_area.copy())
 			if lat[0]>lat[1]:to_plot=to_plot[::-1,:]
 			if lon[0]>lon[1]:to_plot=to_plot[:,::-1]
-			im2 = m.imshow(to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1,interpolation='none',extent=[np.min(lon),np.max(lon),np.min(lat),np.max(lat)])
+			im2 = m.imshow(to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1,interpolation='none',extent=extent)
 
 		# show coastlines and borders
 		m.drawcoastlines()
@@ -505,7 +526,6 @@ class country_analysis(object):
 			tick_locator = ticker.MaxNLocator(nbins=5)
 			cb.locator = tick_locator
 			cb.update_ticks()
-			if color_label==None:color_label=meta_data[0]
 			cb.set_label(color_label, rotation=90)
 
 		ax.set_title(title)
