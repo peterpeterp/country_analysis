@@ -27,13 +27,21 @@ class country_analysis(object):
 		if os.path.isdir(self._working_directory+'/plots')==False:os.system('mkdir '+self._working_directory+'/plots')
 
 
-	def create_mask(self,file_name,var_name,shape_file,mask_style='lat_weighted',pop_mask_file=''):
+	def create_mask(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file=''):
+		'''
+		create country mask
+		input_file: str: location of example input data (required for the identification of the grid)
+		var_name: str: variable name of input file
+		shape_file: str: location of the shape_file used to identify country borders
+		mask_style: str: name under which the mask will be stored (important for further analysis)
+		pop_mask_file: str: location of population mask (netcdf file) used for population weighted country mask
+		'''
 
 		if '_masks' not in dir(self): self._masks={}
 		if os.path.isdir(self._working_directory+'/masks')==False:os.system('mkdir '+self._working_directory+'/masks')
 
 		# get information about grid of input data
-		nc_in=Dataset(file_name,'r')
+		nc_in=Dataset(input_file,'r')
 		input_data=nc_in.variables[var_name][1,:,:]
 		lat = nc_in.variables['lat'][:]								
 		lon = nc_in.variables['lon'][:].squeeze()
@@ -156,7 +164,7 @@ class country_analysis(object):
 
 	def country_zoom(self,in_file,var_name,meta_data=['CMIP5','rcp2p6','hadgem2-es'],mask_style='lat_weighted',time_units=None,time_calendar=None):
 		'''
-		compute weighted country average for each timestep
+		zoom input_file to area relevant for the country
 		in_file: type str: file to be processed
 		out_file: type str: filepath where output is going to be stored
 		var: type str: variable name in netcdf file
