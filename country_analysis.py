@@ -43,8 +43,12 @@ class country_analysis(object):
 		# get information about grid of input data
 		nc_in=Dataset(input_file,'r')
 		input_data=nc_in.variables[var_name][1,:,:]
-		lat = nc_in.variables['lat'][:]								
-		lon = nc_in.variables['lon'][:].squeeze()
+		try:
+			lat = nc_in.variables['lat'][:]								
+			lon = nc_in.variables['lon'][:].squeeze()
+		except:
+			lat = nc_in.variables['latitude'][:]								
+			lon = nc_in.variables['longitude'][:].squeeze()			
 		# formerly shift_lon
 		if max(lon)>200:	lon_shift=-180.0
 		else:				lon_shift=0.0	
