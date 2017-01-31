@@ -1,7 +1,8 @@
-
-#############
-# 
-#############
+'''
+Class to cliamte data on the national (& sub national) scale
+Peter Pfleiderer
+peter.pfleiderer@climateanalytics.org
+'''
 
 import sys,glob,os,itertools,datetime,pickle
 import numpy as np
@@ -23,11 +24,14 @@ class country_analysis(object):
 		self._iso=iso
 		self._working_directory=working_directory+iso
 
+		self._masks={}
+		os.system('mkdir '+self._working_directory+'/masks')
+
 		if os.path.isdir(working_directory)==False:os.system('mkdir '+working_directory)
 		if os.path.isdir(self._working_directory+'/plots')==False:os.system('mkdir '+self._working_directory+'/plots')
 
 
-	def create_mask(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file=''):
+	def create_mask_country(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file=''):
 		'''
 		create country mask
 		input_file: str: location of example input data (required for the identification of the grid)
@@ -36,9 +40,6 @@ class country_analysis(object):
 		mask_style: str: name under which the mask will be stored (important for further analysis)
 		pop_mask_file: str: location of population mask (netcdf file) used for population weighted country mask
 		'''
-
-		if '_masks' not in dir(self): self._masks={}
-		if os.path.isdir(self._working_directory+'/masks')==False:os.system('mkdir '+self._working_directory+'/masks')
 
 		# get information about grid of input data
 		nc_in=Dataset(input_file,'r')
@@ -152,6 +153,150 @@ class country_analysis(object):
 				output=np.ma.masked_invalid(output)
 				# shift back to original longitudes
 				self._masks[grid][mask_style]=np.roll(output,shift,axis=1)
+
+			# save mask
+			print mask_file
+			nc_mask=Dataset(mask_file,'w')
+			nc_mask.createDimension('lat', len(lat))
+			nc_mask.createDimension('lon', len(lon))
+ 			outVar = nc_mask.createVariable('lat', 'f', ('lat',)) ; outVar[:]=lat[:]	;	outVar.setncattr('units','deg south')
+ 			outVar = nc_mask.createVariable('lon', 'f', ('lon',)) ; outVar[:]=lon[:]	;	outVar.setncattr('units','deg east')
+ 			outVar = nc_mask.createVariable(self._iso, 'f', ('lat','lon',),fill_value='NaN') ; outVar[:]=self._masks[grid][mask_style][:,:]
+
+ 			# close nc_files
+			nc_in.close()
+			nc_mask.close()
+
+	def create_mask_admin(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file=''):
+		'''
+		create country mask
+		input_file: str: location of example input data (required for the identification of the grid)
+		var_name: str: variable name of input file
+		shape_file: str: location of the shape_file used to identify country borders
+		mask_style: str: name under which the mask will be stored (important for further analysis)
+		pop_mask_file: str: location of population mask (netcdf file) used for population weighted country mask
+		'''
+
+		# get information about grid of input data
+		nc_in=Dataset(input_file,'r')
+		input_data=nc_in.variables[var_name][1,:,:]
+		try:
+			lat = nc_in.variables['lat'][:]								
+			lon = nc_in.variables['lon'][:].squeeze()
+		except:
+			lat = nc_in.variables['latitude'][:]								
+			lon = nc_in.variables['longitude'][:].squeeze()			
+		# formerly shift_lon
+		if max(lon)>200:	lon_shift=-180.0
+		else:				lon_shift=0.0	
+		lon+=lon_shift
+
+		nx = len(lon)	;	ny = len(lat)
+		grid=str(ny)+'x'+str(nx)
+
+		if grid not in self._masks.keys():self._masks[grid]={}
+		if mask_style not in self._masks[grid].keys():self._masks[grid][mask_style]={}
+
+		mask_file=self._working_directory+'/masks/'+self._iso+'_'+grid+'_'+mask_style+'.nc4'
+
+		if os.path.isfile(mask_file):
+			# load existing mask
+			nc_mask=Dataset(mask_file,'r')
+			# get all variables (regions)
+			self._masks[grid][mask_style] = nc_mask.variables[self._iso][:,:]  
+			self._masks[grid]['lat_mask'] = nc_mask.variables['lat'][:]  
+			self._masks[grid]['lon_mask'] = nc_mask.variables['lon'][:]  
+
+		else:
+			# loop over the grid to get grid polygons
+			grid_polygons = np.empty((nx,ny),dtype=Polygon)
+			dx = np.zeros((nx))
+			dy = np.zeros((ny))
+			dx[1:] = np.abs(np.diff(lon,1))
+			dx[0] = dx[1]
+			dy[1:] = np.abs(np.diff(lat,1))
+			dy[0] = dy[1]
+			for i in range(nx):
+				x1 = lon[i]-dx[i]/2.
+				x2 = lon[i]+dx[i]/2.
+				for j in range(ny):
+					y1 = lat[j]-dy[j]/2.
+					y2 = lat[j]+dy[j]/2.
+					grid_polygons[i,j] = Polygon([(x1,y1),(x1,y2),(x2,y2),(x2,y1)])
+					#grid_polygons[i,j] = Polygon([(y1,x1),(y1,x2),(y2,x2),(y2,x1)])
+
+			# since the lon axis has been shifted, masks and outputs will have to be shifted as well. This shift is computed here
+			lon-=lon_shift
+			shift = len(lon)-np.where(lon==lon[0]-lon_shift)[0][0]
+
+			self._masks[grid]['lat_mask']=lat
+			self._masks[grid]['lon_mask']=lon
+			
+			# here loop over shape objects in shapefile
+
+			# load shape file
+			m = Basemap()
+			m.readshapefile(shape_file, 'admin', drawbounds=False)
+
+			# collect all shapes of country
+			for shape, country in zip(m.admin, m.admin_info):
+				country = {k.lower():v for k,v in country.items()}	
+				if (country['iso_a3']==self._iso) | (country['adm0_a3']==self._iso):
+					if 'country_polygons' in locals():
+						country_polygons = \
+						country_polygons.symmetric_difference(Polygon(shape))
+					else:
+						country_polygons = Polygon(shape)
+
+			# get boundaries for faster computation
+			xmin, xmax, ymin, ymax = country_polygons.bounds
+			ext = [(xmin,ymin),(xmin,ymax),(xmax,ymax),(xmax,ymin),(xmin,ymin)]
+			ext_poly = Polygon(ext)
+
+			# load population mask		
+			if pop_mask_file=='':	
+				pop_mask = np.ones((len(lat),len(lon)))
+			else:
+				# regrid population mask 
+				mygrid=open(self._working_directory+'/masks/'+grid+'.txt','w')
+				mygrid.write('gridtype=lonlat\nxsize='+str(len(lon))+'\nysize='+str(len(lat))+'\nxfirst='+str(lon[0])+'\nxinc='+str(np.mean(np.diff(lon,1)))+'\nyfirst='+str(lat[0])+'\nyinc='+str(np.mean(np.diff(lat,1))))
+				mygrid.close()
+				os.system('cdo remapbil,'+self._working_directory+'/masks/'+grid+'.txt '+pop_mask_file+' '+self._working_directory+'/masks/'+grid+'_'+mask_style+'.nc')	
+				nc_pop_mask = Dataset(self._working_directory+'/masks/'+grid+'_'+mask_style+'.nc')
+				pop_mask = np.array(nc_pop_mask.variables['mask'][:,:]).squeeze()
+				pop_mask = np.roll(pop_mask,shift,axis=1)
+
+			# compute overlap
+			overlap = np.zeros((ny,nx))
+			for i in range(nx):
+				for j in range(ny):
+					# check gridcell is relevant
+					if grid_polygons[i,j].intersects(ext_poly):
+						# get fraction of grid-cell covered by polygon
+						intersect = grid_polygons[i,j].intersection(country_polygons).area/grid_polygons[i,j].area*country_polygons.area
+						if pop_mask_file!='':
+							# population weighting
+							overlap[j,i] = intersect*pop_mask[j,i]
+						if mask_style=='lat_weighted':
+							# multiply overlap with latitude weighting
+							overlap[j,i] = intersect*np.cos(np.radians(lat[j]))
+
+			# renormalize overlap to get sum(mask)=1
+			overlap_zwi=overlap.copy()
+			overlap_sum=sum(overlap_zwi.flatten())
+			if overlap_sum!=0:
+				output=np.zeros(overlap.shape)
+				output=overlap/overlap_sum
+				# mask zeros
+				output[output==0]=np.nan
+				output=np.ma.masked_invalid(output)
+				# shift back to original longitudes
+				self._masks[grid][mask_style]=np.roll(output,shift,axis=1)
+
+			# here need a new saving format
+			# gird-GHA-style
+			# grid-Ashanti-style
+			# grid-sub_humid-style
 
 			# save mask
 			print mask_file
