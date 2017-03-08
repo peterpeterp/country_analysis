@@ -30,7 +30,7 @@ class country_analysis(object):
 		self._data={}
 		self._meta=[]
 
-		self._file_info={'masks':{},'data':{}}
+		self._file_info={'masks':{},'raw':{},'country_average':{}}
 
 		if os.path.isdir(self._working_directory)==False:os.system('mkdir '+self._working_directory)
 		if os.path.isdir(self._working_directory+'/masks')==False:os.system('mkdir '+self._working_directory+'/masks')
@@ -46,25 +46,67 @@ class country_analysis(object):
 		output = open(self._working_directory+'/'+self._iso+'_file_info.pkl', 'wb')
 		pickle.dump(self._file_info, output)	;	output.close()
 
-		#os.system('tar -zcvf '+self._working_directory+'.tar.gz '+self._iso)
+		os.system('tar -zcvf '+self._working_directory+'.tar.gz '+self._iso)
 
 	def load_from_tar(self,path):
-		#os.system('tar -zxvf '+self._working_directory+'.tar.gz -C '+self._working_directory.replace(self._iso,''))
+		os.system('tar -zxvf '+self._working_directory+'.tar.gz -C '+self._working_directory.replace(self._iso,''))
 
 		pkl_file = open(self._working_directory+'/'+self._iso+'_file_info.pkl', 'rb')
 		self._file_info = pickle.load(pkl_file)	;	pkl_file.close()  
 
-		print self._file_info
 
 		for file in self._file_info['masks'].keys():
 			meta=self._file_info['masks'][file]
 			grid,mask_style = meta[0],meta[1]
+			file_new=self._working_directory+'/masks'+file.split('masks')[-1]
 			if grid not in self._masks.keys():
 				self._masks[grid]={}
 			if mask_style not in self._masks[grid].keys():
 				self._masks[grid][mask_style]={}
-			self.load_masks(file,grid,mask_style)
+			self.load_masks(file_new,grid,mask_style)
 
+
+		for file in self._file_info['raw'].keys():
+			meta=self._file_info['raw'][file]
+			var_name=meta[-1]
+			meta_data=meta[0:-1]
+			file_new=self._working_directory+'/raw'+file.split('raw')[-1]
+
+			nc_out=Dataset(file_new,"r")
+
+			tmp = self._data
+			for meta_info in meta_data:
+				if meta_info not in tmp:tmp[meta_info]={}
+				tmp=tmp[meta_info]
+
+			tmp['data']=nc_out.variables[var_name][:,:,:]
+			tmp['lat']=nc_out.variables['lat'][:]
+			tmp['lon']=nc_out.variables['lon'][:]
+			tmp['time']=nc_out.variables['time'][:]
+			tmp['year']=nc_out.variables['year'][:]
+			tmp['month']=nc_out.variables['month'][:]
+			tmp['grid']=nc_out.variables[var_name].getncattr('grid')
+			nc_out.close()
+
+		if '_transient' not in dir(self): self._transient={}
+		for file in self._file_info['country_average'].keys():
+			meta=self._file_info['country_average'][file]
+			mask_style=meta[-1]
+			meta_data=meta[0:-1]
+			file_new=self._working_directory+'/country_average'+file.split('country_average')[-1]
+
+			tmp = self._transient
+			for meta_info in meta_data:
+				if meta_info not in tmp:tmp[meta_info]={}
+				tmp=tmp[meta_info]
+
+			tmp[mask_style]={}
+			table=pd.read_csv(file_new,sep=';')
+			for key in table.keys():
+				if key in ['time','year','month']:
+					tmp[key]=np.array(table[key])
+				if key not in ['time','year','month']:
+					tmp[mask_style][key]=np.array(table[key])
 
 
 	def identify_grid(self,input_file):
@@ -139,7 +181,7 @@ class country_analysis(object):
 
 		return pop_mask
 
-	def grid_polygon_overlap(self,grid,lon,lat,grid_polygons,country_polygons,shift,mask_style,ext_poly,pop_mask=None):
+	def grid_polygon_overlap(self,grid,lon,lat,grid_polygons,country_polygons,shift,mask_style,ext_poly,name,pop_mask=None):
 		nx = len(lon)	;	ny = len(lat)
 
 		overlap = np.zeros((ny,nx))
@@ -166,7 +208,7 @@ class country_analysis(object):
 			output[output==0]=np.nan
 			output=np.ma.masked_invalid(output)
 			# shift back to original longitudes
-			self._masks[grid][mask_style][self._iso]=np.roll(output,shift,axis=1)		
+			self._masks[grid][mask_style][name]=np.roll(output,shift,axis=1)		
 
 	def create_mask_country(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file='',overwrite=False):
 		'''
@@ -220,7 +262,7 @@ class country_analysis(object):
 				pop_mask = self.regrid_pop_mask(grid,lon,lat,shift,pop_mask_file,mask_style)
 
 			# compute overlap
-			self.grid_polygon_overlap(grid,lon, lat, grid_polygons, country_polygons, shift, mask_style, ext_poly, pop_mask)
+			self.grid_polygon_overlap(grid,lon, lat, grid_polygons, country_polygons, shift, mask_style, ext_poly, self._iso, pop_mask)
 
 			# save mask
 			print mask_file
@@ -232,7 +274,7 @@ class country_analysis(object):
  			outVar = nc_mask.createVariable(self._iso, 'f', ('lat','lon',),fill_value='NaN') ; outVar[:]=self._masks[grid][mask_style][self._iso][:,:]
 			nc_mask.close()
 
-	def create_mask_admin(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file=''):
+	def create_mask_admin(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file='',overwrite=False):
 		'''
 		create country mask
 		input_file: str: location of example input data (required for the identification of the grid)
@@ -249,13 +291,11 @@ class country_analysis(object):
 		if mask_style not in self._masks[grid].keys():
 			self._masks[grid][mask_style]={}
 
-		mask_file=self._working_directory+'/masks/'+self._iso+'_'+grid+'_'+mask_style+'.nc4'
+		mask_file=self._working_directory+'/masks/'+self._iso+'_admin_'+grid+'_'+mask_style+'.nc4'
 		self._file_info['masks'][mask_file]=[grid,mask_style]
 
 		if os.path.isfile(mask_file) and overwrite==False:
  			self.load_masks(mask_file,grid,mask_style)
-
-
 
 		else:
 			grid_polygons,shift = self.get_grid_polygons(grid,lon,lat,lon_shift)
@@ -304,10 +344,10 @@ class country_analysis(object):
 
 			for name in region_polygons.keys():
 				region_shape = region_polygons[name]
-				self.grid_polygon_overlap(grid,lon, lat, grid_polygons, region_shape, shift, mask_style, ext_poly, pop_mask)
+				self.grid_polygon_overlap(grid,lon, lat, grid_polygons, region_shape, shift, mask_style, ext_poly, name, pop_mask)
 				outVar = nc_mask.createVariable(name, 'f', ('lat','lon',),fill_value='NaN') ; outVar[:]=self._masks[grid][mask_style][name][:,:]
 			
-			nc_in.close()
+			nc_mask.close()
 
 
 
@@ -322,6 +362,8 @@ class country_analysis(object):
 		'''
 
 		out_file=self._working_directory+'/raw/'+in_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
+		self._file_info['raw'][out_file]=meta_data+[var_name]
+		self._meta.append(meta_data)
 
 		if os.path.isfile(out_file):
 			nc_out=Dataset(out_file,"r")
@@ -338,9 +380,6 @@ class country_analysis(object):
 			tmp['year']=nc_out.variables['year'][:]
 			tmp['month']=nc_out.variables['month'][:]
 			tmp['grid']=nc_out.variables[var_name].getncattr('grid')
-
-			self._meta.append(meta_data)
-
 			nc_out.close()
 
 
@@ -442,7 +481,6 @@ class country_analysis(object):
 			tmp['time']=time
 			tmp['grid']=grid
 
-			self._meta.append(meta_data)
 
 
 	def average(self,mask_style='lat_weighted',meta_data=[],overwrite=False):
@@ -491,6 +529,9 @@ class country_analysis(object):
 							tmp_out[key]=np.array(table[key])
 						if key not in ['time','year','month']:
 							tmp_out[mask_style][key]=np.array(table[key])
+
+					self._file_info['country_average'][out_file]=meta_list+[mask_style]
+
 				else:
 					# prepare table
 					country_mean_csv = pd.DataFrame(index=range(len(tmp_in['time'])))
@@ -546,8 +587,7 @@ class country_analysis(object):
 
 					# save as csv 
 					country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index')
-
-
+					self._file_info['country_average'][out_file]=meta_list+[mask_style]
 
 
 	def period_averages(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},meta_data=[]):

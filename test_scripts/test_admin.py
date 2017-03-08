@@ -18,17 +18,20 @@ sys.path.append('/Users/peterpfleiderer/Documents/')
 
 
 
+GHA=country_analysis('GHA','Projects/country_analysis/')
+GHA.load_from_tar('Projects/country_analysis/SEN.tar.gz')
+
+
+
+
+
 
 
 # GHA=country_analysis('GHA','Projects/country_analysis/')
+# GHA.create_mask_admin('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/GHA_adm_shp/GHA_adm1',overwrite=False)
+
 # GHA.create_mask_country('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',overwrite=False)
 # GHA.create_mask_country('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',mask_style='pop1990_weighted',pop_mask_file='masks/population/population_1990_incrLat.nc',overwrite=False)
-
-
-
-
-
-
 # GHA.prepare_for_download()
 
 #GHA.create_mask_admin('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/GHA_adm_shp/GHA_adm1')
@@ -50,13 +53,6 @@ sys.path.append('/Users/peterpfleiderer/Documents/')
 # # plt.show()
 
 
-
-
-
-
-
-# GHA=country_analysis('GHA','Projects/country_analysis/')
-# GHA.load_from_tar('Projects/country_analysis/SEN.tar.gz')
 
 
 
