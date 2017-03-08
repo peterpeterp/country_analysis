@@ -25,11 +25,22 @@ class country_analysis(object):
 		self._working_directory=working_directory+iso
 
 		self._masks={}
-		os.system('mkdir '+self._working_directory+'/masks')
+		self._regions=[iso]
 
-		if os.path.isdir(working_directory)==False:os.system('mkdir '+working_directory)
+		if os.path.isdir(self._working_directory)==False:os.system('mkdir '+self._working_directory)
+		if os.path.isdir(self._working_directory+'/masks')==False:os.system('mkdir '+self._working_directory+'/masks')
 		if os.path.isdir(self._working_directory+'/plots')==False:os.system('mkdir '+self._working_directory+'/plots')
+		if os.path.isdir(self._working_directory+'/raw')==False:os.system('mkdir '+self._working_directory+'/raw')
+		if os.path.isdir(self._working_directory+'/country_average')==False:os.system('mkdir '+self._working_directory+'/country_average')
 
+
+	def prepare_for_download(self):
+		sys.path.append(self._working_directory)
+		sys.path.append('../')
+		os.system('tar -zcvf '+self._working_directory+'.tar.gz '+self._iso)
+
+	def load_from_tar(self,path):
+		os.system('tar -zxvf '+self._working_directory+'.tar.gz -C '+self._working_directory.replace(self._iso,''))
 
 	def create_mask_country(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file=''):
 		'''
@@ -206,6 +217,7 @@ class country_analysis(object):
 			for name in nc_mask.variables.keys():
 				if name not in ['lat','lon']:
 					self._masks[grid][mask_style][name] = nc_mask.variables[name][:,:]  
+					self._regions.append(name)
  
 
 		else:
@@ -244,6 +256,7 @@ class country_analysis(object):
 			for shape, region in zip(m.admin, m.admin_info):
 				region = {k.lower():v for k,v in region.items()}	
 				name = region['name_1']
+				self._regions.append(name)
 				if name in region_polygons.keys():
 					region_polygons[name] = \
 					region_polygons[name].symmetric_difference(Polygon(shape))
@@ -317,7 +330,6 @@ class country_analysis(object):
 		if '_data' not in dir(self): 
 			self._data={}
 			self._meta=[]
-		if os.path.isdir(self._working_directory+'/raw')==False:os.system('mkdir '+self._working_directory+'/raw')
 
 		out_file=self._working_directory+'/raw/'+in_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
 
@@ -443,7 +455,7 @@ class country_analysis(object):
 			self._meta.append(meta_data)
 
 
-	def average(self,mask_style='lat_weighted',meta_data=[]):
+	def average(self,mask_style='lat_weighted',meta_data=[],overwrite=False):
 		'''
 		compute countrywide averages for all loaded datasets
 		mask_style: str: weighting used to compute countrywide averages
@@ -452,7 +464,6 @@ class country_analysis(object):
 
 		# preprare dictionary structure as for self._data
 		if '_transient' not in dir(self): self._transient={}
-		if os.path.isdir(self._working_directory+'/country_average')==False:os.system('mkdir '+self._working_directory+'/country_average')
 
 		for meta_list in self._meta:
 			tmp_in = self._data
@@ -481,30 +492,38 @@ class country_analysis(object):
 			if compute==True:
 				# check if file has been saved
 				out_file=self._working_directory+'/country_average/country_mean_'+'_'.join(meta_list)+'_'+mask_style+'.csv'
-				if os.path.isfile(out_file):
-					tmp_out['time']=np.array(pd.read_csv(out_file,sep=';')['time'])
-					tmp_out['month']=np.array(pd.read_csv(out_file,sep=';')['month'])
-					tmp_out['year']=np.array(pd.read_csv(out_file,sep=';')['year'])
-					tmp_out[mask_style]=np.array(pd.read_csv(out_file,sep=';')['_'.join(meta_list)])	
+				tmp_out[mask_style]={}
 
-				# if not compute
+				if os.path.isfile(out_file) and overwrite==False:
+					table=pd.read_csv(out_file,sep=';')
+					for key in table.keys():
+						if key in ['time','year','month']:
+							tmp_out[key]=np.array(table[key])
+						if key not in ['time','year','month']:
+							tmp_out[mask_style][key]=np.array(table[key])
 				else:
+					# prepare table
+					country_mean_csv = pd.DataFrame(index=range(len(tmp_in['time'])))
+					country_mean_csv['time']=tmp_in['time']
+					country_mean_csv['month']=tmp_in['month']
+					country_mean_csv['year']=tmp_in['year']
+
 					# load input data
-					var_in=tmp_in['data'][:,:,:]			
+					var_in=tmp_in['data'][:,:,:].copy()			
 					try:	# handle masked array
 						masked=np.ma.getmask(var_in)
 						var_in=np.ma.getdata(var_in)
 						var_in[masked]=np.nan
 					except: pass
 
-					# get mask
-					mask=self._masks[tmp_in['grid']][mask_style]
+					# find relevant area (as rectangle) and check whether lon and lat are correct (on same grid differences in lat decreasing or increasing could arise)
+					mask=self._masks[tmp_in['grid']][mask_style][self._iso]
 					lat_mask=self._masks[tmp_in['grid']]['lat_mask']
 					lon_mask=self._masks[tmp_in['grid']]['lon_mask']
 
-					# find relevant area (as rectangle) and check whether lon and lat are correct (on same grid differences in lat decreasing or increasing could arise)
 					lat_mean=np.mean(mask,1)
 					lats=np.where(lat_mean!=0)
+					print lat_mask[lats],tmp_in['lat']
 					if lat_mask[lats][0]!=tmp_in['lat'][0]:
 						var_in=var_in[:,:,::-1]
 						if lat_mask[lats][0]!=tmp_in['lat'][-1]:
@@ -517,27 +536,25 @@ class country_analysis(object):
 						if lon_mask[lons][0]!=tmp_in['lon'][-1]:
 							print 'problem with lon' ; return('error')
 
-					# zoom mask to relevant area
-					mask=mask[np.ix_(list(lats[0]),list(lons[0]))]
-					country_area=np.where(mask>0)
+					# get mask
+					for name in self._masks[tmp_in['grid']][mask_style].keys():
+						mask=self._masks[tmp_in['grid']][mask_style][name]
 
-					tmp_out['time']=tmp_in['time']
-					tmp_out['month']=tmp_in['month']
-					tmp_out['year']=tmp_in['year']
-					tmp_out[mask_style]=tmp_in['time'].copy()*np.nan
-					for i in range(len(tmp_in['time'])):
-						var_of_area=var_in[i,:,:][country_area]
-						# NA handling: sum(mask*var)/sum(mask) for the area where var is not NA
-						not_missing_in_var=np.where(np.isfinite(var_of_area))[0]	# np.where()[0] because of array([],)
-						if len(not_missing_in_var)>0:
-							tmp_out[mask_style][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
-			
+						# zoom mask to relevant area
+						mask=mask[np.ix_(list(lats[0]),list(lons[0]))]
+						country_area=np.where(mask>0)
+
+						tmp_out[mask_style][name]=tmp_in['time'].copy()*np.nan
+						for i in range(len(tmp_in['time'])):
+							var_of_area=var_in[i,:,:][country_area]
+							# NA handling: sum(mask*var)/sum(mask) for the area where var is not NA
+							not_missing_in_var=np.where(np.isfinite(var_of_area))[0]	# np.where()[0] because of array([],)
+							if len(not_missing_in_var)>0:
+								tmp_out[mask_style][name][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
+				
+						country_mean_csv[name.encode('utf-8')]=tmp_out[mask_style][name]
+
 					# save as csv 
-					country_mean_csv = pd.DataFrame(index=range(len(tmp_in['time'])))
-					country_mean_csv['time']=tmp_in['time']
-					country_mean_csv['month']=tmp_in['month']
-					country_mean_csv['year']=tmp_in['year']
-					country_mean_csv['_'.join(meta_list)]=tmp_out[mask_style]
 					country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index')
 
 
@@ -582,7 +599,7 @@ class country_analysis(object):
 						tmp['period'][period_name+'-'+'ref']=tmp['period'][period_name]-tmp['period']['ref']
 
 
-	def plot_transient(self,meta_data,mask_style='lat_weighted',running_mean=1,ax=None,out_file=None,title=None,ylabel=None,show=True):
+	def plot_transient(self,meta_data,mask_style='lat_weighted',region=None,running_mean=1,ax=None,out_file=None,title=None,ylabel=None,show=True,label=''):
 		'''
 		plot transient of countrywide average
 		meta_data: list of strs: meta information required to acces data
@@ -594,6 +611,8 @@ class country_analysis(object):
 		ylabel: str: labe to put on y-axis
 		show: logical: show the subplot?
 		'''
+		if region==None:
+			region=self._iso
 
 		tmp = self._transient
 		for meta_info in meta_data:
@@ -604,7 +623,7 @@ class country_analysis(object):
 
 		if int(np.mean(np.diff(tmp['year'],1)))!=1:print 'not yearly data! please consider this for the running mean'
 
-		ax.plot(tmp['time'],pd.rolling_mean(tmp[mask_style],running_mean),linestyle='-',label=mask_style)
+		ax.plot(tmp['time'],pd.rolling_mean(tmp[mask_style][region],running_mean),linestyle='-',label=label)
 
 		ax.set_xticks(tmp['time'][range(0,len(tmp['time']),240)]) 
 		ax.set_xticklabels(tmp['year'][range(0,len(tmp['time']),240)])
@@ -639,10 +658,9 @@ class country_analysis(object):
 		show: logical: show the subplot?
 		'''
 		if source=='_masks':
-			tmp = self._masks[meta_data[0]]
-			to_plot=tmp[meta_data[1]][meta_data[2]]
-			lat=tmp['lat_mask']
-			lon=tmp['lon_mask']				
+			to_plot = self._masks[meta_data[0]][meta_data[1]][meta_data[2]].copy()
+			lat=self._masks[meta_data[0]]['lat_mask'].copy()
+			lon=self._masks[meta_data[0]]['lon_mask'].copy()		
 
 			if color_label==None:color_label='importance of grid-cell\nfor countrywide average'
 			if title==None:title=' '.join(meta_data)
@@ -657,19 +675,20 @@ class country_analysis(object):
 				if time==None:
 					time=int(len(tmp['time'])/2)
 					print 'no time specified. '+str(int(tmp['month'][time]))+'/'+str(int(tmp['year'][time]))+' selected'
-					to_plot=tmp['data'][time,:,:]
+					to_plot=tmp['data'][time,:,:].copy()
 					if title==None:title=' '.join(meta_data+[str(int(tmp['month'][time])),'/',str(int(tmp['year'][time]))])
 			else:
-				to_plot=tmp['period'][period]
+				to_plot=tmp['period'][period].copy()
 				if title==None:title=' '.join(meta_data+[period])
 
-			lat=tmp['lat']
-			lon=tmp['lon']
+			lat=tmp['lat'].copy()
+			lon=tmp['lon'].copy()
 			if color_label==None:color_label=meta_data[0]
 
 
 		if ax==None:
 			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))		
+
 
 		# handle 0 to 360 lon
 		if max(lon)>180:
@@ -679,46 +698,34 @@ class country_analysis(object):
 			lon=lon[new_order]
 			lon[lon>180]-=360
 
-		# handle limits
-		half_lon_step=abs(np.diff(lon,1)[0]/2)
-		half_lat_step=abs(np.diff(lat,1)[0]/2)
-		if limits==None:
-			limits=[np.min(lon)-half_lon_step,np.max(lon)+half_lon_step,np.min(lat)-half_lat_step,np.max(lat)+half_lat_step]
-		if limits!=None:
-			lon_select=np.where((lon>=limits[0])	&	(lon<=limits[1]))[0]
-			lat_select=np.where((lat>=limits[2])	&	(lat<=limits[3]))[0]
-			to_plot=to_plot[lat_select,:][:,lon_select]
-		# correct limits if necessary
-		extent=[np.min(lon)-half_lon_step,np.max(lon)+half_lon_step,np.min(lat)-half_lat_step,np.max(lat)+half_lat_step]
 
-		if limits[0]<extent[0]:limits[0]=extent[0]; comment='limits changed to extend of data! new limits =',limits
-		if limits[1]>extent[1]:limits[1]=extent[1]; comment='limits changed to extend of data! new limits =',limits
-		if limits[2]<extent[2]:limits[2]=extent[2]; comment='limits changed to extend of data! new limits =',limits
-		if limits[3]>extent[3]:limits[3]=extent[3]; comment='limits changed to extend of data! new limits =',limits
-		if 'comment' in dir(): print comment
+		# handle limits
+		if limits==None:
+			half_lon_step=abs(np.diff(lon,1)[0]/2)
+			half_lat_step=abs(np.diff(lat,1)[0]/2)
+			relevant_lats=lat[np.where(np.isfinite(to_plot))[0]]
+			relevant_lons=lon[np.where(np.isfinite(to_plot))[1]]
+			limits=[np.min(relevant_lons)-half_lon_step,np.max(relevant_lons)+half_lon_step,np.min(relevant_lats)-half_lat_step,np.max(relevant_lats)+half_lat_step]
 
 		m = Basemap(ax=ax,llcrnrlon=limits[0],urcrnrlon=limits[1],llcrnrlat=limits[2],urcrnrlat=limits[3],resolution="l",projection='cyl')
 		m.drawmapboundary(fill_color='1.')
-
-		# imshow does not support decreasing lat or lon
-		to_plot=np.ma.masked_invalid(to_plot)
-		if lat[0]>lat[1]:to_plot=to_plot[::-1,:]
-		if lon[0]>lon[1]:to_plot=to_plot[:,::-1]
-
-
 
 		# get color_range
 		if color_range==None:
 			color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
 
-		im = m.imshow(to_plot,cmap=color_palette,vmin=color_range[0],vmax=color_range[1],interpolation='none',extent=extent)
+		lon-=np.diff(lon,1)[0]/2.
+		lat-=np.diff(lat,1)[0]/2.
+		lon,lat=np.meshgrid(lon,lat)
+		im = m.pcolormesh(lon,lat,to_plot,cmap=color_palette,vmin=color_range[0],vmax=color_range[1])
+
 
 		# mask some grid-cells
 		if grey_area!=None:
 			to_plot=np.ma.masked_invalid(grey_area.copy())
 			if lat[0]>lat[1]:to_plot=to_plot[::-1,:]
 			if lon[0]>lon[1]:to_plot=to_plot[:,::-1]
-			im2 = m.imshow(to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1,interpolation='none',extent=extent)
+			im2 = m.pcolormesh(lon,lat,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
 
 		# show coastlines and borders
 		m.drawcoastlines()
@@ -735,9 +742,11 @@ class country_analysis(object):
 
 		ax.set_title(title)
 		ax.legend(loc='best')
-		
+
+
 		if out_file==None and show==True:plt.show()
 		if out_file!=None:plt.savefig(out_file)
+
 		return(im)
 
 

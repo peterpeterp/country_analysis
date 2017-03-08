@@ -89,14 +89,14 @@ for in_file in all_files:
 
 
 
-output = open(GHA._working_directory+GHA._iso+'/'+GHA._iso+'_masks.pkl', 'wb')
-pickle.dump(GHA._masks, output)	;	output.close()
+# output = open(GHA._working_directory+GHA._iso+'/'+GHA._iso+'_masks.pkl', 'wb')
+# pickle.dump(GHA._masks, output)	;	output.close()
 
-output = open(GHA._working_directory+GHA._iso+'/'+GHA._iso+'_data.pkl', 'wb')
-pickle.dump(GHA._data, output)	;	output.close()
+# output = open(GHA._working_directory+GHA._iso+'/'+GHA._iso+'_data.pkl', 'wb')
+# pickle.dump(GHA._data, output)	;	output.close()
 
-output = open(GHA._working_directory+GHA._iso+'/'+GHA._iso+'_meta.pkl', 'wb')
-pickle.dump(GHA._meta, output)	;	output.close()
+# output = open(GHA._working_directory+GHA._iso+'/'+GHA._iso+'_meta.pkl', 'wb')
+# pickle.dump(GHA._meta, output)	;	output.close()
 
 
 
