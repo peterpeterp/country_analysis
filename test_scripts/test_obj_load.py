@@ -8,20 +8,17 @@ from plot_functions import *
 sys.path.append('/Users/peterpfleiderer/Documents/')
 
 sys.path.append('/Users/peterpfleiderer/Documents/Projects/country_analysis/country_analysis_scripts/')
-try:del sys.modules['country_analysis'] 
+try:del sys.modules['country_analysis_obj'] 
 except:pass
-from country_analysis import country_analysis
+from country_analysis_obj import country_analysis
 sys.path.append('/Users/peterpfleiderer/Documents/')
 
 
 
 
 
-
-SEN=country_analysis('SEN','/Users/peterpfleiderer/Documents/Projects/country_analysis/')
-
-
-SEN.create_mask_country('/Users/peterpfleiderer/Documents/Projects/country_analysis/tas_AFR-44_MOHC-HadGEM2-ES_historical_r1i1p1_CLMcom-CCLM4-8-17_v1_day_19491201-19501230.nc','tas','/Users/peterpfleiderer/Documents/masks/shapefiles/world/ne_50m_admin_0_countries',lat_name='rlat',lon_name='rlon')
+SEN=country_analysis('SEN','Projects/country_analysis/')
+SEN.load_from_tar('Projects/country_analysis/SEN.tar.gz')
 
 #GHA.load_from_tar('Projects/country_analysis/SEN.tar.gz')
 
