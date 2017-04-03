@@ -39,7 +39,7 @@ for in_file in all_files:
 	rcp=in_file.split('/')[-2]
 	model=in_file.split('/')[-3]
 	print rcp,model,in_file
-	SEN.country_zoom(in_file,'pr',tags={'type':'CORDEX','scenario':rcp,'model':model,'var':'pr'})
+	SEN.country_zoom(in_file,'pr',tags={'type':'CORDEX','scenario':rcp,'model':model,'var':'pr'},overwrite=True)
 
 ##############
 # CMIP5

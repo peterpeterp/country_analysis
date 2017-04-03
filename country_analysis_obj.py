@@ -44,7 +44,7 @@ class country_analysis(object):
 	class data(object):
 		def __init__(SELF,tags,outer_self,raw_file,original_var_name):
 			SELF.index=len(outer_self._DATA)+1
-			SELF.raw_file=raw_file
+			SELF.raw_file=outer_self._working_directory+'/raw/'+raw_file.split('raw/')[-1]
 			SELF.original_var_name=original_var_name
 			SELF.tags=tags
 			if 'var' in tags.keys():	SELF.var=tags['var']
@@ -500,6 +500,7 @@ class country_analysis(object):
  			outVar = nc_out.createVariable('lon', 'f', ('lon',)) ; outVar[:]=lon_mask[list(lons)]	;	outVar.setncattr('units','deg east')
  			# time
  			outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=time	;	outVar.setncatts({k: nc_in.variables['time'].getncattr(k) for k in nc_in.variables['time'].ncattrs()})
+ 			outVar = nc_out.createVariable('time_bnds', 'f', ('time',)) ; outVar[:]=time	;	outVar.setncatts({k: nc_in.variables['time_bnds'].getncattr(k) for k in nc_in.variables['time_bnds'].ncattrs()})
  			outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=year
  			outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=month
  			# data
@@ -517,8 +518,8 @@ class country_analysis(object):
 			
 			new_data.raw=country_data
 			new_data.grid=grid
-			new_data.lat=lat
-			new_data.lon=lon
+			new_data.lat=lat_mask[list(lats)]
+			new_data.lon=lon_mask[list(lons)]
 			new_data.time=time
 			new_data.year=year
 			new_data.month=month
@@ -545,13 +546,18 @@ class country_analysis(object):
 
 						for ddd in data__:	
 							if ddd.scenario.lower()!='hist':
+								os.system('cdo -O mergetime '+hist.raw_file+' '+ddd.raw_file+' '+ddd.raw_file.replace('.nc','_merged.nc'))
 								print ddd.model,ddd.var,ddd.scenario
 
-								ddd.raw=np.concatenate((hist.raw,ddd.raw),axis=0)
-								ddd.time=np.concatenate((hist.time,ddd.time),axis=0)
-								ddd.year=np.concatenate((hist.year,ddd.year),axis=0)
-								ddd.month=np.concatenate((hist.month,ddd.month),axis=0)
-								ddd.time_stamp=np.concatenate((hist.time_stamp,ddd.time_stamp),axis=0)
+								nc_out=Dataset(ddd.raw_file.replace('.nc','_merged.nc'),"r")
+
+								print ddd.original_var_name
+								ddd.raw=nc_out.variables[ddd.original_var_name][:,:,:]
+								ddd.time=nc_out.variables['time'][:]
+								ddd.year=nc_out.variables['year'][:]
+								ddd.month=nc_out.variables['month'][:]
+								ddd.get_time_stamp()
+								ddd.raw_file=ddd.raw_file.replace('.nc','_merged.nc')
 
 
 								delete_hist=True
@@ -681,16 +687,13 @@ class country_analysis(object):
 						if dd.type==data.type and dd.var==data.var and dd.scenario==data.scenario:	
 							ensemble.append(dd)
 							remaining.remove(dd)
-							print dd.time_stamp,dd.name
 							time_min.append(min(dd.time_stamp))
 							time_max.append(max(dd.time_stamp))
 
-				print time_min,time_max
 
-				time_min=max(time_min)+0.01
-				time_max=min(time_max)-0.01
+				time_min=max(time_min)
+				time_max=min(time_max)
 
-				print time_min,time_max
 				time_length=(int(time_max)-int(time_min))*12+((time_max-int(time_max))-(time_min-int(time_min)))*100+2
 				time_axis=[]
 				for yr in range(int(time_min),int(time_max)+1):
@@ -700,34 +703,35 @@ class country_analysis(object):
 					time_axis+=list(np.arange(start,stop,0.01))
 				time_axis=[round(tt,2) for tt in time_axis]
 
-				print time_axis
-				print len(time_axis)
 
 				tags_=ensemble[0].tags
 				tags_['model']='ensemble_mean'
 				new_data=self.data(tags=tags_,outer_self=self,raw_file='no file',original_var_name=ensemble[0].original_var_name)
 
-				#overlap=np.where((ensemble[0].time>=time_min) & (ensemble[0].time<=time_max))[0]
 				raws=np.zeros([len(ensemble),time_length,ensemble[0].raw.shape[1],ensemble[0].raw.shape[2]])*np.nan
 
 				for member,i in zip(ensemble,range(len(ensemble))):
 
-					overlap=np.where((member.time_stamp>=time_min) & (member.time_stamp<=time_max))
-					# print member.time_stamp[overlap]
-					# zwi=np.zeros([int(time_length)])*np.nan	
-					# print len(member.time_stamp[overlap]),len(time_axis)
-					# print member.time_stamp[overlap]
-					# print 99	
-					# print time_axis
-					interruptions=set(list(member.time_stamp[overlap]))-set(time_axis)
-					print interruptions
-					zwi=np.array(time_axis)*np.nan
+					overlap=np.where((member.time_stamp>=time_min) & (member.time_stamp<=time_max))[0]
+					try:
+						raws[i,:,:,:]=member.raw[overlap,:,:]
+					except:
+						print member.name, raws.shape, member.raw[overlap,:,:].shape 
+						print member.time_stamp[overlap][0],time_axis[0]
+						print member.time_stamp[overlap][-1],time_axis[-1]
+						if member.time_stamp[overlap][0]<time_axis[0]:
+							print 1
+							raws[i,:,:,:]=member.raw[overlap[1:],:,:]
+						if member.time_stamp[overlap][0]>time_axis[0]:
+							print 2
+							raws[i,1:,:,:]=member.raw[overlap,:,:]
 
-					# print len(overlap[0])
-					# print member.time_stamp[1700:-1]
-					# print raws.shape,member.raw[overlap,:,:].shape
-					raws[i,:,:,:]=member.raw[overlap,:,:]
-
+						if member.time_stamp[overlap][-1]<time_axis[-1]:
+							print 3
+							raws[i,:,:,:]=member.raw[overlap[0:-1],:,:]
+						if member.time_stamp[overlap][-1]>time_axis[-1]:
+							print 4
+							raws[i,0:-1,:,:]=member.raw[overlap,:,:]
 
 				new_data.raw=np.mean(raws,axis=3)
 
