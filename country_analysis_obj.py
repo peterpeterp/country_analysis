@@ -64,7 +64,14 @@ class country_analysis(object):
 
 			SELF.name='_'.join(SELF.all_tags)
 
+		def get_time_stamp(SELF):
+			SELF.time_stamp=np.array([int(SELF.year[i])+int(SELF.month[i])/100. for i in range(len(SELF.year))])
 
+
+
+	def display(self):
+		for data in self._DATA:
+			print data.index,data.name,min(data.year),max(data.year)
 
 	def prepare_for_download(self):
 		sys.path.append(self._working_directory)
@@ -87,7 +94,9 @@ class country_analysis(object):
 		output = open(self._working_directory+'/'+self._iso+'_file_info.pkl', 'wb')
 		pickle.dump(file_info, output)	;	output.close()
 
-		os.system('tar -zcvf '+self._working_directory+'.tar.gz '+self._working_directory)
+		os.chdir(self._working_directory)
+		os.chdir('../')
+		os.system('tar -zcvf '+self._working_directory+'.tar.gz '+self._iso)
 
 
 	def load_from_tar(self,path):
@@ -95,7 +104,6 @@ class country_analysis(object):
 
 		pkl_file = open(self._working_directory+'/'+self._iso+'_file_info.pkl', 'rb')
 		self._file_info = pickle.load(pkl_file)	;	pkl_file.close()  
-
 
 		for file in self._file_info['masks'].keys():
 			meta=self._file_info['masks'][file]
@@ -125,6 +133,8 @@ class country_analysis(object):
 			new_data.time=nc_out.variables['time'][:]
 			new_data.year=nc_out.variables['year'][:]
 			new_data.month=nc_out.variables['month'][:]
+			new_data.get_time_stamp()
+
 
 			self._DATA.append(new_data)
 
@@ -414,6 +424,7 @@ class country_analysis(object):
 			new_data.time=nc_out.variables['time'][:]
 			new_data.year=nc_out.variables['year'][:]
 			new_data.month=nc_out.variables['month'][:]
+			new_data.get_time_stamp()
 
 			self._DATA.append(new_data)
 
@@ -511,6 +522,7 @@ class country_analysis(object):
 			new_data.time=time
 			new_data.year=year
 			new_data.month=month
+			new_data.get_time_stamp()
 
 			self._DATA.append(new_data)
 
@@ -519,33 +531,36 @@ class country_analysis(object):
 
 		for data in self._DATA:
 			if hasattr(data,'model'):
-				data__=[data]
-				for ddd in self._DATA:
-					if hasattr(ddd,'model'):
-						if ddd.model==data.model:data__.append(ddd)
+				data__=[]
+				for dd in self._DATA:
+					if hasattr(dd,'model'):
+						if dd.model==data.model and dd.var==data.var:	data__.append(dd)
+
 				for hist in data__:
-					if hist.scenario=='hist':
+					if hist.scenario.lower()=='hist':
+						delete_hist=False
+						print '------- merging -----------'
+						print hist.model,hist.var,hist.scenario
+						print data__
 
-						for ddd in data__:		
-							if ddd.scenario!='hist':
-								new_data=self.data(tags=ddd.tags,outer_self=self,raw_file=ddd.raw_file,original_var_name=ddd.original_var_name)
+						for ddd in data__:	
+							if ddd.scenario.lower()!='hist':
+								print ddd.model,ddd.var,ddd.scenario
 
-								new_data.raw=np.concatenate((hist.raw,ddd.raw),axis=0)
-								new_data.grid=hist.grid
-								new_data.lat=hist.lat
-								new_data.lon=hist.lon
-								new_data.time=np.concatenate((hist.time,ddd.time),axis=0)
-								new_data.year=np.concatenate((hist.year,ddd.year),axis=0)
-								new_data.month=np.concatenate((hist.month,ddd.month),axis=0)
-
-								self._DATA.append(new_data)
-
-								self._DATA.remove(ddd)
-						
-						self._DATA.remove(hist)
+								ddd.raw=np.concatenate((hist.raw,ddd.raw),axis=0)
+								ddd.time=np.concatenate((hist.time,ddd.time),axis=0)
+								ddd.year=np.concatenate((hist.year,ddd.year),axis=0)
+								ddd.month=np.concatenate((hist.month,ddd.month),axis=0)
+								ddd.time_stamp=np.concatenate((hist.time_stamp,ddd.time_stamp),axis=0)
 
 
-	def average(self,mask_style='lat_weighted',filters={'type':'CORDEX'},overwrite=False):
+								delete_hist=True
+				
+						if delete_hist:	
+							self._DATA.remove(hist)
+
+
+	def average(self,mask_style='lat_weighted',filters={},overwrite=False):
 		'''
 		compute countrywide averages for all loaded datasets
 		mask_style: str: weighting used to compute countrywide averages
@@ -625,7 +640,7 @@ class country_analysis(object):
 
 
 
-	def period_averages(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters={'type':'CORDEX'}):
+	def period_averages(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters={}):
 		'''
 		computes time averages for each grid-cell for a given period
 		periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
@@ -643,7 +658,7 @@ class country_analysis(object):
 						if len(np.where((data.year>=periods[period_name][0]) & (data.year<periods[period_name][1]))[0])>0:
 							years_in_period=np.where((data.year>=periods[period_name][0]) & (data.year<periods[period_name][1]))
 
-							data.period[period_name]=np.mean(np.ma.masked_invalid(tmp['data'][years_in_period,:,:][0,:,:,:]),axis=0)
+							data.period[period_name]=np.mean(np.ma.masked_invalid(data.raw[years_in_period,:,:][0,:,:,:]),axis=0)
 
 					for period_name in periods.keys():
 						if period_name!='ref' and 'ref' in periods.keys() and period_name in data.period.keys():
@@ -651,33 +666,79 @@ class country_analysis(object):
 
 
 
-	def ensemble_mean(self,ensemble_name='CMIP5'):
+	def ensemble_mean(self):
 
-		scenarios = []
-		for meta_list in self._meta:
-			if meta_list[1]==ensemble_name:
-				scenarios.append(meta_list[2])
-		scenarios=set(scenarios)
+		remaining=self._DATA[:]
 
-		variables = []
-		for meta_list in self._meta:
-			if meta_list[1]==ensemble_name:
-				variables.append(meta_list[0])
-		variables=set(variables)
+		for data in remaining:
+			if hasattr(data,'model'):
+				print '----------------'
+				ensemble=[]
+				time_min,time_max=[],[]
+				for dd in remaining:
 
-		for variable in variables:
-			for scenario in scenarios:
-				ensemble=self._meta[:]
-				for meta_list in self._meta:
-					print meta_list,variable,scenario
-					if meta_list[1]!=ensemble_name or meta_list[2]!=scenario or meta_list[0]!=variable:
-						ensemble.remove(meta_list)
+					if hasattr(dd,'model'):
+						if dd.type==data.type and dd.var==data.var and dd.scenario==data.scenario:	
+							ensemble.append(dd)
+							remaining.remove(dd)
+							print dd.time_stamp,dd.name
+							time_min.append(min(dd.time_stamp))
+							time_max.append(max(dd.time_stamp))
 
-				print ensemble
-				asdasd
+				print time_min,time_max
+
+				time_min=max(time_min)+0.01
+				time_max=min(time_max)-0.01
+
+				print time_min,time_max
+				time_length=(int(time_max)-int(time_min))*12+((time_max-int(time_max))-(time_min-int(time_min)))*100+2
+				time_axis=[]
+				for yr in range(int(time_min),int(time_max)+1):
+					start,stop=yr+0.01,yr+0.13
+					if yr==int(time_min):start=time_min
+					if yr==int(time_max):stop=time_max
+					time_axis+=list(np.arange(start,stop,0.01))
+				time_axis=[round(tt,2) for tt in time_axis]
+
+				print time_axis
+				print len(time_axis)
+
+				tags_=ensemble[0].tags
+				tags_['model']='ensemble_mean'
+				new_data=self.data(tags=tags_,outer_self=self,raw_file='no file',original_var_name=ensemble[0].original_var_name)
+
+				#overlap=np.where((ensemble[0].time>=time_min) & (ensemble[0].time<=time_max))[0]
+				raws=np.zeros([len(ensemble),time_length,ensemble[0].raw.shape[1],ensemble[0].raw.shape[2]])*np.nan
+
+				for member,i in zip(ensemble,range(len(ensemble))):
+
+					overlap=np.where((member.time_stamp>=time_min) & (member.time_stamp<=time_max))
+					# print member.time_stamp[overlap]
+					# zwi=np.zeros([int(time_length)])*np.nan	
+					# print len(member.time_stamp[overlap]),len(time_axis)
+					# print member.time_stamp[overlap]
+					# print 99	
+					# print time_axis
+					interruptions=set(list(member.time_stamp[overlap]))-set(time_axis)
+					print interruptions
+					zwi=np.array(time_axis)*np.nan
+
+					# print len(overlap[0])
+					# print member.time_stamp[1700:-1]
+					# print raws.shape,member.raw[overlap,:,:].shape
+					raws[i,:,:,:]=member.raw[overlap,:,:]
 
 
+				new_data.raw=np.mean(raws,axis=3)
 
+				new_data.grid=member.grid
+				new_data.lat=member.lat
+				new_data.lon=member.lon
+				new_data.time=member.time[overlap]
+				new_data.year=member.year[overlap]
+				new_data.month=member.month[overlap]
+
+				self._DATA.append(new_data)
 
 
 

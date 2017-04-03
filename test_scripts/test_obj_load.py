@@ -20,10 +20,14 @@ sys.path.append('/Users/peterpfleiderer/Documents/')
 SEN=country_analysis('SEN','Projects/country_analysis/')
 SEN.load_from_tar('Projects/country_analysis/SEN.tar.gz')
 
-#GHA.load_from_tar('Projects/country_analysis/SEN.tar.gz')
 
+SEN.display()
 
+SEN.hist_merge()
 
+SEN.ensemble_mean()
+
+SEN.period_averages(periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters={'type':'CORDEX'})
 
 
 

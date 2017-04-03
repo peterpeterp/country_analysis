@@ -38,8 +38,8 @@ all_files=glob.glob('/p/projects/ikiimp/RCM_BC/Org_Data/RCM/monthly/*/*/mon_pr_*
 for in_file in all_files:
 	rcp=in_file.split('/')[-2]
 	model=in_file.split('/')[-3]
+	print rcp,model,in_file
 	SEN.country_zoom(in_file,'pr',tags={'type':'CORDEX','scenario':rcp,'model':model,'var':'pr'})
-
 
 ##############
 # CMIP5
@@ -102,11 +102,11 @@ for in_file in all_files:
 	SEN.country_zoom(in_file,'spei',tags={'type':'CRU','var':'SPEI'})
 
 
-SEN.hist_merge()
+# SEN.hist_merge()
 
-SEN.average('lat_weighted')
-SEN.average('pop2015_weighted')
-SEN.average('pop1990_weighted')
+# SEN.average('lat_weighted')
+# SEN.average('pop2015_weighted')
+# SEN.average('pop1990_weighted')
 
 SEN.prepare_for_download()
 
