@@ -22,19 +22,32 @@ SEN.load_from_tar('Projects/country_analysis/SEN.tar.gz')
 
 
 SEN.display()
+SEN.ensemble_mean()
+
 
 SEN.period_averages(periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]})
 
+
+tas=SEN.selection(filters=['tas','CORDEX','rcp45'])
+adsasd
+
+
 # SEN.prepare_for_download()
 
-SEN._DATA[42].plot_map(period='ref')
+SEN._DATA[42].display_map(period='ref')
 
 
-#SEN._DATA[44].plot_map(period='2030s-ref')
 
 
-fig,axes=plt.subplots(rows=2,cols=5,figsize=(10,10))
-axes=axes.flatten()
-count=0
+# fig,axes=plt.subplots(rows=2,cols=5,figsize=(10,10))
+# axes=axes.flatten()
+# count=0
 
-for 
+# for 
+
+
+toplo=SEN._masks['201x194']['lat_weighted']['SEN']
+lat=SEN._masks['201x194']['lat_mask']
+lon=SEN._masks['201x194']['lon_mask']
+
+plot_map(toplo,lat,lon)

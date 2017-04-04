@@ -18,6 +18,76 @@ from matplotlib.ticker import MaxNLocator
 import seaborn as sns
 from matplotlib.colors import ListedColormap
 
+
+
+def plot_map(to_plot,lat,lon,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title='',show=True):
+	# this actualy plots the map
+
+		if ax==None:
+			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))		
+
+
+		# handle 0 to 360 lon
+		if max(lon)>180:
+			problem_start=np.where(lon>180)[0][0]
+			new_order=np.array(range(problem_start,len(lon))+range(0,problem_start))
+			to_plot=to_plot[:,new_order]
+			lon=lon[new_order]
+			lon[lon>180]-=360
+
+
+		# handle limits
+		if limits==None:
+			half_lon_step=abs(np.diff(lon,1)[0]/2)
+			half_lat_step=abs(np.diff(lat,1)[0]/2)
+			relevant_lats=lat[np.where(np.isfinite(to_plot))[0]]
+			relevant_lons=lon[np.where(np.isfinite(to_plot))[1]]
+			limits=[np.min(relevant_lons)-half_lon_step,np.max(relevant_lons)+half_lon_step,np.min(relevant_lats)-half_lat_step,np.max(relevant_lats)+half_lat_step]
+
+		m = Basemap(ax=ax,llcrnrlon=limits[0],urcrnrlon=limits[1],llcrnrlat=limits[2],urcrnrlat=limits[3],resolution="l",projection='cyl')
+		m.drawmapboundary(fill_color='1.')
+
+		# get color_range
+		if color_range==None:
+			color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
+
+		lon-=np.diff(lon,1)[0]/2.
+		lat-=np.diff(lat,1)[0]/2.
+		lon=np.append(lon,[lon[-1]+np.diff(lon,1)[0]])
+		lat=np.append(lat,[lat[-1]+np.diff(lat,1)[0]])
+		lon,lat=np.meshgrid(lon,lat)
+		im = m.pcolormesh(lon,lat,to_plot,cmap=color_palette,vmin=color_range[0],vmax=color_range[1])
+
+
+		# mask some grid-cells
+		if grey_area!=None:
+			to_plot=np.ma.masked_invalid(grey_area.copy())
+			if lat[0]>lat[1]:to_plot=to_plot[::-1,:]
+			if lon[0]>lon[1]:to_plot=to_plot[:,::-1]
+			im2 = m.pcolormesh(lon,lat,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
+
+		# show coastlines and borders
+		m.drawcoastlines()
+		m.drawstates()
+		m.drawcountries()
+
+		# add colorbar
+		if color_bar==True:
+			cb = m.colorbar(im,'right', size="5%", pad="2%")
+			tick_locator = ticker.MaxNLocator(nbins=5)
+			cb.locator = tick_locator
+			cb.update_ticks()
+			cb.set_label(color_label, rotation=90)
+
+		ax.set_title(title)
+		ax.legend(loc='best')
+
+
+		if out_file==None and show==True:plt.show()
+		if out_file!=None:plt.savefig(out_file)
+
+		return(im)
+
 class country_analysis(object):
 
 	def __init__(self,iso,working_directory):
@@ -67,7 +137,7 @@ class country_analysis(object):
 		def get_time_stamp(SELF):
 			SELF.time_stamp=np.array([int(SELF.year[i])+int(SELF.month[i])/100. for i in range(len(SELF.year))])
 
-		def plot_map(SELF,period=None,time=None,color_bar=True,color_label=None,color_palette=None,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,show=True):
+		def display_map(SELF,period=None,time=None,color_bar=True,color_label=None,color_palette=None,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,show=True):
 			'''
 			plot maps of data. 
 			meta_data: list of strs: meta information required to acces data
@@ -85,6 +155,8 @@ class country_analysis(object):
 			show: logical: show the subplot?
 			'''
 
+			# this prepares plotting
+
 			if period==None:
 				if time==None:
 					time=int(len(SELF.time)/2)
@@ -101,82 +173,34 @@ class country_analysis(object):
 			if color_label==None:color_label=SELF.var
 
 			if color_palette==None:
-				if data.var='pr':		color_palette=plt.cm.RdYlBu
-				elif data.var='tas':	color_palette=plt.cm.YlOrBr
-				elif data.var='SPEI':	color_palette=plt.cm.plasma
+				if SELF.var=='pr':		color_palette=plt.cm.RdYlBu
+				elif SELF.var=='tas':	color_palette=plt.cm.YlOrBr
+				elif SELF.var==	'SPEI':	color_palette=plt.cm.plasma
 				else:					color_palette=plt.cm.plasma
 
-
-			if ax==None:
-				fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))		
-
-
-			# handle 0 to 360 lon
-			if max(lon)>180:
-				problem_start=np.where(lon>180)[0][0]
-				new_order=np.array(range(problem_start,len(lon))+range(0,problem_start))
-				to_plot=to_plot[:,new_order]
-				lon=lon[new_order]
-				lon[lon>180]-=360
-
-
-			# handle limits
-			if limits==None:
-				half_lon_step=abs(np.diff(lon,1)[0]/2)
-				half_lat_step=abs(np.diff(lat,1)[0]/2)
-				relevant_lats=lat[np.where(np.isfinite(to_plot))[0]]
-				relevant_lons=lon[np.where(np.isfinite(to_plot))[1]]
-				limits=[np.min(relevant_lons)-half_lon_step,np.max(relevant_lons)+half_lon_step,np.min(relevant_lats)-half_lat_step,np.max(relevant_lats)+half_lat_step]
-
-			m = Basemap(ax=ax,llcrnrlon=limits[0],urcrnrlon=limits[1],llcrnrlat=limits[2],urcrnrlat=limits[3],resolution="l",projection='cyl')
-			m.drawmapboundary(fill_color='1.')
-
-			# get color_range
-			if color_range==None:
-				color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
-
-			lon-=np.diff(lon,1)[0]/2.
-			lat-=np.diff(lat,1)[0]/2.
-			lon=np.append(lon,[lon[-1]+np.diff(lon,1)[0]])
-			lat=np.append(lat,[lat[-1]+np.diff(lat,1)[0]])
-			lon,lat=np.meshgrid(lon,lat)
-			im = m.pcolormesh(lon,lat,to_plot,cmap=color_palette,vmin=color_range[0],vmax=color_range[1])
-
-
-			# mask some grid-cells
-			if grey_area!=None:
-				to_plot=np.ma.masked_invalid(grey_area.copy())
-				if lat[0]>lat[1]:to_plot=to_plot[::-1,:]
-				if lon[0]>lon[1]:to_plot=to_plot[:,::-1]
-				im2 = m.pcolormesh(lon,lat,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
-
-			# show coastlines and borders
-			m.drawcoastlines()
-			m.drawstates()
-			m.drawcountries()
-
-			# add colorbar
-			if color_bar==True:
-				cb = m.colorbar(im,'right', size="5%", pad="2%")
-				tick_locator = ticker.MaxNLocator(nbins=5)
-				cb.locator = tick_locator
-				cb.update_ticks()
-				cb.set_label(color_label, rotation=90)
-
-			ax.set_title(title)
-			ax.legend(loc='best')
-
-
-			if out_file==None and show==True:plt.show()
-			if out_file!=None:plt.savefig(out_file)
-
-			return(im)
+			plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,show=show)
 
 
 
-	def display(self):
-		for data in self._DATA:
+	def display(self,selection=None):
+		if selection==None:
+			selection=self._DATA
+		for data in selection:
 			print data.index,data.name,min(data.year),max(data.year)
+
+	def selection(self,filters):
+		selection=[]
+		for data in self._DATA:
+			selected=True
+			for key in filters:
+				if key not in data.all_tags:
+					selected=False
+			if selected:
+				selection.append(data)
+
+		self.display(selection)
+		return selection
+
 
 	def prepare_for_download(self):
 		sys.path.append(self._working_directory)
@@ -288,11 +312,14 @@ class country_analysis(object):
 		nc_mask=Dataset(mask_file,'r')
 		self._masks[grid]['lat_mask'] = nc_mask.variables['lat'][:]  
 		self._masks[grid]['lon_mask'] = nc_mask.variables['lon'][:] 
+
 		# get all variables (regions)
 		for name in nc_mask.variables.keys():
 			if name not in ['lat','lon']:
 				self._masks[grid][mask_style][name] = nc_mask.variables[name][:,:]  
 				if name not in self._regions: self._regions.append(name)	
+
+
 
 	def get_grid_polygons(self,grid,lon,lat,lon_shift):
 		# loop over the grid to get grid polygons
@@ -428,12 +455,7 @@ class country_analysis(object):
  			outVar = nc_mask.createVariable(self._iso, 'f', ('lat','lon',),fill_value='NaN') ; outVar[:]=self._masks[grid][mask_style][self._iso][:,:]
 			nc_mask.close()
 
-			# new_data=self.data(tags={'type':'mask','mask_style':mask_style},outer_self=self,raw_file=mask_file,original_var_name='mask')
-			# new_data.raw=self._masks[grid][mask_style][self._iso][:,:]
-			# new_data.grid=grid
-			# new_data.lat=lat[:]
-			# new_data.lon=lon[:]
-			# self._DATA.append(new_data)			
+		
 
 	def create_mask_admin(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file='',overwrite=False,lat_name='lat',lon_name='lon'):
 		'''
@@ -864,7 +886,9 @@ class country_analysis(object):
 
 				raws=np.zeros([len(ensemble),time_length,ensemble[0].raw.shape[1],ensemble[0].raw.shape[2]])*np.nan
 
+				command='cdo ensmean '
 				for member,i in zip(ensemble,range(len(ensemble))):
+					command+='-selyear,1951/2099 '+member.raw_file+' '
 
 					overlap=np.where((member.time_stamp>=time_min) & (member.time_stamp<=time_max))[0]
 					try:
@@ -890,6 +914,10 @@ class country_analysis(object):
 							print 4
 							raws[i,0:-1,:,:]=member.raw[overlap,:,:]
 							overlap=np.append(overlap,[overlap[-1]+1])
+
+				print(command+' '+new_data.raw_file)
+				os.system(command+' '+new_data.raw_file)
+				asdasd
 
 				new_data.raw=np.mean(raws,axis=0)
 

@@ -49,17 +49,17 @@ for in_file in all_files:
 	print rcp,model,in_file
 	SEN.country_zoom(in_file,'tas',tags={'type':'CORDEX','scenario':rcp,'model':model,'var':'tas'},overwrite=False)
 
-##############
-# CORDEX BC
-##############
+# ##############
+# # CORDEX BC
+# ##############
 
-#tas 
-all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMoutput/monthly/*/*/mon_tas_*')
-for in_file in all_files:
-	rcp=in_file.split('/')[-2]
-	model=in_file.split('/')[-3]
-	print rcp,model,in_file
-	SEN.country_zoom(in_file,'tas',tags={'type':'CORDEX_BC','scenario':rcp,'model':model,'var':'tas'},overwrite=False)
+# #tas 
+# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMoutput/monthly/*/*/mon_tas_*')
+# for in_file in all_files:
+# 	rcp=in_file.split('/')[-2]
+# 	model=in_file.split('/')[-3]
+# 	print rcp,model,in_file
+# 	SEN.country_zoom(in_file,'tas',tags={'type':'CORDEX_BC','scenario':rcp,'model':model,'var':'tas'},overwrite=False)
 
 ##############
 # CMIP5
@@ -130,9 +130,9 @@ for in_file in all_files:
 
 SEN.hist_merge()
 
-SEN.ensemble_mean()
+#SEN.ensemble_mean()
 
-SEN.period_averages(periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters={'type':'CORDEX'})
+#SEN.period_averages(periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters={'type':'CORDEX'})
 
 SEN.prepare_for_download()
 
