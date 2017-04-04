@@ -162,11 +162,11 @@ class country_analysis(object):
 					time=int(len(SELF.time)/2)
 					print 'no time specified. '+str(int(SELF.month[time]))+'/'+str(int(SELF.year[time]))+' selected'
 					to_plot=SELF.raw[time,:,:].copy()
-					if title==None:title=' '.join([SELF.name]+[str(int(SELF.month[time])),'/',str(int(SELF.year[time]))])
+					if title==None:title='_'.join([SELF.name]+[str(int(SELF.month[time])),'/',str(int(SELF.year[time]))])
 			else:
 				print period
 				to_plot=SELF.period[period].copy()
-				if title==None:title=' '.join(SELF.name+period)
+				if title==None:title='_'.join(SELF.name+period)
 
 			lat=SELF.lat.copy()
 			lon=SELF.lon.copy()
@@ -180,7 +180,25 @@ class country_analysis(object):
 
 			plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,show=show)
 
+	def display_mask(self,grid=None,mask_style=None):
+		if grid==None:
+			print 'Please select a grid:'
+			for grid in self._masks.keys():
+				print grid
+			return None
+		if mask_style==None:
+			print 'Please select a mask-style:'
+			for key in self._masks[grid].keys():
+				if key not in ['lat_mask','lon_mask']:
+					print key
+			return None
 
+		else:
+			toplo=self._masks[grid][mask_style][self._iso]
+			lat=self._masks[grid]['lat_mask'].copy()
+			lon=self._masks[grid]['lon_mask'].copy()
+
+			plot_map(toplo,lat,lon,title=grid+' '+mask_style)			
 
 	def display(self,selection=None):
 		if selection==None:
@@ -229,7 +247,7 @@ class country_analysis(object):
 
 
 	def load_from_tar(self,path):
-		os.system('tar -zxvf '+self._working_directory+'.tar.gz -C '+self._working_directory.replace(self._iso,''))
+		os.system('tar -zxf '+self._working_directory+'.tar.gz -C '+self._working_directory.replace(self._iso,''))
 
 		pkl_file = open(self._working_directory+'/'+self._iso+'_file_info.pkl', 'rb')
 		self._file_info = pickle.load(pkl_file)	;	pkl_file.close()  
@@ -251,6 +269,7 @@ class country_analysis(object):
 
 			file_new=self._working_directory+'/raw'+file.split('raw')[-1]
 
+			print file_new
 			nc_out=Dataset(file_new,"r")
 
 			new_data=self.data(tags=tags,outer_self=self,raw_file=file,original_var_name=var_name)
@@ -645,7 +664,11 @@ class country_analysis(object):
  			outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=time	;	outVar.setncatts({k: nc_in.variables['time'].getncattr(k) for k in nc_in.variables['time'].ncattrs()})
 
  			# still not sure how to handle these time bounds!
- 			outVar = nc_out.createVariable('time_bnds', 'f', ('time','bnds')) ; outVar[:]=nc_in.variables['time_bnds'][:,:]	;	outVar.setncatts({k: nc_in.variables['time_bnds'].getncattr(k) for k in nc_in.variables['time_bnds'].ncattrs()})
+ 			try:
+ 				outVar = nc_out.createVariable('time_bnds', 'f', ('time','bnds')) ; outVar[:]=nc_in.variables['time_bnds'][:,:]	;	outVar.setncatts({k: nc_in.variables['time_bnds'].getncattr(k) for k in nc_in.variables['time_bnds'].ncattrs()})
+ 			except:
+ 				print 'issue with time_bnds '+out_file
+
  			outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=year
  			outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=month
  			# data
@@ -870,79 +893,45 @@ class country_analysis(object):
 				time_min=max(time_min)
 				time_max=min(time_max)
 
-				time_length=(int(time_max)-int(time_min))*12+((time_max-int(time_max))-(time_min-int(time_min)))*100+2
-				time_axis=[]
-				for yr in range(int(time_min),int(time_max)+1):
-					start,stop=yr+0.01,yr+0.13
-					if yr==int(time_min):start=time_min
-					if yr==int(time_max):stop=time_max
-					time_axis+=list(np.arange(start,stop,0.01))
-				time_axis=[round(tt,2) for tt in time_axis]
-
-
 				tags_=ensemble[0].tags
 				tags_['model']='ensemble_mean'
+
 				new_data=self.data(tags=tags_,outer_self=self,raw_file=self._working_directory+'/raw/'+ensemble[0].var+'_'+ensemble[0].type+'_ensemble-mean_'+ensemble[0].scenario+'.nc',original_var_name=ensemble[0].original_var_name)
 
-				raws=np.zeros([len(ensemble),time_length,ensemble[0].raw.shape[1],ensemble[0].raw.shape[2]])*np.nan
 
-				command='cdo ensmean '
+				command='cdo -O ensmean '
 				for member,i in zip(ensemble,range(len(ensemble))):
-					command+='-selyear,1951/2099 '+member.raw_file+' '
+					os.system('cdo -selyear,1951/2098 '+member.raw_file+' '+self._working_directory+'/raw/'+str(i)+'tmp.nc4')
+					command+=self._working_directory+'/raw/'+str(i)+'tmp.nc4 '
 
-					overlap=np.where((member.time_stamp>=time_min) & (member.time_stamp<=time_max))[0]
-					try:
-						raws[i,:,:,:]=member.raw[overlap,:,:]
-					except:
-						print member.name, raws.shape, member.raw[overlap,:,:].shape 
-						print member.time_stamp[overlap][0],time_axis[0]
-						print member.time_stamp[overlap][-1],time_axis[-1]
-						if member.time_stamp[overlap][0]<time_axis[0]:
-							print 1
-							raws[i,:,:,:]=member.raw[overlap[1:],:,:]
-							overlap=overlap[1:]
-						if member.time_stamp[overlap][0]>time_axis[0]:
-							print 2
-							raws[i,1:,:,:]=member.raw[overlap,:,:]
-							overlap=np.append([overlap[0]-1],overlap)
-							
-						if member.time_stamp[overlap][-1]<time_axis[-1]:
-							print 3
-							raws[i,:,:,:]=member.raw[overlap[0:-1],:,:]
-							overlap=overlap[0:-1]
-						if member.time_stamp[overlap][-1]>time_axis[-1]:
-							print 4
-							raws[i,0:-1,:,:]=member.raw[overlap,:,:]
-							overlap=np.append(overlap,[overlap[-1]+1])
+				os.system(command+' '+self._working_directory+'/raw/ensmean_tmp.nc4')
 
-				print(command+' '+new_data.raw_file)
-				os.system(command+' '+new_data.raw_file)
-				asdasd
-
-				new_data.raw=np.mean(raws,axis=0)
+				nc_ens=Dataset(self._working_directory+'/raw/ensmean_tmp.nc4',"r")
+				new_data.raw=nc_ens.variables[ensemble[0].original_var_name][:,:,:]
+				time,year,month=self.understand_time_format(nc_ens)
 
 				new_data.grid=member.grid
 				new_data.lat=member.lat
 				new_data.lon=member.lon
-				new_data.time=member.time[overlap]
-				new_data.year=member.year[overlap]
-				new_data.month=member.month[overlap]
+				new_data.time=time
+				new_data.year=year
+				new_data.month=month
 
 				self._DATA.append(new_data)
 
 				nc_in=Dataset(ensemble[0].raw_file,"r")
 				os.system('rm '+new_data.raw_file)
 				nc_out=Dataset(new_data.raw_file,"w")
-				nc_out.createDimension('time', len(new_data.time))
+				nc_out.createDimension('time', len(time))
 				nc_out.createDimension('lat', len(new_data.lat))
 				nc_out.createDimension('lon', len(new_data.lon))
 				# lat lon 
 	 			outVar = nc_out.createVariable('lat', 'f', ('lat',)) ; outVar[:]=new_data.lat	;	outVar.setncattr('units','deg south')
 	 			outVar = nc_out.createVariable('lon', 'f', ('lon',)) ; outVar[:]=new_data.lon	;	outVar.setncattr('units','deg east')
 	 			# time
-	 			outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=new_data.time	;	outVar.setncatts({k: nc_in.variables['time'].getncattr(k) for k in nc_in.variables['time'].ncattrs()})
-	 			outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=new_data.year
-	 			outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=new_data.month
+	 			outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=time	;	outVar.setncatts({k: nc_in.variables['time'].getncattr(k) for k in nc_in.variables['time'].ncattrs()})
+	 			outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=year
+	 			outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=month
 	 			outVar = nc_out.createVariable(new_data.original_var_name, 'f', ('time','lat','lon',),fill_value=np.nan)
 	 			for k in nc_in.variables[new_data.original_var_name].ncattrs():
 	 				if k!='_FillValue':outVar.setncatts({k:nc_in.variables[new_data.original_var_name].getncattr(k)})
@@ -951,7 +940,9 @@ class country_analysis(object):
 				outVar[:] = new_data.raw
 
 				nc_out.close()			
-				nc_in.close()			
+				nc_in.close()	
+
+				os.system('rm '+self._working_directory+'/raw/*tmp*')
 
 
 

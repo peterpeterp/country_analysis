@@ -111,15 +111,15 @@ for in_file in all_files:
 	SEN.country_zoom(in_file,'SPEI',tags={'type':'NCEP','var':'SPEI'})
 
 
-##############
-# CRU
-##############
-SEN.country_zoom('/p/projects/elis/CRUDATA_TS3_23/cru_ts3.23.1901.2014.tmp.dat.nc','tmp',tags={'type':'CRU','var':'tas'})
-SEN.country_zoom('/p/projects/elis/CRUDATA_TS3_23/cru_ts3.23.1901.2014.pre.dat.nc','pre',tags={'type':'CRU','var':'pr'})
-all_files=glob.glob('/home/pepflei/CA/data/SPEI/CRU/*')
-for in_file in all_files:
-	months=in_file.split('/')[-1].split('.')[0].split('i')[1].replace('0','')
-	SEN.country_zoom(in_file,'spei',tags={'type':'CRU','var':'SPEI'})
+# ##############
+# # CRU
+# ##############
+# SEN.country_zoom('/p/projects/elis/CRUDATA_TS3_23/cru_ts3.23.1901.2014.tmp.dat.nc','tmp',tags={'type':'CRU','var':'tas'})
+# SEN.country_zoom('/p/projects/elis/CRUDATA_TS3_23/cru_ts3.23.1901.2014.pre.dat.nc','pre',tags={'type':'CRU','var':'pr'})
+# all_files=glob.glob('/home/pepflei/CA/data/SPEI/CRU/*')
+# for in_file in all_files:
+# 	months=in_file.split('/')[-1].split('.')[0].split('i')[1].replace('0','')
+# 	SEN.country_zoom(in_file,'spei',tags={'type':'CRU','var':'SPEI'})
 
 
 # SEN.hist_merge()
@@ -130,9 +130,13 @@ for in_file in all_files:
 
 SEN.hist_merge()
 
-#SEN.ensemble_mean()
+SEN.display()
 
-#SEN.period_averages(periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters={'type':'CORDEX'})
+adas
+
+SEN.ensemble_mean()
+
+SEN.period_averages(periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]})
 
 SEN.prepare_for_download()
 
