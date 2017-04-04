@@ -15,7 +15,7 @@ sys.path.append('/Users/peterpfleiderer/Documents/')
 
 
 
-
+os.chdir('/Users/peterpfleiderer/Documents/')
 
 SEN=country_analysis('SEN','Projects/country_analysis/')
 SEN.load_from_tar('Projects/country_analysis/SEN.tar.gz')
@@ -23,41 +23,18 @@ SEN.load_from_tar('Projects/country_analysis/SEN.tar.gz')
 
 SEN.display()
 
-SEN.hist_merge()
+SEN.period_averages(periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]})
 
-SEN.ensemble_mean()
+# SEN.prepare_for_download()
 
-SEN.period_averages(periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters={'type':'CORDEX'})
-
-
+SEN._DATA[42].plot_map(period='ref')
 
 
-# GHA=country_analysis('GHA','Projects/country_analysis/')
-# GHA.create_mask_admin('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/GHA_adm_shp/GHA_adm1',overwrite=False)
-
-# GHA.create_mask_country('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',overwrite=False)
-# GHA.create_mask_country('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/world/ne_50m_admin_0_countries',mask_style='pop1990_weighted',pop_mask_file='masks/population/population_1990_incrLat.nc',overwrite=False)
-# GHA.prepare_for_download()
-
-#GHA.create_mask_admin('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI','masks/shapefiles/GHA_adm_shp/GHA_adm1')
-
-# # GHA.plot_map(meta_data=['94x192','pop1990_weighted','GHA'],source='_masks')
+#SEN._DATA[44].plot_map(period='2030s-ref')
 
 
-# # GHA.plot_map(meta_data=['94x192','lat_weighted','Ashanti'],source='_masks')
-# GHA.country_zoom('data/raw/SPEI/NCEP/SPEI_ncep_1948-2014_1m.nc','SPEI',meta_data=['SPEI_1m','NCEP'])
+fig,axes=plt.subplots(rows=2,cols=5,figsize=(10,10))
+axes=axes.flatten()
+count=0
 
-
-# GHA.average('lat_weighted',meta_data=['SPEI_1m','NCEP'],overwrite=False)
-
-# # # plot
-# # fig, axes = plt.subplots(nrows=1, ncols=1,figsize=(4,4))
-# # for name in GHA._regions:
-# #     GHA.plot_transient(meta_data=['SPEI_1m','NCEP'],mask_style='lat_weighted',region=name,ax=axes,running_mean=240,show=False,ylabel='SPEI',label=name)
-
-# # plt.show()
-
-
-
-
-
+for 

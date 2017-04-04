@@ -43,7 +43,7 @@ class country_analysis(object):
 
 	class data(object):
 		def __init__(SELF,tags,outer_self,raw_file,original_var_name):
-			SELF.index=len(outer_self._DATA)+1
+			SELF.index=len(outer_self._DATA)
 			SELF.raw_file=outer_self._working_directory+'/raw/'+raw_file.split('raw/')[-1]
 			SELF.original_var_name=original_var_name
 			SELF.tags=tags
@@ -66,6 +66,111 @@ class country_analysis(object):
 
 		def get_time_stamp(SELF):
 			SELF.time_stamp=np.array([int(SELF.year[i])+int(SELF.month[i])/100. for i in range(len(SELF.year))])
+
+		def plot_map(SELF,period=None,time=None,color_bar=True,color_label=None,color_palette=None,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,show=True):
+			'''
+			plot maps of data. 
+			meta_data: list of strs: meta information required to acces data
+			source: str: default='_data'. if masks are to be plotted, specify source='_masks'
+			period: str: if  the averag over a period is to be plotted specify the period name
+			time: int: index in time axis of data (to be plotted)
+			color_bar: logical: if True, color-scale is plotted besides the map
+			color_label: str: label of the color-scale
+			color_palette: plt.cm. object: colors used
+			color_range: [float,float]: minimal and maximal value on color-scale
+			limits: [lon_min,lon_max,lat_min,lat_max]: extend of the map
+			ax: subplot: subplot on which the map will be plotted
+			out_file: str: location where the plot is saved
+			title: str: title of the plot
+			show: logical: show the subplot?
+			'''
+
+			if period==None:
+				if time==None:
+					time=int(len(SELF.time)/2)
+					print 'no time specified. '+str(int(SELF.month[time]))+'/'+str(int(SELF.year[time]))+' selected'
+					to_plot=SELF.raw[time,:,:].copy()
+					if title==None:title=' '.join([SELF.name]+[str(int(SELF.month[time])),'/',str(int(SELF.year[time]))])
+			else:
+				print period
+				to_plot=SELF.period[period].copy()
+				if title==None:title=' '.join(SELF.name+period)
+
+			lat=SELF.lat.copy()
+			lon=SELF.lon.copy()
+			if color_label==None:color_label=SELF.var
+
+			if color_palette==None:
+				if data.var='pr':		color_palette=plt.cm.RdYlBu
+				elif data.var='tas':	color_palette=plt.cm.YlOrBr
+				elif data.var='SPEI':	color_palette=plt.cm.plasma
+				else:					color_palette=plt.cm.plasma
+
+
+			if ax==None:
+				fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))		
+
+
+			# handle 0 to 360 lon
+			if max(lon)>180:
+				problem_start=np.where(lon>180)[0][0]
+				new_order=np.array(range(problem_start,len(lon))+range(0,problem_start))
+				to_plot=to_plot[:,new_order]
+				lon=lon[new_order]
+				lon[lon>180]-=360
+
+
+			# handle limits
+			if limits==None:
+				half_lon_step=abs(np.diff(lon,1)[0]/2)
+				half_lat_step=abs(np.diff(lat,1)[0]/2)
+				relevant_lats=lat[np.where(np.isfinite(to_plot))[0]]
+				relevant_lons=lon[np.where(np.isfinite(to_plot))[1]]
+				limits=[np.min(relevant_lons)-half_lon_step,np.max(relevant_lons)+half_lon_step,np.min(relevant_lats)-half_lat_step,np.max(relevant_lats)+half_lat_step]
+
+			m = Basemap(ax=ax,llcrnrlon=limits[0],urcrnrlon=limits[1],llcrnrlat=limits[2],urcrnrlat=limits[3],resolution="l",projection='cyl')
+			m.drawmapboundary(fill_color='1.')
+
+			# get color_range
+			if color_range==None:
+				color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
+
+			lon-=np.diff(lon,1)[0]/2.
+			lat-=np.diff(lat,1)[0]/2.
+			lon=np.append(lon,[lon[-1]+np.diff(lon,1)[0]])
+			lat=np.append(lat,[lat[-1]+np.diff(lat,1)[0]])
+			lon,lat=np.meshgrid(lon,lat)
+			im = m.pcolormesh(lon,lat,to_plot,cmap=color_palette,vmin=color_range[0],vmax=color_range[1])
+
+
+			# mask some grid-cells
+			if grey_area!=None:
+				to_plot=np.ma.masked_invalid(grey_area.copy())
+				if lat[0]>lat[1]:to_plot=to_plot[::-1,:]
+				if lon[0]>lon[1]:to_plot=to_plot[:,::-1]
+				im2 = m.pcolormesh(lon,lat,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
+
+			# show coastlines and borders
+			m.drawcoastlines()
+			m.drawstates()
+			m.drawcountries()
+
+			# add colorbar
+			if color_bar==True:
+				cb = m.colorbar(im,'right', size="5%", pad="2%")
+				tick_locator = ticker.MaxNLocator(nbins=5)
+				cb.locator = tick_locator
+				cb.update_ticks()
+				cb.set_label(color_label, rotation=90)
+
+			ax.set_title(title)
+			ax.legend(loc='best')
+
+
+			if out_file==None and show==True:plt.show()
+			if out_file!=None:plt.savefig(out_file)
+
+			return(im)
 
 
 
@@ -323,6 +428,13 @@ class country_analysis(object):
  			outVar = nc_mask.createVariable(self._iso, 'f', ('lat','lon',),fill_value='NaN') ; outVar[:]=self._masks[grid][mask_style][self._iso][:,:]
 			nc_mask.close()
 
+			# new_data=self.data(tags={'type':'mask','mask_style':mask_style},outer_self=self,raw_file=mask_file,original_var_name='mask')
+			# new_data.raw=self._masks[grid][mask_style][self._iso][:,:]
+			# new_data.grid=grid
+			# new_data.lat=lat[:]
+			# new_data.lon=lon[:]
+			# self._DATA.append(new_data)			
+
 	def create_mask_admin(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file='',overwrite=False,lat_name='lat',lon_name='lon'):
 		'''
 		create country mask
@@ -398,7 +510,25 @@ class country_analysis(object):
 			
 			nc_mask.close()
 
+	def understand_time_format(self,nc_in,time_units=None,time_calendar=None):
+		time=nc_in.variables['time'][:]
+		datevar = []
+		# if specified units and calendar
+		if time_units!=None and time_calendar!=None:
+			datevar.append(num2date(time,units = time_units,calendar= time_calendar))
+		# if no specification
+		if time_units==None and time_calendar==None:
+			time_unit=nc_in.variables['time'].units
+			try:	
+				cal_temps = nc_in.variables['time'].calendar
+				datevar.append(num2date(time,units = time_unit,calendar = cal_temps))
+			except:
+				datevar.append(num2date(time,units = time_unit))
+		# create index variable
+		year=np.array([int(str(date).split("-")[0])	for date in datevar[0][:]])
+		month=np.array([int(str(date).split("-")[1])	for date in datevar[0][:]])
 
+		return(time,year,month)
 
 	def country_zoom(self,input_file,var_name,tags=None,mask_style='lat_weighted',time_units=None,time_calendar=None,lat_name='lat',lon_name='lon',overwrite=False):
 		'''
@@ -466,6 +596,10 @@ class country_analysis(object):
 				var_in=np.ma.getdata(var_in)
 				var_in[masked]=np.nan
 			except: pass
+
+			if var_name=='pr' and np.nanmax(var_in)<10:
+				var_in*=86400
+
 			# creat a 1-NA mask
 			red_mask = country_mask[np.ix_(list(lats),list(lons))]
 			red_mask[red_mask>0]=1
@@ -473,26 +607,13 @@ class country_analysis(object):
 			country_data=var_in*red_mask
 
 			# handle time information
-			time=nc_in.variables['time'][:]
-			datevar = []
-			# if specified units and calendar
-			if time_units!=None and time_calendar!=None:
-				datevar.append(num2date(time,units = time_units,calendar= time_calendar))
-			# if no specification
-			if time_units==None and time_calendar==None:
-				time_unit=nc_in.variables['time'].units
-				try:	
-					cal_temps = nc_in.variables['time'].calendar
-					datevar.append(num2date(time,units = time_unit,calendar = cal_temps))
-				except:
-					datevar.append(num2date(time,units = time_unit))
-			# create index variable
-			year=np.array([int(str(date).split("-")[0])	for date in datevar[0][:]])
-			month=np.array([int(str(date).split("-")[1])	for date in datevar[0][:]])
+			time,year,month=self.understand_time_format(nc_in)
+
 
 			# write zoomed file
 			nc_out=Dataset(out_file,"w")
 			nc_out.createDimension('time', len(time))
+			nc_out.createDimension('bnds', 2)
 			nc_out.createDimension('lat', ny)
 			nc_out.createDimension('lon', nx)
 			# lat lon 
@@ -500,7 +621,9 @@ class country_analysis(object):
  			outVar = nc_out.createVariable('lon', 'f', ('lon',)) ; outVar[:]=lon_mask[list(lons)]	;	outVar.setncattr('units','deg east')
  			# time
  			outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=time	;	outVar.setncatts({k: nc_in.variables['time'].getncattr(k) for k in nc_in.variables['time'].ncattrs()})
- 			outVar = nc_out.createVariable('time_bnds', 'f', ('time',)) ; outVar[:]=time	;	outVar.setncatts({k: nc_in.variables['time_bnds'].getncattr(k) for k in nc_in.variables['time_bnds'].ncattrs()})
+
+ 			# still not sure how to handle these time bounds!
+ 			outVar = nc_out.createVariable('time_bnds', 'f', ('time','bnds')) ; outVar[:]=nc_in.variables['time_bnds'][:,:]	;	outVar.setncatts({k: nc_in.variables['time_bnds'].getncattr(k) for k in nc_in.variables['time_bnds'].ncattrs()})
  			outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=year
  			outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=month
  			# data
@@ -546,10 +669,35 @@ class country_analysis(object):
 
 						for ddd in data__:	
 							if ddd.scenario.lower()!='hist':
-								os.system('cdo -O mergetime '+hist.raw_file+' '+ddd.raw_file+' '+ddd.raw_file.replace('.nc','_merged.nc'))
-								print ddd.model,ddd.var,ddd.scenario
+								os.system('cdo -O mergetime '+hist.raw_file+' '+ddd.raw_file+' '+ddd.raw_file.replace('.nc','_tmp.nc'))
 
-								nc_out=Dataset(ddd.raw_file.replace('.nc','_merged.nc'),"r")
+								nc_in=Dataset(ddd.raw_file.replace('.nc','_tmp.nc'))
+								time,year,month=self.understand_time_format(nc_in)
+
+								os.system('rm '+ddd.raw_file.replace('.nc','_merged.nc'))
+								nc_out=Dataset(ddd.raw_file.replace('.nc','_merged.nc'),"w")
+								nc_out.createDimension('time', len(nc_in.variables['time'][:]))
+								nc_out.createDimension('lat', len(ddd.lat))
+								nc_out.createDimension('lon', len(ddd.lon))
+								# lat lon 
+					 			outVar = nc_out.createVariable('lat', 'f', ('lat',)) ; outVar[:]=ddd.lat	;	outVar.setncattr('units','deg south')
+					 			outVar = nc_out.createVariable('lon', 'f', ('lon',)) ; outVar[:]=ddd.lon	;	outVar.setncattr('units','deg east')
+					 			# time
+					 			outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=time	;	outVar.setncatts({k: nc_in.variables['time'].getncattr(k) for k in nc_in.variables['time'].ncattrs()})
+					 			outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=year
+					 			outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=month
+					 			outVar = nc_out.createVariable(ddd.original_var_name, 'f', ('time','lat','lon',),fill_value=np.nan)
+					 			for k in nc_in.variables[ddd.original_var_name].ncattrs():
+					 				if k!='_FillValue':outVar.setncatts({k:nc_in.variables[ddd.original_var_name].getncattr(k)})
+					 			outVar.setncattr('grid',ddd.grid)
+								outVar[:] = nc_in.variables[ddd.original_var_name][:,:,:]
+
+								nc_in.close()
+								os.system('rm '+ddd.raw_file.replace('.nc','_tmp.nc'))
+							
+
+								print ddd.model,ddd.var,ddd.scenario
+								
 
 								print ddd.original_var_name
 								ddd.raw=nc_out.variables[ddd.original_var_name][:,:,:]
@@ -559,6 +707,7 @@ class country_analysis(object):
 								ddd.get_time_stamp()
 								ddd.raw_file=ddd.raw_file.replace('.nc','_merged.nc')
 
+								nc_out.close()
 
 								delete_hist=True
 				
@@ -653,22 +802,27 @@ class country_analysis(object):
 		meta_data: list of strs: meta_data restrictions. data files for which the meta_data is as specified, the average is computed 
 		'''
 
-		for key in filters.keys():
-			for data in self._DATA:
-				if filters[key] in data.all_tags:
+		for data in self._DATA:
+			compute=True
+			for key in filters.keys():
+				if filters[key] not in data.all_tags:
+					compute=False
 
-					data.period={}
-					data.period_meta=periods
+			if compute:
+				print data.name
 
-					for period_name in periods.keys():	
-						if len(np.where((data.year>=periods[period_name][0]) & (data.year<periods[period_name][1]))[0])>0:
-							years_in_period=np.where((data.year>=periods[period_name][0]) & (data.year<periods[period_name][1]))
+				data.period={}
+				data.period_meta=periods
 
-							data.period[period_name]=np.mean(np.ma.masked_invalid(data.raw[years_in_period,:,:][0,:,:,:]),axis=0)
+				for period_name in periods.keys():	
+					if len(np.where((data.year>=periods[period_name][0]) & (data.year<periods[period_name][1]))[0])>0:
+						years_in_period=np.where((data.year>=periods[period_name][0]) & (data.year<periods[period_name][1]))
 
-					for period_name in periods.keys():
-						if period_name!='ref' and 'ref' in periods.keys() and period_name in data.period.keys():
-							data.period[period_name+'-'+'ref']=data.period[period_name]-data.period['ref']
+						data.period[period_name]=np.mean(np.ma.masked_invalid(data.raw[years_in_period,:,:][0,:,:,:]),axis=0)
+
+				for period_name in periods.keys():
+					if period_name!='ref' and 'ref' in periods.keys() and period_name in data.period.keys():
+						data.period[period_name+'-'+'ref']=data.period[period_name]-data.period['ref']
 
 
 
@@ -706,7 +860,7 @@ class country_analysis(object):
 
 				tags_=ensemble[0].tags
 				tags_['model']='ensemble_mean'
-				new_data=self.data(tags=tags_,outer_self=self,raw_file='no file',original_var_name=ensemble[0].original_var_name)
+				new_data=self.data(tags=tags_,outer_self=self,raw_file=self._working_directory+'/raw/'+ensemble[0].var+'_'+ensemble[0].type+'_ensemble-mean_'+ensemble[0].scenario+'.nc',original_var_name=ensemble[0].original_var_name)
 
 				raws=np.zeros([len(ensemble),time_length,ensemble[0].raw.shape[1],ensemble[0].raw.shape[2]])*np.nan
 
@@ -722,18 +876,22 @@ class country_analysis(object):
 						if member.time_stamp[overlap][0]<time_axis[0]:
 							print 1
 							raws[i,:,:,:]=member.raw[overlap[1:],:,:]
+							overlap=overlap[1:]
 						if member.time_stamp[overlap][0]>time_axis[0]:
 							print 2
 							raws[i,1:,:,:]=member.raw[overlap,:,:]
-
+							overlap=np.append([overlap[0]-1],overlap)
+							
 						if member.time_stamp[overlap][-1]<time_axis[-1]:
 							print 3
 							raws[i,:,:,:]=member.raw[overlap[0:-1],:,:]
+							overlap=overlap[0:-1]
 						if member.time_stamp[overlap][-1]>time_axis[-1]:
 							print 4
 							raws[i,0:-1,:,:]=member.raw[overlap,:,:]
+							overlap=np.append(overlap,[overlap[-1]+1])
 
-				new_data.raw=np.mean(raws,axis=3)
+				new_data.raw=np.mean(raws,axis=0)
 
 				new_data.grid=member.grid
 				new_data.lat=member.lat
@@ -744,8 +902,28 @@ class country_analysis(object):
 
 				self._DATA.append(new_data)
 
+				nc_in=Dataset(ensemble[0].raw_file,"r")
+				os.system('rm '+new_data.raw_file)
+				nc_out=Dataset(new_data.raw_file,"w")
+				nc_out.createDimension('time', len(new_data.time))
+				nc_out.createDimension('lat', len(new_data.lat))
+				nc_out.createDimension('lon', len(new_data.lon))
+				# lat lon 
+	 			outVar = nc_out.createVariable('lat', 'f', ('lat',)) ; outVar[:]=new_data.lat	;	outVar.setncattr('units','deg south')
+	 			outVar = nc_out.createVariable('lon', 'f', ('lon',)) ; outVar[:]=new_data.lon	;	outVar.setncattr('units','deg east')
+	 			# time
+	 			outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=new_data.time	;	outVar.setncatts({k: nc_in.variables['time'].getncattr(k) for k in nc_in.variables['time'].ncattrs()})
+	 			outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=new_data.year
+	 			outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=new_data.month
+	 			outVar = nc_out.createVariable(new_data.original_var_name, 'f', ('time','lat','lon',),fill_value=np.nan)
+	 			for k in nc_in.variables[new_data.original_var_name].ncattrs():
+	 				if k!='_FillValue':outVar.setncatts({k:nc_in.variables[new_data.original_var_name].getncattr(k)})
+	 			outVar.setncattr('grid',new_data.grid)
+	 			print new_data.raw.shape,len(new_data.time)
+				outVar[:] = new_data.raw
 
-
+				nc_out.close()			
+				nc_in.close()			
 
 
 
@@ -791,115 +969,7 @@ class country_analysis(object):
 
 
 
-	def plot_map(self,meta_data,source='_data',period=None,time=None,color_bar=True,color_label=None,color_palette=plt.cm.plasma,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,show=True):
-		'''
-		plot maps of data. 
-		meta_data: list of strs: meta information required to acces data
-		source: str: default='_data'. if masks are to be plotted, specify source='_masks'
-		period: str: if  the averag over a period is to be plotted specify the period name
-		time: int: index in time axis of data (to be plotted)
-		color_bar: logical: if True, color-scale is plotted besides the map
-		color_label: str: label of the color-scale
-		color_palette: plt.cm. object: colors used
-		color_range: [float,float]: minimal and maximal value on color-scale
-		limits: [lon_min,lon_max,lat_min,lat_max]: extend of the map
-		ax: subplot: subplot on which the map will be plotted
-		out_file: str: location where the plot is saved
-		title: str: title of the plot
-		show: logical: show the subplot?
-		'''
-		if source=='_masks':
-			to_plot = self._masks[meta_data[0]][meta_data[1]][meta_data[2]].copy()
-			lat=self._masks[meta_data[0]]['lat_mask'].copy()
-			lon=self._masks[meta_data[0]]['lon_mask'].copy()		
 
-			if color_label==None:color_label='importance of grid-cell\nfor countrywide average'
-			if title==None:title=' '.join(meta_data)
-
-		if source=='_data':
-			tmp = self._data
-
-			for meta_info in meta_data:
-				tmp=tmp[meta_info]
-
-			if period==None:
-				if time==None:
-					time=int(len(tmp['time'])/2)
-					print 'no time specified. '+str(int(tmp['month'][time]))+'/'+str(int(tmp['year'][time]))+' selected'
-					to_plot=tmp['data'][time,:,:].copy()
-					if title==None:title=' '.join(meta_data+[str(int(tmp['month'][time])),'/',str(int(tmp['year'][time]))])
-			else:
-				print period
-				to_plot=tmp['period'][period].copy()
-				if title==None:title=' '.join(meta_data+[period])
-
-			lat=tmp['lat'].copy()
-			lon=tmp['lon'].copy()
-			if color_label==None:color_label=meta_data[0]
-
-
-		if ax==None:
-			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))		
-
-
-		# handle 0 to 360 lon
-		if max(lon)>180:
-			problem_start=np.where(lon>180)[0][0]
-			new_order=np.array(range(problem_start,len(lon))+range(0,problem_start))
-			to_plot=to_plot[:,new_order]
-			lon=lon[new_order]
-			lon[lon>180]-=360
-
-
-		# handle limits
-		if limits==None:
-			half_lon_step=abs(np.diff(lon,1)[0]/2)
-			half_lat_step=abs(np.diff(lat,1)[0]/2)
-			relevant_lats=lat[np.where(np.isfinite(to_plot))[0]]
-			relevant_lons=lon[np.where(np.isfinite(to_plot))[1]]
-			limits=[np.min(relevant_lons)-half_lon_step,np.max(relevant_lons)+half_lon_step,np.min(relevant_lats)-half_lat_step,np.max(relevant_lats)+half_lat_step]
-
-		m = Basemap(ax=ax,llcrnrlon=limits[0],urcrnrlon=limits[1],llcrnrlat=limits[2],urcrnrlat=limits[3],resolution="l",projection='cyl')
-		m.drawmapboundary(fill_color='1.')
-
-		# get color_range
-		if color_range==None:
-			color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
-
-		lon-=np.diff(lon,1)[0]/2.
-		lat-=np.diff(lat,1)[0]/2.
-		lon,lat=np.meshgrid(lon,lat)
-		im = m.pcolormesh(lon,lat,to_plot,cmap=color_palette,vmin=color_range[0],vmax=color_range[1])
-
-
-		# mask some grid-cells
-		if grey_area!=None:
-			to_plot=np.ma.masked_invalid(grey_area.copy())
-			if lat[0]>lat[1]:to_plot=to_plot[::-1,:]
-			if lon[0]>lon[1]:to_plot=to_plot[:,::-1]
-			im2 = m.pcolormesh(lon,lat,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
-
-		# show coastlines and borders
-		m.drawcoastlines()
-		m.drawstates()
-		m.drawcountries()
-
-		# add colorbar
-		if color_bar==True:
-			cb = m.colorbar(im,'right', size="5%", pad="2%")
-			tick_locator = ticker.MaxNLocator(nbins=5)
-			cb.locator = tick_locator
-			cb.update_ticks()
-			cb.set_label(color_label, rotation=90)
-
-		ax.set_title(title)
-		ax.legend(loc='best')
-
-
-		if out_file==None and show==True:plt.show()
-		if out_file!=None:plt.savefig(out_file)
-
-		return(im)
 
 
 
