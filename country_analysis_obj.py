@@ -18,10 +18,14 @@ from matplotlib.ticker import MaxNLocator
 import seaborn as sns
 from matplotlib.colors import ListedColormap
 
+# from matplotlib import rc
+# rc('text', usetex=True)
 
-
-def plot_map(to_plot,lat,lon,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title='',show=True):
+def plot_map(to_plot,lat,lon,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=''):
 	# this actualy plots the map
+
+		if ax==None: show=True
+		if ax!=None: show=False
 
 		if ax==None:
 			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))		
@@ -51,20 +55,21 @@ def plot_map(to_plot,lat,lon,color_bar=True,color_label='',color_palette=plt.cm.
 		if color_range==None:
 			color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
 
-		lon-=np.diff(lon,1)[0]/2.
-		lat-=np.diff(lat,1)[0]/2.
-		lon=np.append(lon,[lon[-1]+np.diff(lon,1)[0]])
-		lat=np.append(lat,[lat[-1]+np.diff(lat,1)[0]])
-		lon,lat=np.meshgrid(lon,lat)
-		im = m.pcolormesh(lon,lat,to_plot,cmap=color_palette,vmin=color_range[0],vmax=color_range[1])
+		x,y=lon.copy(),lat.copy()
+		x-=np.diff(x,1)[0]/2.
+		y-=np.diff(y,1)[0]/2.
+		x=np.append(x,[x[-1]+np.diff(x,1)[0]])
+		y=np.append(y,[y[-1]+np.diff(y,1)[0]])
+		x,y=np.meshgrid(x,y)
+		im = m.pcolormesh(x,y,to_plot,cmap=color_palette,vmin=color_range[0],vmax=color_range[1])
 
 
 		# mask some grid-cells
 		if grey_area!=None:
 			to_plot=np.ma.masked_invalid(grey_area.copy())
-			if lat[0]>lat[1]:to_plot=to_plot[::-1,:]
-			if lon[0]>lon[1]:to_plot=to_plot[:,::-1]
-			im2 = m.pcolormesh(lon,lat,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
+			if y[0]>y[1]:to_plot=to_plot[::-1,:]
+			if x[0]>x[1]:to_plot=to_plot[:,::-1]
+			im2 = m.pcolormesh(x,y,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
 
 		# show coastlines and borders
 		m.drawcoastlines()
@@ -137,7 +142,7 @@ class country_analysis(object):
 		def get_time_stamp(SELF):
 			SELF.time_stamp=np.array([int(SELF.year[i])+int(SELF.month[i])/100. for i in range(len(SELF.year))])
 
-		def display_map(SELF,period=None,time=None,color_bar=True,color_label=None,color_palette=None,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,show=True):
+		def display_map(SELF,period=None,time=None,color_bar=True,color_label=None,color_palette=None,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None):
 			'''
 			plot maps of data. 
 			meta_data: list of strs: meta information required to acces data
@@ -164,21 +169,72 @@ class country_analysis(object):
 					to_plot=SELF.raw[time,:,:].copy()
 					if title==None:title='_'.join([SELF.name]+[str(int(SELF.month[time])),'/',str(int(SELF.year[time]))])
 			else:
-				print period
 				to_plot=SELF.period[period].copy()
-				if title==None:title='_'.join(SELF.name+period)
+				if title==None:title=SELF.name+'_'+period
 
 			lat=SELF.lat.copy()
 			lon=SELF.lon.copy()
 			if color_label==None:color_label=SELF.var
 
 			if color_palette==None:
-				if SELF.var=='pr':		color_palette=plt.cm.RdYlBu
+				if SELF.var=='pr':		color_palette=plt.cm.YlGnBu
 				elif SELF.var=='tas':	color_palette=plt.cm.YlOrBr
 				elif SELF.var==	'SPEI':	color_palette=plt.cm.plasma
 				else:					color_palette=plt.cm.plasma
 
-			plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,show=show)
+			im=plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title)
+			return(im)
+
+		def plot_transient(SELF,mask_style=None,region=None,running_mean=1,ax=None,out_file=None,title=None,ylabel=None,label=''):
+			'''
+			plot transient of countrywide average
+			meta_data: list of strs: meta information required to acces data
+			mask_style: str: weighting used to compute countrywide averages
+			running_mean: int: years to be averaged in moving average		
+			ax: subplot: subplot on which the map will be plotted
+			out_file: str: location where the plot is saved
+			title: str: title of the plot
+			ylabel: str: labe to put on y-axis
+			show: logical: show the subplot?
+			'''
+
+			if ax!=None:
+				show=False
+
+			if ax==None:
+				show=True
+				fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
+
+			if mask_style!=None:
+				mask_styles=[mask_style]
+			if mask_style==None:
+				mask_styles=SELF.average.keys()
+
+			if region!=None:
+				regions=[region]
+			if region==None:
+				regions=SELF.average[mask_styles[0]].keys()
+
+			for mask_style in mask_styles:
+				for region in regions:
+					ax.plot(SELF.time,pd.rolling_mean(SELF.average[mask_style][region],running_mean),linestyle='-',label=region+' '+mask_style.replace('_',' '))
+
+			ax.set_xticks(SELF.time[range(0,len(SELF.time),240)]) 
+			ax.set_xticklabels(SELF.year[range(0,len(SELF.time),240)])
+
+			if ylabel==None:ylabel=SELF.var.replace('_',' ')
+			ax.set_ylabel(ylabel)
+			if title==None:title=SELF.name.replace('_',' ')
+			ax.set_title(title)
+			
+			if show==True:ax.legend(loc='best')
+			if out_file==None and show==True:plt.show()
+			if out_file!=None:plt.savefig(out_file)
+
+			if int(np.mean(np.diff(SELF.year,1)))!=1:
+				return 'not yearly data! please consider this for the running mean'
+
+
 
 	def display_mask(self,grid=None,mask_style=None):
 		if grid==None:
@@ -206,6 +262,11 @@ class country_analysis(object):
 		for data in selection:
 			print data.index,data.name,min(data.year),max(data.year)
 
+	def reorder_data():
+		for data in self._DATA:
+			print 66
+
+
 	def selection(self,filters):
 		selection=[]
 		for data in self._DATA:
@@ -219,6 +280,18 @@ class country_analysis(object):
 		self.display(selection)
 		return selection
 
+	def ensemble(self,filters):
+		ensemble={}
+		for data in self._DATA:
+			selected=True
+			for key in filters:
+				if key not in data.all_tags:
+					selected=False
+			if selected:
+				ensemble[data.model]=data
+				print data.model+': '+data.name
+
+		return ensemble
 
 	def prepare_for_download(self):
 		sys.path.append(self._working_directory)
@@ -236,14 +309,14 @@ class country_analysis(object):
 			for mask_style in data.average.keys():
 				file_info['country_average'][data.average[mask_style]['out_file']]={'mask_style':mask_style,'name':data.name}
 
-		print file_info
+		#print file_info
 
 		output = open(self._working_directory+'/'+self._iso+'_file_info.pkl', 'wb')
 		pickle.dump(file_info, output)	;	output.close()
 
 		os.chdir(self._working_directory)
 		os.chdir('../')
-		os.system('tar -zcvf '+self._working_directory+'.tar.gz '+self._iso)
+		os.system('tar -zcf '+self._working_directory+'.tar.gz '+self._iso)
 
 
 	def load_from_tar(self,path):
@@ -269,7 +342,7 @@ class country_analysis(object):
 
 			file_new=self._working_directory+'/raw'+file.split('raw')[-1]
 
-			print file_new
+			#print file_new
 			nc_out=Dataset(file_new,"r")
 
 			new_data=self.data(tags=tags,outer_self=self,raw_file=file,original_var_name=var_name)
@@ -298,7 +371,7 @@ class country_analysis(object):
 				if data.name==name:
 					table=pd.read_csv(file_new,sep=';')
 					for key in table.keys():
-						if key not in ['time','year','month']:
+						if key not in ['time','year','month','index']:
 							if mask_style not in data.average.keys():	data.average[mask_style]={}
 							data.average[mask_style][key]=np.array(table[key])
 
@@ -558,20 +631,25 @@ class country_analysis(object):
 		if time_units!=None and time_calendar!=None:
 			datevar.append(num2date(time,units = time_units,calendar= time_calendar))
 		# if no specification
+		print time
+		time[time<0]=0
 		if time_units==None and time_calendar==None:
 			time_unit=nc_in.variables['time'].units
-			try:	
+			if True:	
 				cal_temps = nc_in.variables['time'].calendar
+				print cal_temps,time_unit
 				datevar.append(num2date(time,units = time_unit,calendar = cal_temps))
-			except:
-				datevar.append(num2date(time,units = time_unit))
+			# except:
+			# 	datevar.append(num2date(time,units = time_unit))
+		print time
 		# create index variable
 		year=np.array([int(str(date).split("-")[0])	for date in datevar[0][:]])
 		month=np.array([int(str(date).split("-")[1])	for date in datevar[0][:]])
+		print year
 
 		return(time,year,month)
 
-	def country_zoom(self,input_file,var_name,tags=None,mask_style='lat_weighted',time_units=None,time_calendar=None,lat_name='lat',lon_name='lon',overwrite=False):
+	def country_zoom(self,input_file,var_name,tags=None,mask_style='lat_weighted',time_units=None,time_calendar=None,lat_name='lat',lon_name='lon',overwrite=False,additional_tag=''):
 		'''
 		zoom input_file to area relevant for the country
 		input_file: type str: file to be processed
@@ -581,13 +659,16 @@ class country_analysis(object):
 		mask_path: type str: path to where the masks are stored
 		'''
 
-		out_file=self._working_directory+'/raw/'+input_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
+		out_file=self._working_directory+'/raw/'+input_file.split('/')[-1].replace('.nc','_'+self._iso+additional_tag+'.nc')
 
 		if os.path.isfile(out_file) and overwrite==False:
 			nc_out=Dataset(out_file,"r")
 
 			new_data=self.data(tags=tags,outer_self=self,raw_file=out_file,original_var_name=var_name)
 
+			print var_name
+			print tags
+			print nc_out.variables.keys()
 			new_data.raw=nc_out.variables[var_name][:,:,:]
 			new_data.grid=nc_out.variables[var_name].getncattr('grid')
 			new_data.lat=nc_out.variables['lat'][:]
@@ -703,17 +784,17 @@ class country_analysis(object):
 				data__=[]
 				for dd in self._DATA:
 					if hasattr(dd,'model'):
-						if dd.model==data.model and dd.var==data.var:	data__.append(dd)
+						if dd.model==data.model and dd.var==data.var and dd.type==data.type:	data__.append(dd)
 
 				for hist in data__:
-					if hist.scenario.lower()=='hist':
+					if hist.scenario.lower() in ['hist','historical']:
 						delete_hist=False
 						print '------- merging -----------'
 						print hist.model,hist.var,hist.scenario
 						print data__
 
 						for ddd in data__:	
-							if ddd.scenario.lower()!='hist':
+							if ddd.scenario.lower() not in ['hist','historical']:
 								os.system('cdo -O mergetime '+hist.raw_file+' '+ddd.raw_file+' '+ddd.raw_file.replace('.nc','_tmp.nc'))
 
 								nc_in=Dataset(ddd.raw_file.replace('.nc','_tmp.nc'))
@@ -767,76 +848,78 @@ class country_analysis(object):
 		meta_data: list of strs: meta_data restrictions. data files for which the meta_data is as specified, the average is computed 
 		'''
 
-		for key in filters.keys():
-			for data in self._DATA:
-				if filters[key] in data.all_tags:
+		for data in self._DATA:
+			compute=True
+			for key in filters.keys():
+				if filters[key] not in data.all_tags:
+					compute=False
 
-					# check if file has been saved
-					out_file=self._working_directory+'/country_average/country_mean_'+'_'.join(data.all_tags)+'_'+mask_style+'.csv'
-					if mask_style not in data.average.keys():	data.average[mask_style]={}
-					data.average[mask_style]['out_file']=out_file
+			if compute:
+				# check if file has been saved
+				out_file=self._working_directory+'/country_average/country_mean_'+'_'.join(data.all_tags)+'_'+mask_style+'.csv'
+				if mask_style not in data.average.keys():	data.average[mask_style]={}
+				data.average[mask_style]['out_file']=out_file
 
-					if os.path.isfile(out_file) and overwrite==False:
-						table=pd.read_csv(out_file,sep=';')
-						for key in table.keys():
-							if key not in ['time','year','month']:
-								data.average[mask_style][key]=np.array(table[key])
+				if os.path.isfile(out_file) and overwrite==False:
+					table=pd.read_csv(out_file,sep=';')
+					for key in table.keys():
+						if key not in ['time','year','month']:
+							data.average[mask_style][key]=np.array(table[key])
 
-					else:
-						# prepare table
-						country_mean_csv = pd.DataFrame(index=range(len(data.time)))
-						country_mean_csv['time']=data.time
-						country_mean_csv['month']=data.month
-						country_mean_csv['year']=data.year
+				else:
+					# prepare table
+					country_mean_csv = pd.DataFrame(index=range(len(data.time)))
+					country_mean_csv['time']=data.time
+					country_mean_csv['month']=data.month
+					country_mean_csv['year']=data.year
 
-						# load input data
-						var_in=data.raw.copy()			
-						try:	# handle masked array
-							masked=np.ma.getmask(var_in)
-							var_in=np.ma.getdata(var_in)
-							var_in[masked]=np.nan
-						except: pass
+					# load input data
+					var_in=data.raw.copy()			
+					try:	# handle masked array
+						masked=np.ma.getmask(var_in)
+						var_in=np.ma.getdata(var_in)
+						var_in[masked]=np.nan
+					except: pass
 
-						# find relevant area (as rectangle) and check whether lon and lat are correct (on same grid differences in lat decreasing or increasing could arise)
-						mask=self._masks[data.grid][mask_style][self._iso]
-						lat_mask=self._masks[data.grid]['lat_mask']
-						lon_mask=self._masks[data.grid]['lon_mask']
+					# find relevant area (as rectangle) and check whether lon and lat are correct (on same grid differences in lat decreasing or increasing could arise)
+					mask=self._masks[data.grid][mask_style][self._iso]
+					lat_mask=self._masks[data.grid]['lat_mask']
+					lon_mask=self._masks[data.grid]['lon_mask']
 
-						lat_mean=np.mean(mask,1)
-						lats=np.where(lat_mean!=0)
-						print lat_mask[lats],data.lat
-						if lat_mask[lats][0]!=data.lat[0]:
-							var_in=var_in[:,:,::-1]
-							if lat_mask[lats][0]!=data.lat[-1]:
-								print 'problem with lat' ; return('error')
+					lat_mean=np.mean(mask,1)
+					lats=np.where(lat_mean!=0)
+					if lat_mask[lats][0]!=data.lat[0]:
+						var_in=var_in[:,:,::-1]
+						if lat_mask[lats][0]!=data.lat[-1]:
+							print 'problem with lat' ; return('error')
 
-						lon_mean=np.mean(mask,0)
-						lons=np.where(lon_mean!=0)
-						if lon_mask[lons][0]!=data.lon[0]:
-							var_in=var_in[:,:,::-1]
-							if lon_mask[lons][0]!=data.lon[-1]:
-								print 'problem with lon' ; return('error')
+					lon_mean=np.mean(mask,0)
+					lons=np.where(lon_mean!=0)
+					if lon_mask[lons][0]!=data.lon[0]:
+						var_in=var_in[:,:,::-1]
+						if lon_mask[lons][0]!=data.lon[-1]:
+							print 'problem with lon' ; return('error')
 
-						# get mask
-						for name in self._masks[data.grid][mask_style].keys():
-							mask=self._masks[data.grid][mask_style][name]
+					# get mask
+					for name in self._masks[data.grid][mask_style].keys():
+						mask=self._masks[data.grid][mask_style][name]
 
-							# zoom mask to relevant area
-							mask=mask[np.ix_(list(lats[0]),list(lons[0]))]
-							country_area=np.where(mask>0)
+						# zoom mask to relevant area
+						mask=mask[np.ix_(list(lats[0]),list(lons[0]))]
+						country_area=np.where(mask>0)
 
-							data.average[mask_style][name]=data.time.copy()*np.nan
-							for i in range(len(data.time)):
-								var_of_area=var_in[i,:,:][country_area]
-								# NA handling: sum(mask*var)/sum(mask) for the area where var is not NA
-								not_missing_in_var=np.where(np.isfinite(var_of_area))[0]	# np.where()[0] because of array([],)
-								if len(not_missing_in_var)>0:
-									data.average[mask_style][name][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
-					
-							country_mean_csv[name.encode('utf-8')]=data.average[mask_style][name]
+						data.average[mask_style][name]=data.time.copy()*np.nan
+						for i in range(len(data.time)):
+							var_of_area=var_in[i,:,:][country_area]
+							# NA handling: sum(mask*var)/sum(mask) for the area where var is not NA
+							not_missing_in_var=np.where(np.isfinite(var_of_area))[0]	# np.where()[0] because of array([],)
+							if len(not_missing_in_var)>0:
+								data.average[mask_style][name][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
+				
+						country_mean_csv[name.encode('utf-8')]=data.average[mask_style][name]
 
-						# save as csv 
-						country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index')
+					# save as csv 
+					country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index')
 
 
 
@@ -854,7 +937,7 @@ class country_analysis(object):
 					compute=False
 
 			if compute:
-				print data.name
+				#print data.name
 
 				data.period={}
 				data.period_meta=periods
@@ -877,114 +960,77 @@ class country_analysis(object):
 
 		for data in remaining:
 			if hasattr(data,'model'):
-				print '----------------'
-				ensemble=[]
-				time_min,time_max=[],[]
-				for dd in remaining:
+				if data.model != 'ensemble_mean':
+					print '----------------'
+					ensemble=[]
+					time_min,time_max=[],[]
+					for dd in self._DATA:
 
-					if hasattr(dd,'model'):
-						if dd.type==data.type and dd.var==data.var and dd.scenario==data.scenario:	
-							ensemble.append(dd)
-							remaining.remove(dd)
-							time_min.append(min(dd.time_stamp))
-							time_max.append(max(dd.time_stamp))
-
-
-				time_min=max(time_min)
-				time_max=min(time_max)
-
-				tags_=ensemble[0].tags
-				tags_['model']='ensemble_mean'
-
-				new_data=self.data(tags=tags_,outer_self=self,raw_file=self._working_directory+'/raw/'+ensemble[0].var+'_'+ensemble[0].type+'_ensemble-mean_'+ensemble[0].scenario+'.nc',original_var_name=ensemble[0].original_var_name)
+						if hasattr(dd,'model'):
+							if data.model != 'ensemble_mean':
+								if dd.type==data.type and dd.var==data.var and dd.scenario==data.scenario:	
+									ensemble.append(dd)
+									remaining.remove(dd)
+									time_min.append(min(dd.time_stamp))
+									time_max.append(max(dd.time_stamp))
 
 
-				command='cdo -O ensmean '
-				for member,i in zip(ensemble,range(len(ensemble))):
-					os.system('cdo -selyear,1951/2098 '+member.raw_file+' '+self._working_directory+'/raw/'+str(i)+'tmp.nc4')
-					command+=self._working_directory+'/raw/'+str(i)+'tmp.nc4 '
+					time_min=max(time_min)
+					time_max=min(time_max)
 
-				os.system(command+' '+self._working_directory+'/raw/ensmean_tmp.nc4')
+					tags_=ensemble[0].tags.copy()
+					tags_['model']='ensemble_mean'
 
-				nc_ens=Dataset(self._working_directory+'/raw/ensmean_tmp.nc4',"r")
-				new_data.raw=nc_ens.variables[ensemble[0].original_var_name][:,:,:]
-				time,year,month=self.understand_time_format(nc_ens)
-
-				new_data.grid=member.grid
-				new_data.lat=member.lat
-				new_data.lon=member.lon
-				new_data.time=time
-				new_data.year=year
-				new_data.month=month
-
-				self._DATA.append(new_data)
-
-				nc_in=Dataset(ensemble[0].raw_file,"r")
-				os.system('rm '+new_data.raw_file)
-				nc_out=Dataset(new_data.raw_file,"w")
-				nc_out.createDimension('time', len(time))
-				nc_out.createDimension('lat', len(new_data.lat))
-				nc_out.createDimension('lon', len(new_data.lon))
-				# lat lon 
-	 			outVar = nc_out.createVariable('lat', 'f', ('lat',)) ; outVar[:]=new_data.lat	;	outVar.setncattr('units','deg south')
-	 			outVar = nc_out.createVariable('lon', 'f', ('lon',)) ; outVar[:]=new_data.lon	;	outVar.setncattr('units','deg east')
-	 			# time
-	 			outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=time	;	outVar.setncatts({k: nc_in.variables['time'].getncattr(k) for k in nc_in.variables['time'].ncattrs()})
-	 			outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=year
-	 			outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=month
-	 			outVar = nc_out.createVariable(new_data.original_var_name, 'f', ('time','lat','lon',),fill_value=np.nan)
-	 			for k in nc_in.variables[new_data.original_var_name].ncattrs():
-	 				if k!='_FillValue':outVar.setncatts({k:nc_in.variables[new_data.original_var_name].getncattr(k)})
-	 			outVar.setncattr('grid',new_data.grid)
-	 			print new_data.raw.shape,len(new_data.time)
-				outVar[:] = new_data.raw
-
-				nc_out.close()			
-				nc_in.close()	
-
-				os.system('rm '+self._working_directory+'/raw/*tmp*')
+					new_data=self.data(tags=tags_,outer_self=self,raw_file=self._working_directory+'/raw/'+ensemble[0].var+'_'+ensemble[0].type+'_ensemble-mean_'+ensemble[0].scenario+'.nc',original_var_name=ensemble[0].original_var_name)
 
 
+					command='cdo -O ensmean '
+					for member,i in zip(ensemble,range(len(ensemble))):
+						os.system('cdo -selyear,1951/2098 '+member.raw_file+' '+self._working_directory+'/raw/'+str(i)+'tmp.nc4')
+						command+=self._working_directory+'/raw/'+str(i)+'tmp.nc4 '
 
-	def plot_transient(self,meta_data,mask_style='lat_weighted',region=None,running_mean=1,ax=None,out_file=None,title=None,ylabel=None,show=True,label=''):
-		'''
-		plot transient of countrywide average
-		meta_data: list of strs: meta information required to acces data
-		mask_style: str: weighting used to compute countrywide averages
-		running_mean: int: years to be averaged in moving average		
-		ax: subplot: subplot on which the map will be plotted
-		out_file: str: location where the plot is saved
-		title: str: title of the plot
-		ylabel: str: labe to put on y-axis
-		show: logical: show the subplot?
-		'''
+					os.system(command+' '+self._working_directory+'/raw/ensmean_tmp.nc4')
 
-		if region==None:
-			region=self._iso
+					nc_ens=Dataset(self._working_directory+'/raw/ensmean_tmp.nc4',"r")
+					new_data.raw=nc_ens.variables[ensemble[0].original_var_name][:,:,:]
+					time,year,month=self.understand_time_format(nc_ens)
 
-		tmp = self._transient
-		for meta_info in meta_data:
-			tmp=tmp[meta_info]
+					new_data.grid=member.grid
+					new_data.lat=member.lat
+					new_data.lon=member.lon
+					new_data.time=time
+					new_data.year=year
+					new_data.month=month
 
-		if ax==None:
-			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
+					self._DATA.append(new_data)
 
-		ax.plot(tmp['time'],pd.rolling_mean(tmp[mask_style][region],running_mean),linestyle='-',label=label)
+					nc_in=Dataset(ensemble[0].raw_file,"r")
+					os.system('rm '+new_data.raw_file)
+					nc_out=Dataset(new_data.raw_file,"w")
+					nc_out.createDimension('time', len(time))
+					nc_out.createDimension('lat', len(new_data.lat))
+					nc_out.createDimension('lon', len(new_data.lon))
+					# lat lon 
+		 			outVar = nc_out.createVariable('lat', 'f', ('lat',)) ; outVar[:]=new_data.lat	;	outVar.setncattr('units','deg south')
+		 			outVar = nc_out.createVariable('lon', 'f', ('lon',)) ; outVar[:]=new_data.lon	;	outVar.setncattr('units','deg east')
+		 			# time
+		 			outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=time	;	outVar.setncatts({k: nc_in.variables['time'].getncattr(k) for k in nc_in.variables['time'].ncattrs()})
+		 			outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=year
+		 			outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=month
+		 			outVar = nc_out.createVariable(new_data.original_var_name, 'f', ('time','lat','lon',),fill_value=np.nan)
+		 			for k in nc_in.variables[new_data.original_var_name].ncattrs():
+		 				if k!='_FillValue':outVar.setncatts({k:nc_in.variables[new_data.original_var_name].getncattr(k)})
+		 			outVar.setncattr('grid',new_data.grid)
+					outVar[:] = new_data.raw
 
-		ax.set_xticks(tmp['time'][range(0,len(tmp['time']),240)]) 
-		ax.set_xticklabels(tmp['year'][range(0,len(tmp['time']),240)])
+					nc_out.close()			
+					nc_in.close()	
 
-		if ylabel==None:ylabel=meta_data[0]
-		ax.set_ylabel(ylabel)
-		if title==None:title=' '.join(meta_data)
-		ax.set_title(title)
-		
-		if show==True:ax.legend(loc='best')
-		if out_file==None and show==True:plt.show()
-		if out_file!=None:plt.savefig(out_file)
+					os.system('rm '+self._working_directory+'/raw/*tmp*')
 
-		if int(np.mean(np.diff(tmp['year'],1)))!=1:
-			return 'not yearly data! please consider this for the running mean'
+
+
+
 
 
 
