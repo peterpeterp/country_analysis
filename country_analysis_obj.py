@@ -18,8 +18,8 @@ from matplotlib.ticker import MaxNLocator
 import seaborn as sns
 from matplotlib.colors import ListedColormap
 
-# from matplotlib import rc
-# rc('text', usetex=True)
+from matplotlib import rc
+rc('text', usetex=True)
 
 def plot_map(to_plot,lat,lon,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=''):
 	# this actualy plots the map
@@ -139,6 +139,8 @@ class country_analysis(object):
 
 			SELF.name='_'.join(SELF.all_tags)
 
+
+
 		def get_time_stamp(SELF):
 			SELF.time_stamp=np.array([int(SELF.year[i])+int(SELF.month[i])/100. for i in range(len(SELF.year))])
 
@@ -234,6 +236,55 @@ class country_analysis(object):
 			if int(np.mean(np.diff(SELF.year,1)))!=1:
 				return 'not yearly data! please consider this for the running mean'
 
+		def plot_annual_cycle(SELF,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label=''):
+			'''
+			plot transient of countrywide average
+			meta_data: list of strs: meta information required to acces data
+			mask_style: str: weighting used to compute countrywide averages
+			running_mean: int: years to be averaged in moving average		
+			ax: subplot: subplot on which the map will be plotted
+			out_file: str: location where the plot is saved
+			title: str: title of the plot
+			ylabel: str: labe to put on y-axis
+			show: logical: show the subplot?
+			'''
+
+			if ax!=None:
+				show=False
+
+			if ax==None:
+				show=True
+				fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
+
+			if period==None:
+				period=[min(SELF.year),max(SELF.year)]
+
+			if region!=None:
+				regions=[region]
+			if region==None:
+				regions=SELF.average[mask_style].keys()
+
+			for region in regions:
+				annual_cycle=[]
+				for mon in range(1,13):
+					relevant_time=np.where((SELF.year>=period[0]) & (SELF.year<period[1]) & (SELF.month==mon))[0]
+					annual_cycle.append(np.nanmean(SELF.average[mask_style][region][relevant_time]))
+
+
+				ax.plot(range(0,12),annual_cycle,linestyle='-',label=label)
+
+			ax.set_xticks(range(0,12)) 
+			ax.set_xticklabels(['JAN','FEB','MAR','APR','MAI','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])
+
+			if ylabel==None:ylabel=SELF.var.replace('_',' ')
+			ax.set_ylabel(ylabel)
+			if title==None:title=SELF.name.replace('_',' ')
+			ax.set_title(title)
+			
+			if show==True:ax.legend(loc='best')
+			if out_file==None and show==True:plt.show()
+			if out_file!=None:plt.savefig(out_file)
+
 
 
 	def display_mask(self,grid=None,mask_style=None):
@@ -266,6 +317,14 @@ class country_analysis(object):
 		for data in self._DATA:
 			print 66
 
+	def unit_conversions(self):
+		for data in self._DATA:
+			if data.var=='tas':
+				if np.nanmean(data.raw)>100:
+					data.raw-=273.15
+			if data.var=='pr':
+				if np.nanmax(data.raw)<10:
+					data.raw*=86400
 
 	def selection(self,filters):
 		selection=[]
@@ -631,21 +690,17 @@ class country_analysis(object):
 		if time_units!=None and time_calendar!=None:
 			datevar.append(num2date(time,units = time_units,calendar= time_calendar))
 		# if no specification
-		print time
 		time[time<0]=0
 		if time_units==None and time_calendar==None:
 			time_unit=nc_in.variables['time'].units
 			if True:	
 				cal_temps = nc_in.variables['time'].calendar
-				print cal_temps,time_unit
 				datevar.append(num2date(time,units = time_unit,calendar = cal_temps))
 			# except:
 			# 	datevar.append(num2date(time,units = time_unit))
-		print time
 		# create index variable
 		year=np.array([int(str(date).split("-")[0])	for date in datevar[0][:]])
 		month=np.array([int(str(date).split("-")[1])	for date in datevar[0][:]])
-		print year
 
 		return(time,year,month)
 
@@ -659,7 +714,7 @@ class country_analysis(object):
 		mask_path: type str: path to where the masks are stored
 		'''
 
-		out_file=self._working_directory+'/raw/'+input_file.split('/')[-1].replace('.nc','_'+self._iso+additional_tag+'.nc')
+		out_file=self._working_directory+'/raw/'+input_file.split('/')[-1].replace('.nc',additional_tag+'_'+self._iso+'.nc')
 
 		if os.path.isfile(out_file) and overwrite==False:
 			nc_out=Dataset(out_file,"r")
@@ -718,9 +773,6 @@ class country_analysis(object):
 				var_in=np.ma.getdata(var_in)
 				var_in[masked]=np.nan
 			except: pass
-
-			if var_name=='pr' and np.nanmax(var_in)<10:
-				var_in*=86400
 
 			# creat a 1-NA mask
 			red_mask = country_mask[np.ix_(list(lats),list(lons))]
