@@ -322,9 +322,9 @@ class country_analysis(object):
 			if data.var=='tas':
 				if np.nanmean(data.raw)>100:
 					data.raw-=273.15
-			if data.var=='pr':
-				if np.nanmax(data.raw)<10:
-					data.raw*=86400
+			# if data.var=='pr':
+			# 	if np.nanmax(data.raw)<10:
+			# 		data.raw*=86400
 
 	def selection(self,filters):
 		selection=[]
@@ -348,7 +348,7 @@ class country_analysis(object):
 					selected=False
 			if selected:
 				ensemble[data.model]=data
-				print data.model+': '+data.name
+				print data.model+': '+data.name+' '+str(min(data.year))+'-'+str(max(data.year))
 
 		return ensemble
 
