@@ -95,20 +95,17 @@ class country_analysis(object):
 		os.chdir('../')
 		os.system('tar -zcf '+self._working_directory[0:-1]+'.tar.gz '+self._working_directory.split('/')[-2])
 
-	def load_from_tar(self,path):
-		os.system('tar -zxf '+path+' -C '+self._working_directory.replace(self._iso,''))
-		self.load_data()
-
-	def load_data(self):
+	def load_data(self,quiet=True):
 		for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
 			file_new=self._working_directory+'/masks'+file.split('masks')[-1]
+			if quiet==False:print file_new
 			self.load_masks(file_new)
 
 		for file in glob.glob(self._working_directory+'/raw/*'):
 			file_new=self._working_directory+'/raw'+file.split('raw')[-1]
+			if quiet==False:print file_new
 			nc_out=Dataset(file_new,"r")
 			tags={}
-			print file_new
 			for key,val in zip(nc_out.getncattr('tags_keys').split('**'),nc_out.getncattr('tags_values').split('**')):
 				tags[key]=val
 			try:
@@ -126,7 +123,7 @@ class country_analysis(object):
 			name=file.split('-')[-2]
 
 			file_new=self._working_directory+'/area_average'+file.split('area_average')[-1]
-
+			if quiet==False:print file_new
 			for data in self._DATA:
 				if sorted(data.name.split('_'))==sorted(name.split('_')):
 					table=pd.read_csv(file_new,sep=';')
@@ -577,8 +574,8 @@ class country_analysis(object):
 								os.system('cdo -O mergetime '+ddd.raw_file+' '+hist.raw_file+' '+tmp_file)
 								os.system('rm '+ddd.raw_file)
 
-								self.fill_gaps_in_time_axis(ddd,tmp_file,out_file)
 								ddd.raw_file=out_file
+								self.fill_gaps_in_time_axis(ddd,tmp_file,out_file)
 
 								delete_hist=True
 
@@ -755,6 +752,7 @@ class country_analysis(object):
 						print '---------------- ensemble mean',data.var_name,'--------------------'
 						ensemble,ensemble_mean=self.find_ensemble([data.data_type,data.var_name,data.scenario])
 						if ensemble_mean==None:
+							print 'ooooo'
 							ensemble=ensemble.values()
 							
 							time_min,time_max=[],[]
@@ -769,7 +767,7 @@ class country_analysis(object):
 							for member,i in zip(ensemble,range(len(ensemble))):
 								time_stamp_rnd=np.array([round(t,3) for t in member.time_stamp])
 								for t in time_stamp_rnd:
-									print t,np.where(time_axis_rnd==t)[0],np.where(time_stamp_rnd==t)[0]
+									#print t,np.where(time_axis_rnd==t)[0],np.where(time_stamp_rnd==t)[0]
 									ensemble_mean[i,np.where(time_axis_rnd==t)[0],:,:]=member.raw[np.where(time_stamp_rnd==t)[0],:,:]													
 
 							ensemble_mean=np.nanmean(ensemble_mean,axis=0)
@@ -786,6 +784,7 @@ class country_analysis(object):
 							new_data.convert_time_stamp()
 
 							# write ensemble_mean to file
+							print member.raw_file
 							nc_in=Dataset(member.raw_file,"r")
 							os.system('rm '+out_file)
 							nc_out=Dataset(out_file,"w")
@@ -877,10 +876,10 @@ class country_analysis(object):
 		if region==None:
 			region=self._iso
 
-		if object_toplot.time_step=='monthly':
+		if object_toplot.time_format=='monthly':
 			running_mean=running_mean_years*12
 
-		if object_toplot.time_step=='yearly':
+		if object_toplot.time_format=='yearly':
 			running_mean=running_mean_years
 
 		ax.plot(object_toplot.time_stamp,pd.rolling_mean(object_toplot.average[mask_style][region],running_mean),linestyle='-',label=label,color=color)
@@ -1006,6 +1005,7 @@ class new_data_object(object):
 		SELF.annual_cycle={}
 
 		SELF.all_tags_dict=kwargs
+		SELF.all_tags_dict.pop('raw_file', None)
 		SELF.all_tags=kwargs.values()
 		if 'given_var_name' in kwargs.keys():	SELF.all_tags.remove(kwargs['var_name'])
 

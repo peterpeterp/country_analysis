@@ -10,16 +10,16 @@ from country_analysis_obj import country_analysis
 sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
 
 
-country_iso='SEN'
+country_iso='BEN'
 COU=country_analysis(country_iso,'/p/projects/tumble/carls/shared_folder/country_analysis/'+country_iso+'/')
-COU.load_data()
+COU.load_data(quiet=False)
 
 #COU.hist_merge()
 
 COU.ensemble_mean()
 
-COU.data_summary()
+#COU.data_summary()
 
-COU.zip_it()
+#COU.zip_it()
 
 

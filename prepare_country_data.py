@@ -10,7 +10,7 @@ from country_analysis_obj import country_analysis
 sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
 
 
-country_iso='BEN'
+country_iso='SEN'
 COU=country_analysis(country_iso,'/p/projects/tumble/carls/shared_folder/country_analysis/'+country_iso+'/')
 
 
