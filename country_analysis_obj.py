@@ -81,7 +81,6 @@ class country_analysis(object):
 				print '_',var_name
 				self.selection([data_type,var_name])
 
-
 	def unit_conversions(self):
 		for data in self._DATA:
 			if data.var_name=='tas':
@@ -90,7 +89,6 @@ class country_analysis(object):
 			# if data.var=='pr':
 			# 	if np.nanmax(data.raw)<10:
 			# 		data.raw*=86400
-
 
 	def zip_it(self):
 		os.chdir(self._working_directory)
@@ -110,6 +108,7 @@ class country_analysis(object):
 			file_new=self._working_directory+'/raw'+file.split('raw')[-1]
 			nc_out=Dataset(file_new,"r")
 			tags={}
+			print file_new
 			for key,val in zip(nc_out.getncattr('tags_keys').split('**'),nc_out.getncattr('tags_values').split('**')):
 				tags[key]=val
 			try:
@@ -490,7 +489,7 @@ class country_analysis(object):
 
 			nc_out.close()
 			nc_in.close()
-			#os.system('rm '+in_file)
+			os.system('rm '+in_file)
 
 	def country_zoom(self,input_file,var_name,mask_style='lat_weighted',time_units=None,time_calendar=None,lat_name='lat',lon_name='lon',overwrite=False,**kwargs):
 		'''
@@ -544,9 +543,6 @@ class country_analysis(object):
 			new_data.add_data(lon=lon,lat=lat)
 			self.fill_gaps_in_time_axis(new_data,out_file.replace('.nc','_tmp.nc'),out_file)
 
-
-
-
 	def selection(self,filters,show_selection=True):
 		selection=[]
 		count=0
@@ -589,8 +585,6 @@ class country_analysis(object):
 						if delete_hist:	
 							self._DATA.remove(hist)
 							#os.system('rm '+hist.raw_file)
-
-
 
 	def area_average(self,mask_style='lat_weighted',filters=[],overwrite=False):
 		'''
@@ -706,41 +700,6 @@ class country_analysis(object):
 						data.period['diff_'+period_name+'-'+'ref']=data.period[period_name]-data.period['ref']
 						data.period['diff_relative_'+period_name+'-'+'ref']=(data.period[period_name]-data.period['ref'])/data.period['ref']*100
 
-	def model_agreement(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters=[]):
-		'''
-		computes time averages for each grid-cell for a given period
-		periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
-		filters: list of strs: only computed for data which have the tags given in filters
-		'''
-		remaining=self._DATA[:]
-
-		for data in remaining:
-			compute=False
-			if hasattr(data,'model'):
-				if data.model!='ensemble_mean':
-					compute=True
-					for key in filters:
-						if key not in data.all_tags:
-							compute=False
-
-			if compute:
-				ensemble,ensemble_mean=self.find_ensemble([data.data_type,data.var_name,data.scenario])
-				ensemble_mean.agreement={}
-				for member in ensemble.values():
-					remaining.remove(member)
-				if hasattr(ensemble_mean,'period'):
-					for period in ensemble_mean.period.keys():
-						if len(period.split('-'))>1 and period.split('-')[-1]=='ref':
-							agreement=ensemble_mean.period[period].copy()*0
-							for member in ensemble.values():
-								agreement+=np.sign(member.period[period])==np.sign(ensemble_mean.period[period])
-
-							agreement[agreement<2./3.*len(ensemble)]=0
-							agreement[agreement>=2./3.*len(ensemble)]=1
-							ensemble_mean.agreement[period]=agreement
-
-
-
 	# def frequency_of_extremes_in_period(self,threshold=0,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters=[]):
 	# 	'''
 	# 	computes time averages for each grid-cell for a given period
@@ -810,8 +769,8 @@ class country_analysis(object):
 							for member,i in zip(ensemble,range(len(ensemble))):
 								time_stamp_rnd=np.array([round(t,3) for t in member.time_stamp])
 								for t in time_stamp_rnd:
-									print t,np.where(time_axis==t)[0],np.where(time_stamp_rnd==t)[0]
-									ensemble_mean[i,np.where(time_axis==t)[0],:,:]=member.raw[np.where(time_stamp_rnd==t)[0],:,:]													
+									print t,np.where(time_axis_rnd==t)[0],np.where(time_stamp_rnd==t)[0]
+									ensemble_mean[i,np.where(time_axis_rnd==t)[0],:,:]=member.raw[np.where(time_stamp_rnd==t)[0],:,:]													
 
 							ensemble_mean=np.nanmean(ensemble_mean,axis=0)
 
@@ -863,6 +822,39 @@ class country_analysis(object):
 							nc_out.close()
 							nc_in.close()
 
+	def model_agreement(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters=[]):
+		'''
+		computes time averages for each grid-cell for a given period
+		periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
+		filters: list of strs: only computed for data which have the tags given in filters
+		'''
+		remaining=self._DATA[:]
+
+		for data in remaining:
+			compute=False
+			if hasattr(data,'model'):
+				if data.model!='ensemble_mean':
+					compute=True
+					for key in filters:
+						if key not in data.all_tags:
+							compute=False
+
+			if compute:
+				ensemble,ensemble_mean=self.find_ensemble([data.data_type,data.var_name,data.scenario])
+				ensemble_mean.agreement={}
+				for member in ensemble.values():
+					remaining.remove(member)
+				if hasattr(ensemble_mean,'period'):
+					for period in ensemble_mean.period.keys():
+						if len(period.split('-'))>1 and period.split('-')[-1]=='ref':
+							agreement=ensemble_mean.period[period].copy()*0
+							for member in ensemble.values():
+								agreement+=np.sign(member.period[period])==np.sign(ensemble_mean.period[period])
+
+							agreement[agreement<2./3.*len(ensemble)]=0
+							agreement[agreement>=2./3.*len(ensemble)]=1
+							ensemble_mean.agreement[period]=agreement
+	
 	def plot_transients(self,object_toplot,mask_style='lat_weighted',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue'):
 		'''
 		plot transient of countrywide average
@@ -891,10 +883,7 @@ class country_analysis(object):
 		if object_toplot.time_step=='yearly':
 			running_mean=running_mean_years
 
-
 		ax.plot(object_toplot.time_stamp,pd.rolling_mean(object_toplot.average[mask_style][region],running_mean),linestyle='-',label=label,color=color)
-		print object_toplot.time_stamp,len(object_toplot.time_stamp)
-		print len(np.where(object_toplot.average[mask_style][region]==np.nan)[0])
 
 		if hasattr(object_toplot,'model'):
 			if object_toplot.model=='ensemble_mean':
@@ -905,18 +894,12 @@ class country_analysis(object):
 				ensemble_range=np.zeros([len(ensemble),len(time_axis)])*np.nan
 
 				for member,i in zip(ensemble,range(len(ensemble))):
-					# member_runmean=pd.rolling_mean(member.average[mask_style][region],running_mean)
-					# for t in member.time_stamp:
-					# 	ensemble_range[i,np.where(abs(time_axis-t)<1/36.)]=member_runmean[np.where(member.time_stamp==t)]
+					member_runmean=pd.rolling_mean(member.average[mask_style][region],running_mean)
+					for t in member.time_stamp:
+						ensemble_range[i,np.where(abs(time_axis-t)<1/36.)]=member_runmean[np.where(member.time_stamp==t)]
 					ax.plot(member.time_stamp,pd.rolling_mean(member.average[mask_style][region],running_mean),linestyle='-',label=label,color='blue',linewidth=0.5)
-					print member.time_stamp,len(member.time_stamp)
-					print len(np.where(member.average[mask_style][region]==np.nan)[0])
 
 				ax.fill_between(time_axis,np.percentile(ensemble_range,0,axis=0),np.percentile(ensemble_range,100,axis=0),alpha=0.25,color=color)
-				asdasd
-
-				
-		ax.set_xlim([1950,2100])
 
 		if ylabel==None:ylabel=object_toplot.var_name.replace('_',' ')
 		ax.set_ylabel(ylabel)
@@ -930,6 +913,63 @@ class country_analysis(object):
 		if int(np.mean(np.diff(object_toplot.year,1)))!=1:
 			return 'not yearly data! please consider this for the running mean'
 
+	def plot_annual_cycle(self,object_toplot,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue'):
+		'''
+		plot transient of countrywide average
+		meta_data: list of strs: meta information required to acces data
+		mask_style: str: weighting used to compute countrywide averages
+		running_mean: int: years to be averaged in moving average		
+		ax: subplot: subplot on which the map will be plotted
+		out_file: str: location where the plot is saved
+		title: str: title of the plot
+		ylabel: str: labe to put on y-axis
+		show: logical: show the subplot?
+		'''
+
+		if ax!=None:
+			show=False
+
+		if ax==None:
+			show=True
+			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
+
+		if period==None:
+			period=[min(object_toplot.year),max(object_toplot.year)]
+
+		if region==None:
+			region=object_toplot._iso
+
+		annual_cycle=[]
+		for mon in range(1,13):
+			relevant_time=np.where((object_toplot.year>=period[0]) & (object_toplot.year<period[1]) & (object_toplot.month==mon))[0]
+			annual_cycle.append(np.nanmean(object_toplot.average[mask_style][region][relevant_time]))
+
+		ax.plot(range(0,12),annual_cycle,linestyle='-',label=label,color=color)
+
+		if hasattr(object_toplot,'model'):
+			if object_toplot.model=='ensemble_mean':
+				ensemble=self.find_ensemble([object_toplot.data_type,object_toplot.var_name,object_toplot.scenario])[0].values()
+				ensemble_annual_cycle=np.zeros([len(ensemble),12])
+
+				for member,i in zip(ensemble,range(len(ensemble))):
+					for mon in range(1,13):
+						relevant_time=np.where((member.year>=period[0]) & (member.year<period[1]) & (member.month==mon))[0]
+						ensemble_annual_cycle[i,mon-1]=np.nanmean(member.average[mask_style][region][relevant_time])
+
+				ax.fill_between(range(0,12),np.percentile(ensemble_annual_cycle,0./3.*100,axis=0),np.percentile(ensemble_annual_cycle,3./3.*100,axis=0),alpha=0.25,color=color)
+
+
+		ax.set_xticks(range(0,12)) 
+		ax.set_xticklabels(['JAN','FEB','MAR','APR','MAI','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])
+
+		if ylabel==None:ylabel=object_toplot.var_name.replace('_',' ')
+		ax.set_ylabel(ylabel)
+		if title==None:title=object_toplot.name.replace('_',' ')
+		ax.set_title(title)
+		
+		if show==True:ax.legend(loc='best')
+		if out_file==None and show==True:plt.show()
+		if out_file!=None:plt.savefig(out_file)
 
 	def get_adm_polygons(self):
 		self._adm_polygons={}
@@ -1068,113 +1108,6 @@ class new_data_object(object):
 
 		im=plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons)
 		return(im)
-
-	def plot_transient(SELF,mask_style=None,region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label=''):
-		'''
-		plot transient of countrywide average
-		mask_style: str: weighting used to compute countrywide averages
-		running_mean: int: years to be averaged in moving average		
-		ax: subplot: subplot on which the map will be plotted
-		out_file: str: location where the plot is saved
-		title: str: title of the plot
-		ylabel: str: labe to put on y-axis
-		show: logical: show the subplot?
-		'''
-
-		print '--------------'
-
-		if ax!=None:
-			show=False
-
-		if ax==None:
-			show=True
-			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
-
-		if mask_style!=None:
-			mask_styles=[mask_style]
-		if mask_style==None:
-			mask_styles=SELF.average.keys()
-
-		if region!=None:
-			regions=[region]
-		if region==None:
-			regions=SELF.average[mask_styles[0]].keys()
-
-		if SELF.time_step=='monthly':
-			running_mean=running_mean_years*12
-
-		if SELF.time_step=='yearly':
-			running_mean=running_mean_years
-
-		for mask_style in mask_styles:
-			for region in regions:
-				ax.plot(SELF.time_stamp,pd.rolling_mean(SELF.average[mask_style][region],running_mean),linestyle='-',label=label)
-				
-
-
-				#ax.plot(SELF.time_stamp,SELF.average[mask_style][region],linestyle='-',label=region+' '+mask_style.replace('_',' '),linewidth=0.3)
-
-		# ax.set_xticks(SELF.time[range(0,len(SELF.time),240)]) 
-		# ax.set_xticklabels(SELF.year[range(0,len(SELF.time),240)])
-
-		if ylabel==None:ylabel=SELF.var_name.replace('_',' ')
-		ax.set_ylabel(ylabel)
-		if title==None:title=SELF.name.replace('_',' ')
-		ax.set_title(title)
-		
-		if show==True:ax.legend(loc='best')
-		if out_file==None and show==True:plt.show()
-		if out_file!=None:plt.savefig(out_file)
-
-		if int(np.mean(np.diff(SELF.year,1)))!=1:
-			return 'not yearly data! please consider this for the running mean'
-
-	def plot_annual_cycle(SELF,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label=''):
-		'''
-		plot transient of countrywide average
-		meta_data: list of strs: meta information required to acces data
-		mask_style: str: weighting used to compute countrywide averages
-		running_mean: int: years to be averaged in moving average		
-		ax: subplot: subplot on which the map will be plotted
-		out_file: str: location where the plot is saved
-		title: str: title of the plot
-		ylabel: str: labe to put on y-axis
-		show: logical: show the subplot?
-		'''
-
-		if ax!=None:
-			show=False
-
-		if ax==None:
-			show=True
-			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
-
-		if period==None:
-			period=[min(SELF.year),max(SELF.year)]
-
-		if region==None:
-			region=SELF._iso
-
-		annual_cycle=[]
-		for mon in range(1,13):
-			relevant_time=np.where((SELF.year>=period[0]) & (SELF.year<period[1]) & (SELF.month==mon))[0]
-			annual_cycle.append(np.nanmean(SELF.average[mask_style][region][relevant_time]))
-
-		ax.plot(range(0,12),annual_cycle,linestyle='-',label=label)
-
-		ax.set_xticks(range(0,12)) 
-		ax.set_xticklabels(['JAN','FEB','MAR','APR','MAI','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])
-
-		if ylabel==None:ylabel=SELF.var_name.replace('_',' ')
-		ax.set_ylabel(ylabel)
-		if title==None:title=SELF.name.replace('_',' ')
-		ax.set_title(title)
-		
-		if show==True:ax.legend(loc='best')
-		if out_file==None and show==True:plt.show()
-		if out_file!=None:plt.savefig(out_file)
-
-
 
 
 def plot_map(to_plot,lat,lon,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title='',polygons=None):
