@@ -21,16 +21,23 @@ from matplotlib.colors import ListedColormap
 from matplotlib import rc
 rc('text', usetex=True)
 
-from unidecode import unidecode
+try:
+	from unidecode import unidecode
+except:
+	pass
+
+
+
 
 class country_analysis(object):
 
 	def __init__(self,iso,working_directory):
 		self._iso=iso
-		self._working_directory=working_directory+iso
+		self._working_directory=working_directory
 
 		self._masks={}
 		self._DATA=[]
+		self._regions={}
 
 		if os.path.isdir(self._working_directory)==False:os.system('mkdir '+self._working_directory)
 		if os.path.isdir(self._working_directory+'/masks')==False:os.system('mkdir '+self._working_directory+'/masks')
@@ -64,9 +71,16 @@ class country_analysis(object):
 		for data in selection:
 			print data.index,data.name,min(data.year),max(data.year)
 
-	def reorder_data():
-		for data in self._DATA:
-			print 66
+	def data_summary(self):
+		types=set([dd.data_type for dd in self._DATA])
+		var_names=set([dd.var_name for dd in self._DATA])
+
+		for data_type in types:
+			print '\n***********',data_type,'***********'
+			for var_name in var_names:
+				print '_',var_name
+				self.selection([data_type,var_name])
+
 
 	def unit_conversions(self):
 		for data in self._DATA:
@@ -81,7 +95,7 @@ class country_analysis(object):
 	def zip_it(self):
 		os.chdir(self._working_directory)
 		os.chdir('../')
-		os.system('tar -zcf '+self._working_directory+'.tar.gz '+self._iso)
+		os.system('tar -zcf '+self._working_directory[0:-1]+'.tar.gz '+self._working_directory.split('/')[-2])
 
 	def load_from_tar(self,path):
 		os.system('tar -zxf '+path+' -C '+self._working_directory.replace(self._iso,''))
@@ -94,7 +108,6 @@ class country_analysis(object):
 
 		for file in glob.glob(self._working_directory+'/raw/*'):
 			file_new=self._working_directory+'/raw'+file.split('raw')[-1]
-			print file_new
 			nc_out=Dataset(file_new,"r")
 			tags={}
 			for key,val in zip(nc_out.getncattr('tags_keys').split('**'),nc_out.getncattr('tags_values').split('**')):
@@ -117,12 +130,14 @@ class country_analysis(object):
 
 			for data in self._DATA:
 				if sorted(data.name.split('_'))==sorted(name.split('_')):
-					print file_new
 					table=pd.read_csv(file_new,sep=';')
 					for key in table.keys():
 						if key not in ['time','year','month','index']:
 							if mask_style not in data.average.keys():	data.average[mask_style]={}
-							data.average[mask_style][key]=np.array(table[key])
+							if 'unidecode' in sys.modules:
+								data.average[mask_style][unidecode(key)]=np.array(table[key])
+							if 'unidecode' not in sys.modules:
+								data.average[mask_style][key]=np.array(table[key])
 
 		try:
 			self.get_adm_polygons()
@@ -168,8 +183,11 @@ class country_analysis(object):
 		# get all variables (regions)
 		for name in nc_mask.variables.keys():
 			if name not in ['lat','lon']:
-				self._masks[grid][mask_style][unidecode(name)] = nc_mask.variables[name][:,:]
-
+				if 'unidecode' in sys.modules:
+					self._masks[grid][mask_style][unidecode(name)] = nc_mask.variables[name][:,:]
+					if unidecode(name) not in self._regions.keys(): self._regions[unidecode(name)]=name
+				if 'unidecode' not in sys.modules:
+					self._masks[grid][mask_style][name] = nc_mask.variables[name][:,:]
 
 	def get_grid_polygons(self,grid,lon,lat,lon_shift):
 		# loop over the grid to get grid polygons
@@ -507,15 +525,13 @@ class country_analysis(object):
 				if show_selection==True:
 					print count, data.name,min(data.year),max(data.year), data.index
 				count+=1
-
-		#self.display(selection)
 		return selection
 
 	def hist_merge(self):
 		# why are there files missing if I go through self._DATA only once???
 		for data in self._DATA+self._DATA:
 			if hasattr(data,'model'):
-				data__=self.selection([data.model,data.var_name,data.type],show_selection=False)
+				data__=self.selection([data.model,data.var_name,data.data_type],show_selection=False)
 				for hist in data__[:]:
 					if hist.scenario.lower() in ['hist','historical']:
 						delete_hist=False
@@ -606,7 +622,6 @@ class country_analysis(object):
 
 					# get mask
 					for name in self._masks[data.grid][mask_style].keys():
-						#print name
 						mask=self._masks[data.grid][mask_style][name]
 
 						# zoom mask to relevant area
@@ -688,7 +703,8 @@ class country_analysis(object):
 
 				for period_name in periods.keys():	
 					if period_name!='ref' and 'ref' in data.period.keys() and period_name in data.period.keys():
-						data.period[period_name+'-'+'ref']=data.period[period_name]-data.period['ref']
+						data.period['diff_'+period_name+'-'+'ref']=data.period[period_name]-data.period['ref']
+						data.period['diff_relative_'+period_name+'-'+'ref']=(data.period[period_name]-data.period['ref'])/data.period['ref']*100
 
 	def model_agreement(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters=[]):
 		'''
@@ -708,13 +724,12 @@ class country_analysis(object):
 							compute=False
 
 			if compute:
-				ensemble,ensemble_mean=self.find_ensemble([data.type,data.var_name,data.scenario])
+				ensemble,ensemble_mean=self.find_ensemble([data.data_type,data.var_name,data.scenario])
 				ensemble_mean.agreement={}
 				for member in ensemble.values():
 					remaining.remove(member)
 				if hasattr(ensemble_mean,'period'):
 					for period in ensemble_mean.period.keys():
-						print ensemble_mean.period.keys(),period
 						if len(period.split('-'))>1 and period.split('-')[-1]=='ref':
 							agreement=ensemble_mean.period[period].copy()*0
 							for member in ensemble.values():
@@ -723,6 +738,7 @@ class country_analysis(object):
 							agreement[agreement<2./3.*len(ensemble)]=0
 							agreement[agreement>=2./3.*len(ensemble)]=1
 							ensemble_mean.agreement[period]=agreement
+
 
 
 	# def frequency_of_extremes_in_period(self,threshold=0,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters=[]):
@@ -778,27 +794,45 @@ class country_analysis(object):
 				if hasattr(data,'model'):
 					if data.model!='ensemble_mean':
 						print '---------------- ensemble mean',data.var_name,'--------------------'
-						ensemble,ensemble_mean=self.find_ensemble([data.type,data.var_name,data.scenario])
+						ensemble,ensemble_mean=self.find_ensemble([data.data_type,data.var_name,data.scenario])
 						if ensemble_mean==None:
 							ensemble=ensemble.values()
-							time_min,time_max=[],[]
-							for member in ensemble:
-								remaining.remove(member)
-								time_min.append(min(member.time_stamp))
-								time_max.append(max(member.time_stamp))
+							
 
-							time_axis=np.arange(max(time_min),min(time_max),1/12.)
-							ensemble_mean=np.zeros([len(ensemble),len(time_axis),len(member.lat),len(member.lon)])*np.nan
+							if ensemble[0].time_step=='monthly':
+								time_min,time_max=[],[]
+								for member in ensemble:
+									remaining.remove(member)
+									time_min.append(min(member.time_stamp))
+									time_max.append(max(member.time_stamp))
+								time_axis=np.arange(max(time_min),min(time_max),1/12.)
+								ensemble_mean=np.zeros([len(ensemble),len(time_axis),len(member.lat),len(member.lon)])*np.nan
 
-							for member,i in zip(ensemble,range(len(ensemble))):
-								for t in member.time_stamp:
-									ensemble_mean[i,np.where(abs(time_axis-t)<1/36.),:,:]=member.raw[np.where(member.time_stamp==t),:,:]
+								for member,i in zip(ensemble,range(len(ensemble))):
+									for t in member.time_stamp:
+										ensemble_mean[i,np.where(abs(time_axis-t)<1/36.),:,:]=member.raw[np.where(member.time_stamp==t),:,:]
+
+							if ensemble[0].time_step=='yearly':
+								time_min,time_max=[],[]
+								for member in ensemble:
+									remaining.remove(member)
+									time_min.append(min(member.year))
+									time_max.append(max(member.year))
+								time_axis=np.arange(max(time_min),min(time_max),1)
+								ensemble_mean=np.zeros([len(ensemble),len(time_axis),len(member.lat),len(member.lon)])*np.nan
+
+								for member,i in zip(ensemble,range(len(ensemble))):
+									for t in member.year:
+										try:
+											ensemble_mean[i,np.where(abs(time_axis-t)<0.5),:,:]=member.raw[np.where(member.year==t),:,:]
+										except:
+											print t,time_axis[np.where(abs(time_axis-t)<0.5)]
 
 							ensemble_mean=np.nanmean(ensemble_mean,axis=0)
 
 							tags_=ensemble[0].all_tags_dict.copy()
 							tags_['model']='ensemble_mean'
-							out_file=self._working_directory+'/raw/'+ensemble[0].var_name+'_'+ensemble[0].type+'_ensemble-mean_'+ensemble[0].scenario+'.nc'
+							out_file=self._working_directory+'/raw/'+ensemble[0].var_name+'_'+ensemble[0].data_type+'_ensemble-mean_'+ensemble[0].scenario+'.nc'
 							tags_['raw_file']=out_file
 
 							new_data=new_data_object(outer_self=self,**tags_)
@@ -844,6 +878,73 @@ class country_analysis(object):
 							nc_out.close()
 							nc_in.close()
 
+	def plot_transients(self,object_toplot,mask_style='lat_weighted',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue'):
+		'''
+		plot transient of countrywide average
+		mask_style: str: weighting used to compute countrywide averages
+		running_mean: int: years to be averaged in moving average		
+		ax: subplot: subplot on which the map will be plotted
+		out_file: str: location where the plot is saved
+		title: str: title of the plot
+		ylabel: str: labe to put on y-axis
+		show: logical: show the subplot?
+		'''
+
+		if ax!=None:
+			show=False
+
+		if ax==None:
+			show=True
+			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
+
+		if region==None:
+			region=self._iso
+
+		if object_toplot.time_step=='monthly':
+			running_mean=running_mean_years*12
+
+		if object_toplot.time_step=='yearly':
+			running_mean=running_mean_years
+
+
+		ax.plot(object_toplot.time_stamp,pd.rolling_mean(object_toplot.average[mask_style][region],running_mean),linestyle='-',label=label,color=color)
+		print object_toplot.time_stamp,len(object_toplot.time_stamp)
+		print len(np.where(object_toplot.average[mask_style][region]==np.nan)[0])
+
+		if hasattr(object_toplot,'model'):
+			if object_toplot.model=='ensemble_mean':
+				ensemble=self.find_ensemble([object_toplot.data_type,object_toplot.var_name,object_toplot.scenario])[0].values()
+
+
+				time_axis=np.arange(min(object_toplot.time_stamp),max(object_toplot.time_stamp),1/12.)
+				ensemble_range=np.zeros([len(ensemble),len(time_axis)])*np.nan
+
+				for member,i in zip(ensemble,range(len(ensemble))):
+					# member_runmean=pd.rolling_mean(member.average[mask_style][region],running_mean)
+					# for t in member.time_stamp:
+					# 	ensemble_range[i,np.where(abs(time_axis-t)<1/36.)]=member_runmean[np.where(member.time_stamp==t)]
+					ax.plot(member.time_stamp,pd.rolling_mean(member.average[mask_style][region],running_mean),linestyle='-',label=label,color='blue',linewidth=0.5)
+					print member.time_stamp,len(member.time_stamp)
+					print len(np.where(member.average[mask_style][region]==np.nan)[0])
+
+				ax.fill_between(time_axis,np.percentile(ensemble_range,0,axis=0),np.percentile(ensemble_range,100,axis=0),alpha=0.25,color=color)
+				asdasd
+
+				
+		ax.set_xlim([1950,2100])
+
+		if ylabel==None:ylabel=object_toplot.var_name.replace('_',' ')
+		ax.set_ylabel(ylabel)
+		if title==None:title=object_toplot.name.replace('_',' ')
+		ax.set_title(title)
+		
+		if show==True:ax.legend(loc='best')
+		if out_file==None and show==True:plt.show()
+		if out_file!=None:plt.savefig(out_file)
+
+		if int(np.mean(np.diff(object_toplot.year,1)))!=1:
+			return 'not yearly data! please consider this for the running mean'
+
 
 	def get_adm_polygons(self):
 		self._adm_polygons={}
@@ -872,7 +973,7 @@ class new_data_object(object):
 		if 'given_var_name' in kwargs.keys():	SELF.var_name=kwargs['given_var_name']
 		if 'given_var_name' not in kwargs.keys():	SELF.var_name=kwargs['var_name']
 
-		if 'data_type' in kwargs.keys():	SELF.type=kwargs['data_type']
+		if 'data_type' in kwargs.keys():	SELF.data_type=kwargs['data_type']
 		if 'scenario' in kwargs.keys():	SELF.scenario=kwargs['scenario'].replace('.','p').lower()
 		if 'model' in kwargs.keys():	SELF.model=kwargs['model']
 
@@ -900,6 +1001,8 @@ class new_data_object(object):
 
 	def create_time_stamp(SELF):
 		SELF.time_stamp=np.array([int(SELF.year[i])+int(SELF.month[i])/12. for i in range(len(SELF.year))])
+		if len(np.where(np.diff(SELF.year)==1)[0])>len(SELF.year)*0.66:SELF.time_step='yearly'
+		if len(np.where(np.diff(SELF.year)==0)[0])>len(SELF.year)*0.66:SELF.time_step='monthly'
 
 	def convert_time_stamp(SELF):
 		SELF.year=np.array([int(t) for t in SELF.time_stamp])
@@ -945,7 +1048,7 @@ class new_data_object(object):
 
 		lat=SELF.lat.copy()
 		lon=SELF.lon.copy()
-		if color_label==None:color_label=SELF.var_name
+		if color_label==None:color_label=SELF.var_name.replace('_',' ')
 
 		if color_palette==None:
 			if SELF.var_name=='pr':		color_palette=plt.cm.YlGnBu
@@ -953,16 +1056,17 @@ class new_data_object(object):
 			elif SELF.var_name=='SPEI':	color_palette=plt.cm.plasma
 			else:					color_palette=plt.cm.plasma
 
-			if period.split('-')[-1]=='ref': color_palette=plt.cm.RdYlBu_r
+		
+			if period.split('_')[0]=='diff': color_palette=plt.cm.PiYG
 
-
-
-
+		if color_range==None and period.split('_')[0]=='diff':
+			abs_boundary=max(abs(np.nanpercentile(to_plot,[10,90])))
+			color_range=[-abs_boundary,abs_boundary]
 
 		im=plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons)
 		return(im)
 
-	def plot_transient(SELF,mask_style=None,region=None,running_mean=1,ax=None,out_file=None,title=None,ylabel=None,label=''):
+	def plot_transient(SELF,mask_style=None,region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label=''):
 		'''
 		plot transient of countrywide average
 		mask_style: str: weighting used to compute countrywide averages
@@ -973,6 +1077,8 @@ class new_data_object(object):
 		ylabel: str: labe to put on y-axis
 		show: logical: show the subplot?
 		'''
+
+		print '--------------'
 
 		if ax!=None:
 			show=False
@@ -991,12 +1097,18 @@ class new_data_object(object):
 		if region==None:
 			regions=SELF.average[mask_styles[0]].keys()
 
+		if SELF.time_step=='monthly':
+			running_mean=running_mean_years*12
+
+		if SELF.time_step=='yearly':
+			running_mean=running_mean_years
+
 		for mask_style in mask_styles:
 			for region in regions:
-				print mask_style,region,SELF.average.keys()
-				print SELF.average[mask_style].keys()
-				print region
 				ax.plot(SELF.time_stamp,pd.rolling_mean(SELF.average[mask_style][region],running_mean),linestyle='-',label=label)
+				
+
+
 				#ax.plot(SELF.time_stamp,SELF.average[mask_style][region],linestyle='-',label=region+' '+mask_style.replace('_',' '),linewidth=0.3)
 
 		# ax.set_xticks(SELF.time[range(0,len(SELF.time),240)]) 
@@ -1112,8 +1224,8 @@ def plot_map(to_plot,lat,lon,color_bar=True,color_label='',color_palette=plt.cm.
 		# mask some grid-cells
 		if grey_area!=None:
 			to_plot=grey_area.copy()
-			to_plot[to_plot==0]=np.nan
-			to_plot[to_plot==1]=0.5
+			to_plot[to_plot==0]=0.5
+			to_plot[to_plot==1]=np.nan
 			to_plot=np.ma.masked_invalid(to_plot)
 			im2 = m.pcolormesh(x,y,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
 
