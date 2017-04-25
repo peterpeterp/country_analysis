@@ -26,14 +26,13 @@ try:
 except:
 	pass
 
-
-
-
 class country_analysis(object):
 
-	def __init__(self,iso,working_directory):
+	def __init__(self,iso,working_directory,seasons={'year':range(1,13)}):
 		self._iso=iso
 		self._working_directory=working_directory
+
+		self._seasons=seasons
 
 		self._masks={}
 		self._DATA=[]
@@ -45,50 +44,6 @@ class country_analysis(object):
 		if os.path.isdir(self._working_directory+'/raw')==False:os.system('mkdir '+self._working_directory+'/raw')
 		if os.path.isdir(self._working_directory+'/area_average')==False:os.system('mkdir '+self._working_directory+'/area_average')
 
-	def display_mask(self,grid=None,mask_style=None):
-		if grid==None:
-			print 'Please select a grid:'
-			for grid in self._masks.keys():
-				print grid
-			return None
-		if mask_style==None:
-			print 'Please select a mask-style:'
-			for key in self._masks[grid].keys():
-				if key not in ['lat_mask','lon_mask']:
-					print key
-			return None
-
-		else:
-			toplo=self._masks[grid][mask_style][self._iso]
-			lat=self._masks[grid]['lat_mask'].copy()
-			lon=self._masks[grid]['lon_mask'].copy()
-
-			plot_map(toplo,lat,lon,title=grid+' '+mask_style)			
-
-	def display(self,selection=None):
-		if selection==None:
-			selection=self._DATA
-		for data in selection:
-			print data.index,data.name,min(data.year),max(data.year)
-
-	def data_summary(self):
-		types=set([dd.data_type for dd in self._DATA])
-		var_names=set([dd.var_name for dd in self._DATA])
-
-		for data_type in types:
-			print '\n***********',data_type,'***********'
-			for var_name in var_names:
-				print '_',var_name
-				self.selection([data_type,var_name])
-
-	def unit_conversions(self):
-		for data in self._DATA:
-			if data.var_name=='tas':
-				if np.nanmean(data.raw)>100:
-					data.raw-=273.15
-			# if data.var=='pr':
-			# 	if np.nanmax(data.raw)<10:
-			# 		data.raw*=86400
 
 	def zip_it(self):
 		os.chdir(self._working_directory)
@@ -129,16 +84,89 @@ class country_analysis(object):
 					table=pd.read_csv(file_new,sep=';')
 					for key in table.keys():
 						if key not in ['time','year','month','index']:
-							if mask_style not in data.average.keys():	data.average[mask_style]={}
+							if mask_style not in data.area_average.keys():	data.area_average[mask_style]={}
 							if 'unidecode' in sys.modules:
-								data.average[mask_style][unidecode(key)]=np.array(table[key])
+								data.area_average[mask_style][unidecode(key)]=np.array(table[key])
 							if 'unidecode' not in sys.modules:
-								data.average[mask_style][key]=np.array(table[key])
+								data.area_average[mask_style][key]=np.array(table[key])
 
 		try:
 			self.get_adm_polygons()
 		except:
 			pass
+
+	def get_historical_extreme_events(self,path):
+		table=pd.read_csv(path,sep=';').to_dict()
+		event_groups={'flood':['flash floods','floods'],'drought':['drought']}
+		extreme_events={}
+		for event in ['flood','drought']:
+			extreme_events[event]=[]
+			for i in table['ID']:
+				if table['country'][i]=='SEN':
+					if len(set(table['type'][i].replace(' ','').split(',')).intersection(event_groups[event]))>=1:
+						extreme_events[event].append({
+							'start':table['start'][i],
+							'end':table['end'][i],
+							'region':table['region'][i],
+							'description':table['type'][i],
+							})
+
+		self._extreme_events=extreme_events
+
+	def data_summary(self):
+		types=set([dd.data_type for dd in self._DATA])
+		var_names=set([dd.var_name for dd in self._DATA])
+
+		for data_type in types:
+			print '\n***********',data_type,'***********'
+			for var_name in var_names:
+				print '_',var_name
+				self.selection([data_type,var_name])
+
+	def selection(self,filters,show_selection=True):
+		selection=[]
+		count=0
+		for data in self._DATA:
+			selected=True
+			for key in filters:
+				if key not in data.all_tags:
+					selected=False
+			if selected:
+				selection.append(data)
+				if show_selection==True:
+					print count, data.name,min(data.year),max(data.year), data.index
+				count+=1
+		return selection
+
+	def find_ensemble(self,filters):
+		ensemble={}
+		ensemble_mean=None
+		for data in self._DATA:
+			selected=True
+			for key in filters:
+				if key not in data.all_tags:
+					selected=False
+			if selected and data.model!='ensemble_mean':
+				ensemble[data.model]=data
+				print data.model+': '+data.name+' '+str(min(data.year))+'-'+str(max(data.year))
+			if selected and data.model=='ensemble_mean':
+				ensemble_mean=data
+
+		return ensemble,ensemble_mean
+
+	def unit_conversions(self):
+		for data in self._DATA:
+			if data.var_name in ['tas','TXx']:
+				if np.nanmean(data.raw)>100:
+					data.raw-=273.15
+					for mask_style in data.area_average.keys():
+						for region in data.area_average[mask_style].keys():
+							data.area_average[mask_style][region]-=273.15
+
+
+	###########
+	# masks
+	###########
 
 	def identify_grid(self,input_file,lat_name,lon_name):
 		# get information about grid of input data
@@ -403,6 +431,10 @@ class country_analysis(object):
 			nc_mask.setncattr('mask_style',mask_style)
 			nc_mask.close()
 
+	###########
+	# raw data treatment
+	###########
+
 	def understand_time_format(self,nc_in=None,time=None,time_units=None,time_calendar=None):
 		if time==None:
 			time=nc_in.variables['time'][:]
@@ -539,26 +571,11 @@ class country_analysis(object):
 			new_data.add_data(lon=lon,lat=lat)
 			self.fill_gaps_in_time_axis(new_data,out_file.replace('.nc','_tmp.nc'),out_file)
 
-	def selection(self,filters,show_selection=True):
-		selection=[]
-		count=0
-		for data in self._DATA:
-			selected=True
-			for key in filters:
-				if key not in data.all_tags:
-					selected=False
-			if selected:
-				selection.append(data)
-				if show_selection==True:
-					print count, data.name,min(data.year),max(data.year), data.index
-				count+=1
-		return selection
-
 	def hist_merge(self):
 		# why are there files missing if I go through self._DATA only once???
 		for data in self._DATA+self._DATA:
 			if hasattr(data,'model'):
-				data__=self.selection([data.model,data.var_name,data.data_type],show_selection=False)
+				data__=self.selection([data.model,data.var_name,data.data_type],show_selection=True)
 				for hist in data__[:]:
 					if hist.scenario.lower() in ['hist','historical']:
 						delete_hist=False
@@ -580,166 +597,7 @@ class country_analysis(object):
 
 						if delete_hist:	
 							self._DATA.remove(hist)
-							#os.system('rm '+hist.raw_file)
-
-	def area_average(self,mask_style='lat_weighted',filters=[],overwrite=False):
-		'''
-		compute countrywide averages for all loaded datasets
-		mask_style: str: weighting used to compute countrywide averages
-		filters: list of strs: only computed for data which have the tags given in filters
-		'''
-
-		for data in self._DATA:
-			compute=True
-			for key in filters:
-				if key not in data.all_tags:
-					compute=False
-
-			if compute:
-				# check if file has been saved
-				out_file=self._working_directory+'/area_average/country_mean-'+data.name+'-'+mask_style+'.csv'
-				if mask_style not in data.average.keys():	data.average[mask_style]={}
-				data.average[mask_style]['out_file']=out_file
-
-				if os.path.isfile(out_file) and overwrite==False:
-					table=pd.read_csv(out_file,sep=';')
-					for key in table.keys():
-						if key not in ['time','year','month']:
-							data.average[mask_style][key]=np.array(table[key])
-
-				else:
-					# prepare table
-					country_mean_csv = pd.DataFrame(index=range(len(data.time)))
-					country_mean_csv['time']=data.time
-					country_mean_csv['month']=data.month
-					country_mean_csv['year']=data.year
-
-					# load input data
-					var_in=data.raw.copy()			
-					try:	# handle masked array
-						masked=np.ma.getmask(var_in)
-						var_in=np.ma.getdata(var_in)
-						var_in[masked]=np.nan
-					except: pass
-
-					# find relevant area (as rectangle) and check whether lon and lat are correct (on same grid differences in lat decreasing or increasing could arise)
-					mask=self._masks[data.grid][mask_style][self._iso]
-					lat_mask=self._masks[data.grid]['lat_mask']
-					lon_mask=self._masks[data.grid]['lon_mask']
-
-					lat_mean=np.mean(mask,1)
-					lats=np.where(lat_mean!=0)
-					if lat_mask[lats][0]!=data.lat[0]:
-						var_in=var_in[:,:,::-1]
-						if lat_mask[lats][0]!=data.lat[-1]:
-							print 'problem with lat' ; return('error')
-
-					lon_mean=np.mean(mask,0)
-					lons=np.where(lon_mean!=0)
-					if lon_mask[lons][0]!=data.lon[0]:
-						var_in=var_in[:,:,::-1]
-						if lon_mask[lons][0]!=data.lon[-1]:
-							print 'problem with lon' ; return('error')
-
-					# get mask
-					for name in self._masks[data.grid][mask_style].keys():
-						mask=self._masks[data.grid][mask_style][name]
-
-						# zoom mask to relevant area
-						mask=mask[np.ix_(list(lats[0]),list(lons[0]))]
-						country_area=np.where(mask>0)
-
-						data.average[mask_style][name]=data.time.copy()*np.nan
-						for i in range(len(data.time)):
-							var_of_area=var_in[i,:,:][country_area]
-							# NA handling: sum(mask*var)/sum(mask) for the area where var is not NA
-							not_missing_in_var=np.where(np.isfinite(var_of_area))[0]	# np.where()[0] because of array([],)
-							if len(not_missing_in_var)>0:
-								data.average[mask_style][name][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
-				
-
-						country_mean_csv[name]=data.average[mask_style][name]
-
-
-					# save as csv 
-					country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index',encoding='utf-8')
-
-	def period_averages(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters=[]):
-		'''
-		computes time averages for each grid-cell for a given period
-		periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
-		filters: list of strs: only computed for data which have the tags given in filters
-		'''
-
-		for data in self._DATA:
-			compute=True
-			for key in filters:
-				if key not in data.all_tags:
-					compute=False
-
-			if compute:
-				#print data.name
-
-				data.period={}
-				data.period_meta=periods
-
-				for period_name,period in zip(periods.keys(),periods.values()):	
-					years_in_period=np.where((data.year>=period[0]) & (data.year<period[1]))
-
-					if len(years_in_period[0])>0:
-						data.period[period_name]=np.mean(np.ma.masked_invalid(data.raw[years_in_period,:,:][0,:,:,:]),axis=0)
-					else: 
-						print 'years missing for',period_name,'in',data.name
-
-				for period_name in periods.keys():	
-					if period_name!='ref' and 'ref' in data.period.keys() and period_name in data.period.keys():
-						data.period['diff_'+period_name+'-'+'ref']=data.period[period_name]-data.period['ref']
-						data.period['diff_relative_'+period_name+'-'+'ref']=(data.period[period_name]-data.period['ref'])/data.period['ref']*100
-
-	# def frequency_of_extremes_in_period(self,threshold=0,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters=[]):
-	# 	'''
-	# 	computes time averages for each grid-cell for a given period
-	# 	periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
-	# 	filters: list of strs: only computed for data which have the tags given in filters
-	# 	'''
-
-	# 	for data in self._DATA:
-	# 		compute=True
-	# 		for key in filters:
-	# 			if key not in data.all_tags:
-	# 				compute=False
-
-	# 		if compute:
-	# 			#print data.name
-
-	# 			data.period={}
-	# 			data.period_meta=periods
-
-	# 			for period_name in periods.keys():	
-	# 				years_in_period=np.where((data.year>=periods[period_name][0]) & (data.year<periods[period_name][1]))
-
-	# 				if len(years_in_period[0])>0:
-	# 					return(np.where(np.ma.masked_invalid(data.raw[years_in_period,:,:][0,:,:,:])>threshold))
-
-	# 			for period_name in periods.keys():
-	# 				if period_name!='ref' and 'ref' in data.period.keys() and period_name in data.period.keys():
-	# 					data.period[period_name+'-'+'ref']=data.period[period_name]-data.period['ref']
-
-	def find_ensemble(self,filters):
-		ensemble={}
-		ensemble_mean=None
-		for data in self._DATA:
-			selected=True
-			for key in filters:
-				if key not in data.all_tags:
-					selected=False
-			if selected and data.model!='ensemble_mean':
-				ensemble[data.model]=data
-				print data.model+': '+data.name+' '+str(min(data.year))+'-'+str(max(data.year))
-			if selected and data.model=='ensemble_mean':
-				ensemble_mean=data
-
-		return ensemble,ensemble_mean
+							os.system('rm '+hist.raw_file)
 
 	def ensemble_mean(self):
 		# why do I need this????? see hist_merge
@@ -820,6 +678,162 @@ class country_analysis(object):
 							nc_out.close()
 							nc_in.close()
 
+	###########
+	# analysis tools
+	###########
+
+	def area_average(self,mask_style='lat_weighted',filters=[],overwrite=False):
+		'''
+		compute countrywide averages for all loaded datasets
+		mask_style: str: weighting used to compute countrywide averages
+		filters: list of strs: only computed for data which have the tags given in filters
+		'''
+
+		for data in self._DATA:
+			compute=True
+			for key in filters:
+				if key not in data.all_tags:
+					compute=False
+
+			if compute:
+				# check if file has been saved
+				out_file=self._working_directory+'/area_average/country_mean-'+data.name+'-'+mask_style+'.csv'
+				if mask_style not in data.area_average.keys():	data.area_average[mask_style]={}
+				data.area_average[mask_style]['out_file']=out_file
+
+				if os.path.isfile(out_file) and overwrite==False:
+					table=pd.read_csv(out_file,sep=';')
+					for key in table.keys():
+						if key not in ['time','year','month']:
+							data.area_average[mask_style][key]=np.array(table[key])
+
+				else:
+					# prepare table
+					country_mean_csv = pd.DataFrame(index=range(len(data.time)))
+					country_mean_csv['time']=data.time
+					country_mean_csv['month']=data.month
+					country_mean_csv['year']=data.year
+
+					# load input data
+					var_in=data.raw.copy()			
+					try:	# handle masked array
+						masked=np.ma.getmask(var_in)
+						var_in=np.ma.getdata(var_in)
+						var_in[masked]=np.nan
+					except: pass
+
+					# find relevant area (as rectangle) and check whether lon and lat are correct (on same grid differences in lat decreasing or increasing could arise)
+					mask=self._masks[data.grid][mask_style][self._iso]
+					lat_mask=self._masks[data.grid]['lat_mask']
+					lon_mask=self._masks[data.grid]['lon_mask']
+
+					lat_mean=np.mean(mask,1)
+					lats=np.where(lat_mean!=0)
+					if lat_mask[lats][0]!=data.lat[0]:
+						var_in=var_in[:,:,::-1]
+						if lat_mask[lats][0]!=data.lat[-1]:
+							print 'problem with lat' ; return('error')
+
+					lon_mean=np.mean(mask,0)
+					lons=np.where(lon_mean!=0)
+					if lon_mask[lons][0]!=data.lon[0]:
+						var_in=var_in[:,:,::-1]
+						if lon_mask[lons][0]!=data.lon[-1]:
+							print 'problem with lon' ; return('error')
+
+					# get mask
+					for name in self._masks[data.grid][mask_style].keys():
+						mask=self._masks[data.grid][mask_style][name]
+
+						# zoom mask to relevant area
+						mask=mask[np.ix_(list(lats[0]),list(lons[0]))]
+						country_area=np.where(mask>0)
+
+						data.area_average[mask_style][name]=data.time.copy()*np.nan
+						for i in range(len(data.time)):
+							var_of_area=var_in[i,:,:][country_area]
+							# NA handling: sum(mask*var)/sum(mask) for the area where var is not NA
+							not_missing_in_var=np.where(np.isfinite(var_of_area))[0]	# np.where()[0] because of array([],)
+							if len(not_missing_in_var)>0:
+								data.area_average[mask_style][name][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
+				
+
+						country_mean_csv[name]=data.area_average[mask_style][name]
+
+
+					# save as csv 
+					country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index',encoding='utf-8')
+
+	def period_averages(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters=[]):
+		'''
+		computes time averages for each grid-cell for a given period
+		periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
+		filters: list of strs: only computed for data which have the tags given in filters
+		'''
+
+		for data in self._DATA:
+			compute=True
+			for key in filters:
+				if key not in data.all_tags:
+					compute=False
+
+			if compute:
+				#print data.name
+
+				data.period={}
+				data.period_meta=periods
+
+				if data.time_format=='monthly':		seasons=self._seasons
+				if data.time_format=='yearly':		seasons={'year':range(1,13)}
+
+				for mons_in_sea,sea in zip(seasons.values(),seasons.keys()):
+					data.period[sea]={}
+					for period_name,period in zip(periods.keys(),periods.values()):	
+						relevant_years=np.where((data.year>=period[0]) & (data.year<period[1]))[0]
+						relevenat_time_steps=[]
+						for yr in relevant_years:
+							if int(data.month[yr]) in mons_in_sea:
+								relevenat_time_steps.append(yr)
+
+						if len(relevenat_time_steps)>0:
+							data.period[sea][period_name]=np.nanmean(data.raw[relevenat_time_steps,:,:],axis=0)
+						else: 
+							print 'years missing for',period_name,'in',data.name
+
+					for period_name in periods.keys():	
+						if period_name!='ref' and 'ref' in data.period[sea].keys() and period_name in data.period[sea].keys():
+							data.period[sea]['diff_'+period_name+'-'+'ref']=data.period[sea][period_name]-data.period[sea]['ref']
+							data.period[sea]['diff_relative_'+period_name+'-'+'ref']=(data.period[sea][period_name]-data.period[sea]['ref'])/data.period[sea]['ref']*100
+
+	def frequency_of_extremes_in_period(self,threshold=0,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters=[]):
+		'''
+		computes time averages for each grid-cell for a given period
+		periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
+		filters: list of strs: only computed for data which have the tags given in filters
+		'''
+
+		for data in self._DATA:
+			compute=True
+			for key in filters:
+				if key not in data.all_tags:
+					compute=False
+
+			if compute:
+				#print data.name
+
+				data.period={}
+				data.period_meta=periods
+
+				for period_name in periods.keys():	
+					years_in_period=np.where((data.year>=periods[period_name][0]) & (data.year<periods[period_name][1]))
+
+					if len(years_in_period[0])>0:
+						return(np.where(np.ma.masked_invalid(data.raw[years_in_period,:,:][0,:,:,:])>threshold))
+
+				for period_name in periods.keys():
+					if period_name!='ref' and 'ref' in data.period.keys() and period_name in data.period.keys():
+						data.period[period_name+'-'+'ref']=data.period[period_name]-data.period['ref']
+
 	def model_agreement(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters=[]):
 		'''
 		computes time averages for each grid-cell for a given period
@@ -843,131 +857,46 @@ class country_analysis(object):
 				for member in ensemble.values():
 					remaining.remove(member)
 				if hasattr(ensemble_mean,'period'):
-					for period in ensemble_mean.period.keys():
-						if len(period.split('-'))>1 and period.split('-')[-1]=='ref':
-							agreement=ensemble_mean.period[period].copy()*0
-							for member in ensemble.values():
-								agreement+=np.sign(member.period[period])==np.sign(ensemble_mean.period[period])
 
-							agreement[agreement<2./3.*len(ensemble)]=0
-							agreement[agreement>=2./3.*len(ensemble)]=1
-							ensemble_mean.agreement[period]=agreement
+					if data.time_format=='monthly':		seasons=self._seasons
+					if data.time_format=='yearly':		seasons={'year':range(1,13)}
+
+					for sea in seasons.keys():
+						ensemble_mean.agreement[sea]={}
+
+						for period in ensemble_mean.period.keys():
+							if len(period.split('-'))>1 and period.split('-')[-1]=='ref':
+								agreement=ensemble_mean.period[sea][period].copy()*0
+								for member in ensemble.values():
+									agreement+=np.sign(member.period[sea][period])==np.sign(ensemble_mean.period[sea][period])
+
+								agreement[agreement<2./3.*len(ensemble)]=0
+								agreement[agreement>=2./3.*len(ensemble)]=1
+								ensemble_mean.agreement[sea][period]=agreement
 	
-	def plot_transients(self,object_toplot,mask_style='lat_weighted',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue'):
-		'''
-		plot transient of countrywide average
-		mask_style: str: weighting used to compute countrywide averages
-		running_mean: int: years to be averaged in moving average		
-		ax: subplot: subplot on which the map will be plotted
-		out_file: str: location where the plot is saved
-		title: str: title of the plot
-		ylabel: str: labe to put on y-axis
-		show: logical: show the subplot?
-		'''
+	###########
+	# plot functions
+	###########
 
-		if ax!=None:
-			show=False
+	def display_mask(self,grid=None,mask_style=None):
+		if grid==None:
+			print 'Please select a grid:'
+			for grid in self._masks.keys():
+				print grid
+			return None
+		if mask_style==None:
+			print 'Please select a mask-style:'
+			for key in self._masks[grid].keys():
+				if key not in ['lat_mask','lon_mask']:
+					print key
+			return None
 
-		if ax==None:
-			show=True
-			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
+		else:
+			toplo=self._masks[grid][mask_style][self._iso]
+			lat=self._masks[grid]['lat_mask'].copy()
+			lon=self._masks[grid]['lon_mask'].copy()
 
-		if region==None:
-			region=self._iso
-
-		if object_toplot.time_format=='monthly':
-			running_mean=running_mean_years*12
-
-		if object_toplot.time_format=='yearly':
-			running_mean=running_mean_years
-
-		ax.plot(object_toplot.time_stamp,pd.rolling_mean(object_toplot.average[mask_style][region],running_mean),linestyle='-',label=label,color=color)
-
-		if hasattr(object_toplot,'model'):
-			if object_toplot.model=='ensemble_mean':
-				ensemble=self.find_ensemble([object_toplot.data_type,object_toplot.var_name,object_toplot.scenario])[0].values()
-
-
-				time_axis=np.arange(min(object_toplot.time_stamp),max(object_toplot.time_stamp),1/12.)
-				ensemble_range=np.zeros([len(ensemble),len(time_axis)])*np.nan
-
-				for member,i in zip(ensemble,range(len(ensemble))):
-					member_runmean=pd.rolling_mean(member.average[mask_style][region],running_mean)
-					for t in member.time_stamp:
-						ensemble_range[i,np.where(abs(time_axis-t)<1/36.)]=member_runmean[np.where(member.time_stamp==t)]
-					ax.plot(member.time_stamp,pd.rolling_mean(member.average[mask_style][region],running_mean),linestyle='-',label=label,color='blue',linewidth=0.5)
-
-				ax.fill_between(time_axis,np.percentile(ensemble_range,0,axis=0),np.percentile(ensemble_range,100,axis=0),alpha=0.25,color=color)
-
-		if ylabel==None:ylabel=object_toplot.var_name.replace('_',' ')
-		ax.set_ylabel(ylabel)
-		if title==None:title=object_toplot.name.replace('_',' ')
-		ax.set_title(title)
-		
-		if show==True:ax.legend(loc='best')
-		if out_file==None and show==True:plt.show()
-		if out_file!=None:plt.savefig(out_file)
-
-		if int(np.mean(np.diff(object_toplot.year,1)))!=1:
-			return 'not yearly data! please consider this for the running mean'
-
-	def plot_annual_cycle(self,object_toplot,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue'):
-		'''
-		plot transient of countrywide average
-		meta_data: list of strs: meta information required to acces data
-		mask_style: str: weighting used to compute countrywide averages
-		running_mean: int: years to be averaged in moving average		
-		ax: subplot: subplot on which the map will be plotted
-		out_file: str: location where the plot is saved
-		title: str: title of the plot
-		ylabel: str: labe to put on y-axis
-		show: logical: show the subplot?
-		'''
-
-		if ax!=None:
-			show=False
-
-		if ax==None:
-			show=True
-			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
-
-		if period==None:
-			period=[min(object_toplot.year),max(object_toplot.year)]
-
-		if region==None:
-			region=object_toplot._iso
-
-		annual_cycle=[]
-		for mon in range(1,13):
-			relevant_time=np.where((object_toplot.year>=period[0]) & (object_toplot.year<period[1]) & (object_toplot.month==mon))[0]
-			annual_cycle.append(np.nanmean(object_toplot.average[mask_style][region][relevant_time]))
-
-		ax.plot(range(0,12),annual_cycle,linestyle='-',label=label,color=color)
-
-		if hasattr(object_toplot,'model'):
-			if object_toplot.model=='ensemble_mean':
-				ensemble=self.find_ensemble([object_toplot.data_type,object_toplot.var_name,object_toplot.scenario])[0].values()
-				ensemble_annual_cycle=np.zeros([len(ensemble),12])
-
-				for member,i in zip(ensemble,range(len(ensemble))):
-					for mon in range(1,13):
-						relevant_time=np.where((member.year>=period[0]) & (member.year<period[1]) & (member.month==mon))[0]
-						ensemble_annual_cycle[i,mon-1]=np.nanmean(member.average[mask_style][region][relevant_time])
-
-				ax.fill_between(range(0,12),np.percentile(ensemble_annual_cycle,0./3.*100,axis=0),np.percentile(ensemble_annual_cycle,3./3.*100,axis=0),alpha=0.25,color=color)
-
-
-		ax.set_xticks(range(0,12)) 
-		ax.set_xticklabels(['JAN','FEB','MAR','APR','MAI','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])
-
-		if ylabel==None:ylabel=object_toplot.var_name.replace('_',' ')
-		ax.set_ylabel(ylabel)
-		if title==None:title=object_toplot.name.replace('_',' ')
-		ax.set_title(title)
-		
-		if show==True:ax.legend(loc='best')
-		if out_file==None and show==True:plt.show()
-		if out_file!=None:plt.savefig(out_file)
+			plot_map(toplo,lat,lon,title=grid+' '+mask_style)			
 
 	def get_adm_polygons(self):
 		self._adm_polygons={}
@@ -985,7 +914,7 @@ class country_analysis(object):
 class new_data_object(object):
 	def __init__(SELF,outer_self,**kwargs):
 		SELF.index=len(outer_self._DATA)
-
+		SELF.outer_self=outer_self
 		outer_self._DATA.append(SELF)
 		SELF._iso=outer_self._iso
 
@@ -1000,7 +929,7 @@ class new_data_object(object):
 		if 'scenario' in kwargs.keys():	SELF.scenario=kwargs['scenario'].replace('.','p').lower()
 		if 'model' in kwargs.keys():	SELF.model=kwargs['model']
 
-		SELF.average={}
+		SELF.area_average={}
 		SELF.annual_cycle={}
 
 		SELF.all_tags_dict=kwargs
@@ -1022,7 +951,6 @@ class new_data_object(object):
 		if 'lat' in kwargs.keys():	SELF.lat=kwargs['lat']
 		if 'lon' in kwargs.keys():	SELF.lon=kwargs['lon']
 
-
 	def create_time_stamp(SELF):
 		if len(np.where(np.diff(SELF.year)==1)[0])>len(SELF.year)*0.66:
 			SELF.time_format='yearly'
@@ -1032,7 +960,6 @@ class new_data_object(object):
 			SELF.time_format='monthly'
 			SELF.time_step=1./12.
 			SELF.time_stamp=np.array([int(SELF.year[i])+int(SELF.month[i])/12. for i in range(len(SELF.year))])
-
 
 	def convert_time_stamp(SELF):
 		SELF.year=np.array([int(t) for t in SELF.time_stamp])
@@ -1051,8 +978,7 @@ class new_data_object(object):
 		# 		SELF.time_bnds[i,0]=datetime.datetime(SELF.year[i],1,1)
 		# 		SELF.time_bnds[i,1]=datetime.datetime(SELF.year[i],12,days_in_month[12])
 
-
-	def display_map(SELF,period=None,time=None,color_bar=True,color_label=None,color_palette=None,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,polygons=None):
+	def display_map(SELF,period=None,time=None,color_bar=True,color_label=None,color_palette=None,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,polygons=None,season='year'):
 		'''
 		plot maps of data. 
 		meta_data: list of strs: meta information required to acces data
@@ -1079,35 +1005,190 @@ class new_data_object(object):
 				to_plot=SELF.raw[time,:,:].copy()
 				if title==None:title='_'.join([SELF.name]+[str(int(SELF.month[time])),'/',str(int(SELF.year[time]))])
 		else:
-			to_plot=SELF.period[period].copy()
-			if title==None:title=SELF.name+'_'+period
+			to_plot=SELF.period[season][period].copy()
+			if title==None:title=SELF.name+'_'+period+'_'+season
 
 			if hasattr(SELF,'agreement'):
 				print 'agreement exists'
 				if period in SELF.agreement:
 					print 'also for the period'
-					grey_area=SELF.agreement[period]
+					grey_area=SELF.agreement[season][period]
 
 		lat=SELF.lat.copy()
 		lon=SELF.lon.copy()
 		if color_label==None:color_label=SELF.var_name.replace('_',' ')
 
+		if color_range==None:
+			if period.split('_')[0]=='diff':
+				if np.sign(np.nanpercentile(to_plot,[10]))==np.sign(np.nanpercentile(to_plot,[90])):
+					color_range=np.nanpercentile(to_plot,[10,90])
+				else:
+					abs_boundary=max(abs(np.nanpercentile(to_plot,[10,90])))
+					color_range=[-abs_boundary,abs_boundary]
+
 		if color_palette==None:
-			if SELF.var_name=='pr':		color_palette=plt.cm.YlGnBu
-			elif SELF.var_name=='tas':	color_palette=plt.cm.YlOrBr
-			elif SELF.var_name=='SPEI':	color_palette=plt.cm.plasma
-			else:					color_palette=plt.cm.plasma
+			if period.split('_')[0]!='diff':
+				if SELF.var_name in ['pr','RX1','year_RX5']:	color_palette=plt.cm.YlGnBu
+				elif SELF.var_name in ['tas','TXx']:			color_palette=plt.cm.OrRd
+				elif SELF.var_name in ['SPEI','year_CDD']:		color_palette=plt.cm.YlOrBr
+				else:											color_palette=plt.cm.plasma
 
-		
-			if period.split('_')[0]=='diff': color_palette=plt.cm.PiYG
+			if period.split('_')[0]=='diff': 
+				if np.mean(color_range)==0:						color_palette=plt.cm.PiYG_r
+				elif np.mean(color_range)<0:					color_palette=plt.cm.YlGn_r
+				elif np.mean(color_range)>0:					color_palette=plt.cm.RdPu
 
-		if color_range==None and period.split('_')[0]=='diff':
-			abs_boundary=max(abs(np.nanpercentile(to_plot,[10,90])))
-			color_range=[-abs_boundary,abs_boundary]
 
 		im=plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons)
 		return(im)
 
+	def plot_transients(SELF,mask_style='lat_weighted',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None):
+		'''
+		plot transient of countrywide average
+		mask_style: str: weighting used to compute countrywide averages
+		running_mean: int: years to be averaged in moving average		
+		ax: subplot: subplot on which the map will be plotted
+		out_file: str: location where the plot is saved
+		title: str: title of the plot
+		ylabel: str: labe to put on y-axis
+		show: logical: show the subplot?
+		'''
+
+		if ax!=None:
+			show=False
+
+		if ax==None:
+			show=True
+			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
+
+		if region==None:
+			region=SELF.outer_self._iso
+
+		if SELF.time_format=='monthly':
+			running_mean=running_mean_years*12
+
+		if SELF.time_format=='yearly':
+			running_mean=running_mean_years
+
+		ax.plot(SELF.time_stamp,pd.rolling_mean(SELF.area_average[mask_style][region],running_mean),linestyle='-',label=label,color=color)
+
+		if hasattr(SELF,'model'):
+			if SELF.model=='ensemble_mean':
+				ensemble=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])[0].values()
+
+
+				time_axis=np.arange(min(SELF.time_stamp),max(SELF.time_stamp),1/12.)
+				ensemble_range=np.zeros([len(ensemble),len(time_axis)])*np.nan
+
+				for member,i in zip(ensemble,range(len(ensemble))):
+					member_runmean=pd.rolling_mean(member.area_average[mask_style][region],running_mean)
+					for t in member.time_stamp:
+						ensemble_range[i,np.where(abs(time_axis-t)<1/36.)]=member_runmean[np.where(member.time_stamp==t)]
+					#ax.plot(member.time_stamp,pd.rolling_mean(member.area_average[mask_style][region],running_mean),linestyle='-',label=label,color='blue',linewidth=0.5)
+
+				ax.fill_between(time_axis,np.percentile(ensemble_range,0,axis=0),np.percentile(ensemble_range,100,axis=0),alpha=0.25,color=color)
+
+		if ylabel==None:ylabel=SELF.var_name.replace('_',' ')
+		ax.set_ylabel(ylabel)
+		if title==None:title=SELF.name.replace('_',' ')
+		ax.set_title(title)
+
+		if y_range!=None:
+			ax.set_ylim(y_range)
+		
+		if show==True:ax.legend(loc='best')
+		if out_file==None and show==True:plt.show()
+		if out_file!=None:plt.savefig(out_file)
+
+		return(ax.get_ylim())
+
+	def plot_annual_cycle(self,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue'):
+		'''
+		plot transient of countrywide average
+		meta_data: list of strs: meta information required to acces data
+		mask_style: str: weighting used to compute countrywide averages
+		running_mean: int: years to be averaged in moving average		
+		ax: subplot: subplot on which the map will be plotted
+		out_file: str: location where the plot is saved
+		title: str: title of the plot
+		ylabel: str: labe to put on y-axis
+		show: logical: show the subplot?
+		'''
+
+		if ax!=None:
+			show=False
+
+		if ax==None:
+			show=True
+			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
+
+		if period==None:
+			period=[min(SELF.year),max(SELF.year)]
+
+		if region==None:
+			region=SELF._iso
+
+		annual_cycle=[]
+		for mon in range(1,13):
+			relevant_time=np.where((SELF.year>=period[0]) & (SELF.year<period[1]) & (SELF.month==mon))[0]
+			annual_cycle.append(np.nanmean(SELF.area_average[mask_style][region][relevant_time]))
+
+		ax.plot(range(0,12),annual_cycle,linestyle='-',label=label,color=color)
+
+		if hasattr(SELF,'model'):
+			if SELF.model=='ensemble_mean':
+				ensemble=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])[0].values()
+				ensemble_annual_cycle=np.zeros([len(ensemble),12])
+
+				for member,i in zip(ensemble,range(len(ensemble))):
+					for mon in range(1,13):
+						relevant_time=np.where((member.year>=period[0]) & (member.year<period[1]) & (member.month==mon))[0]
+						ensemble_annual_cycle[i,mon-1]=np.nanmean(member.area_average[mask_style][region][relevant_time])
+
+				ax.fill_between(range(0,12),np.percentile(ensemble_annual_cycle,0./3.*100,axis=0),np.percentile(ensemble_annual_cycle,3./3.*100,axis=0),alpha=0.25,color=color)
+
+
+		ax.set_xticks(range(0,12)) 
+		ax.set_xticklabels(['JAN','FEB','MAR','APR','MAI','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])
+
+		if ylabel==None:ylabel=SELF.var_name.replace('_',' ')
+		ax.set_ylabel(ylabel)
+		if title==None:title=SELF.name.replace('_',' ')
+		ax.set_title(title)
+		
+		if show==True:ax.legend(loc='best')
+		if out_file==None and show==True:plt.show()
+		if out_file!=None:plt.savefig(out_file)
+
+	def historical_index_validation(SELF,extreme_type='flood',mask_style='lat_weighted',region=None,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None):
+
+		if ax!=None:
+			show=False
+
+		if ax==None:
+			show=True
+			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
+
+		if region==None:
+			region=SELF.outer_self._iso
+
+		ax.fill_between(SELF.time_stamp,SELF.time_stamp.copy()*0,SELF.area_average[mask_style][region],linestyle='-',color='black')
+
+		lower,upper=ax.get_ylim()
+
+		for event in SELF.outer_self._extreme_events[extreme_type]:
+			if region in event['region'] or event['region']=='n.a.':
+				print event
+				yr,mn,dy=event['start'].split('-')
+				start_time=int(yr)+(30*int(mn)+int(dy))/365.
+				yr,mn,dy=event['end'].split('-')
+				end_time=int(yr)+(30*int(mn)+int(dy))/365.
+				print start_time,end_time
+				ax.fill_between([start_time,end_time],[lower,lower],[upper,upper],linestyle='-',color='blue',alpha=0.5)
+			
+		if show==True:ax.legend(loc='best')
+		if out_file==None and show==True:plt.show()
+		if out_file!=None:plt.savefig(out_file,dpi=300)
 
 def plot_map(to_plot,lat,lon,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title='',polygons=None):
 	# this actualy plots the map
