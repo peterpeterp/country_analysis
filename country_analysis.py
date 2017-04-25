@@ -864,7 +864,7 @@ class country_analysis(object):
 					for sea in seasons.keys():
 						ensemble_mean.agreement[sea]={}
 
-						for period in ensemble_mean.period.keys():
+						for period in ensemble_mean.period[sea].keys():
 							if len(period.split('-'))>1 and period.split('-')[-1]=='ref':
 								agreement=ensemble_mean.period[sea][period].copy()*0
 								for member in ensemble.values():
@@ -1010,7 +1010,8 @@ class new_data_object(object):
 
 			if hasattr(SELF,'agreement'):
 				print 'agreement exists'
-				if period in SELF.agreement:
+				print SELF.agreement[season].keys()
+				if period in SELF.agreement[season].keys():
 					print 'also for the period'
 					grey_area=SELF.agreement[season][period]
 
@@ -1102,7 +1103,7 @@ class new_data_object(object):
 
 		return(ax.get_ylim())
 
-	def plot_annual_cycle(self,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue'):
+	def plot_annual_cycle(SELF,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue'):
 		'''
 		plot transient of countrywide average
 		meta_data: list of strs: meta information required to acces data
