@@ -4,7 +4,7 @@ from netCDF4 import Dataset,netcdftime,num2date
 import pandas as pd
 
 sys.path.append('/Users/peterpfleiderer/Documents/Projects/country_analysis/country_analysis_scripts/')
-try:del sys.modules['country_analysis_obj'] 
+try:del sys.modules['country_analysis'] 
 except:pass
 from country_analysis_obj import country_analysis,plot_map
 sys.path.append('/Users/peterpfleiderer/Documents/')
