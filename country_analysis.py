@@ -26,6 +26,12 @@ try:
 except:
 	pass
 
+def depth(d, level=1):
+    if not isinstance(d, dict) or not d:
+        return level
+    return max(depth(d[k], level + 1) for k in d)
+
+
 class country_analysis(object):
 
 	def __init__(self,iso,working_directory,seasons={'year':range(1,13)}):
@@ -138,7 +144,7 @@ class country_analysis(object):
 				count+=1
 		return selection
 
-	def find_ensemble(self,filters):
+	def find_ensemble(self,filters,quiet=True):
 		ensemble={}
 		ensemble_mean=None
 		for data in self._DATA:
@@ -148,7 +154,8 @@ class country_analysis(object):
 					selected=False
 			if selected and data.model!='ensemble_mean':
 				ensemble[data.model]=data
-				print data.model+': '+data.name+' '+str(min(data.year))+'-'+str(max(data.year))
+				if quiet==False:
+					print data.model+': '+data.name+' '+str(min(data.year))+'-'+str(max(data.year))
 			if selected and data.model=='ensemble_mean':
 				ensemble_mean=data
 
@@ -162,6 +169,47 @@ class country_analysis(object):
 					for mask_style in data.area_average.keys():
 						for region in data.area_average[mask_style].keys():
 							data.area_average[mask_style][region]-=273.15
+
+	def get_warming_slices(self,GMT_path,warming_lvls=[1.5,2,2.5,3],ref_period=[1986,2006],model_real_name=None):
+		self._warming_slices={}
+		for data in self._DATA:
+			if hasattr(data,'model'):
+				if data.model not in self._warming_slices.keys() and data.model!='ensemble_mean':
+					self._warming_slices[data.model]={}
+					if data.scenario not in self._warming_slices[data.model].keys():
+						self._warming_slices[data.model][data.scenario]={}
+
+						# model names from cordex are not explicit!
+						if model_real_name!=None:		model_name=model_real_name[data.model]
+						if model_real_name==None:		model_name=data.model.lower()
+						GMT=glob.glob(GMT_path+model_name+'.'+data.scenario+'.r1i*')
+						if len(GMT)>0:
+							nc_in=Dataset(GMT[0],"r")
+							# handle time information
+							time=nc_in.variables['time'][:]
+							year=time/12
+							# GMT
+							GMT = nc_in.variables['tas_global'][:]	
+							ave_window=20
+							rmean=GMT.copy()*np.nan
+							for i in range(19,len(rmean)):
+								#print i-ave_window+1,i
+								rmean[i]=GMT[i-ave_window:i].mean()
+							try:
+								ref_warming=rmean[np.where(year==ref_period[1])[0]][0]
+							except:
+								ref_warming=rmean[np.where(year==ref_period[1])[0]]
+							rmean=rmean-ref_warming
+
+							self._warming_slices[data.model][data.scenario]['ref']=ref_period
+							for change in warming_lvls:
+								# is this the warming level of the referene period?
+								change_to_ref=change-0.61 
+								closest=np.nanargmin(abs(rmean-change_to_ref))
+								print data.model,change_to_ref,np.nanmin(abs(rmean-change_to_ref)),year[closest],rmean[closest]
+								if np.nanmin(abs(rmean-change_to_ref))<0.1:
+									print 'selected'
+									self._warming_slices[data.model][data.scenario][str(change)]=[year[closest]-20,year[closest]]
 
 
 	###########
@@ -764,80 +812,72 @@ class country_analysis(object):
 					# save as csv 
 					country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index',encoding='utf-8')
 
-	def period_averages(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters=[]):
+	def period_statistics(self,name='mean',threshold=None,below=False,selection=None,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]}):
 		'''
 		computes time averages for each grid-cell for a given period
 		periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
 		filters: list of strs: only computed for data which have the tags given in filters
 		'''
 
-		for data in self._DATA:
+		if selection==None:
+			selection=self._DATA
+
+		for data in selection:
 			compute=True
-			for key in filters:
-				if key not in data.all_tags:
-					compute=False
+			if 'ensemble_mean' in data.all_tags:
+				compute=False
+
+			# handle warming slices and fixed periods
+			if depth(periods)==2:		
+				local_periods=periods
+			if depth(periods)>2:		
+				try:	local_periods=periods[data.model][data.scenario]
+				except:	compute=False
 
 			if compute:
-				#print data.name
-
-				data.period={}
-				data.period_meta=periods
+				if hasattr(data,'period')==False:	data.period={}
+				if name not in data.period.keys(): data.period[name]={}
 
 				if data.time_format=='monthly':		seasons=self._seasons
 				if data.time_format=='yearly':		seasons={'year':range(1,13)}
 
-				for mons_in_sea,sea in zip(seasons.values(),seasons.keys()):
-					data.period[sea]={}
-					for period_name,period in zip(periods.keys(),periods.values()):	
-						relevant_years=np.where((data.year>=period[0]) & (data.year<period[1]))[0]
-						relevenat_time_steps=[]
-						for yr in relevant_years:
-							if int(data.month[yr]) in mons_in_sea:
-								relevenat_time_steps.append(yr)
+				if isinstance(threshold, (np.ndarray))==False and threshold!=None: threshold=np.ones([data.raw.shape[1],data.raw.shape[2]])*threshold
 
-						if len(relevenat_time_steps)>0:
-							data.period[sea][period_name]=np.nanmean(data.raw[relevenat_time_steps,:,:],axis=0)
+				for period_name,period in zip(local_periods.keys(),local_periods.values()):	
+					for mons_in_sea,sea in zip(seasons.values(),seasons.keys()):
+						if sea not in data.period[name].keys(): data.period[name][sea]={}
+						# find relevant time steps
+						relevant_years=np.where((data.year>=period[0]) & (data.year<period[1]))[0]
+						relevenat_time_steps=data.get_relevant_time_steps_in_season(mons_in_sea,relevant_years)
+
+						n_steps=len(relevenat_time_steps)
+						if n_steps>0:
+							# compute average
+							if name=='mean':
+								data.period[name][sea][period_name]=np.nanmean(data.raw[relevenat_time_steps,:,:],axis=0)
+							# threshold exceeding
+							if threshold!=None:
+								data.period[name][sea][period_name]=np.zeros([data.raw.shape[1],data.raw.shape[2]])*np.nan
+								for y in range(data.raw.shape[1]):
+									for x in range(data.raw.shape[2]):
+										if below==True: 
+											data.period[name][sea][period_name][y,x]=len(np.where(data.raw[relevenat_time_steps,y,x]<threshold[y,x])[0])/float(n_steps)
+										if below==False: 
+											data.period[name][sea][period_name][y,x]=len(np.where(data.raw[relevenat_time_steps,y,x]>threshold[y,x])[0])/float(n_steps)
 						else: 
 							print 'years missing for',period_name,'in',data.name
+							data.period[name][sea][period_name]=np.zeros([data.raw.shape[1],data.raw.shape[2]])*np.nan
 
-					for period_name in periods.keys():	
-						if period_name!='ref' and 'ref' in data.period[sea].keys() and period_name in data.period[sea].keys():
-							data.period[sea]['diff_'+period_name+'-'+'ref']=data.period[sea][period_name]-data.period[sea]['ref']
-							data.period[sea]['diff_relative_'+period_name+'-'+'ref']=(data.period[sea][period_name]-data.period[sea]['ref'])/data.period[sea]['ref']*100
+				# period diff
+				for sea in data.period[name].keys():
+					for period_name in data.period[name][sea].keys():	
+						if period_name!='ref' and 'ref' in data.period[name][sea].keys():
+							data.period[name][sea]['diff_'+period_name+'-'+'ref']=data.period[name][sea][period_name]-data.period[name][sea]['ref']
+							data.period[name][sea]['diff_relative_'+period_name+'-'+'ref']=(data.period[name][sea][period_name]-data.period[name][sea]['ref'])/data.period[name][sea]['ref']*100
 
-	def frequency_of_extremes_in_period(self,threshold=0,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters=[]):
+	def period_model_agreement(self,filters=[]):
 		'''
 		computes time averages for each grid-cell for a given period
-		periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
-		filters: list of strs: only computed for data which have the tags given in filters
-		'''
-
-		for data in self._DATA:
-			compute=True
-			for key in filters:
-				if key not in data.all_tags:
-					compute=False
-
-			if compute:
-				#print data.name
-
-				data.period={}
-				data.period_meta=periods
-
-				for period_name in periods.keys():	
-					years_in_period=np.where((data.year>=periods[period_name][0]) & (data.year<periods[period_name][1]))
-
-					if len(years_in_period[0])>0:
-						return(np.where(np.ma.masked_invalid(data.raw[years_in_period,:,:][0,:,:,:])>threshold))
-
-				for period_name in periods.keys():
-					if period_name!='ref' and 'ref' in data.period.keys() and period_name in data.period.keys():
-						data.period[period_name+'-'+'ref']=data.period[period_name]-data.period['ref']
-
-	def model_agreement(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},filters=[]):
-		'''
-		computes time averages for each grid-cell for a given period
-		periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
 		filters: list of strs: only computed for data which have the tags given in filters
 		'''
 		remaining=self._DATA[:]
@@ -853,27 +893,123 @@ class country_analysis(object):
 
 			if compute:
 				ensemble,ensemble_mean=self.find_ensemble([data.data_type,data.var_name,data.scenario])
-				ensemble_mean.agreement={}
-				for member in ensemble.values():
+				ensemble=ensemble.values()
+				if hasattr(ensemble_mean,'period')==False:	ensemble_mean.period={}
+				if hasattr(ensemble_mean,'agreement')==False:	ensemble_mean.agreement={}
+
+				for member in ensemble:
 					remaining.remove(member)
-				if hasattr(ensemble_mean,'period'):
 
-					if data.time_format=='monthly':		seasons=self._seasons
-					if data.time_format=='yearly':		seasons={'year':range(1,13)}
+				if hasattr(member,'period'):
+					if member.time_format=='monthly':		seasons=self._seasons
+					if member.time_format=='yearly':		seasons={'year':range(1,13)}
 
-					for sea in seasons.keys():
-						ensemble_mean.agreement[sea]={}
+					for name in ensemble[0].period.keys():
+						ensemble_mean.period[name]={}
+						ensemble_mean.agreement[name]={}
+						for sea in seasons.keys():
+							ensemble_mean.period[name][sea]={}
+							ensemble_mean.agreement[name][sea]={}
 
-						for period in ensemble_mean.period[sea].keys():
-							if len(period.split('-'))>1 and period.split('-')[-1]=='ref':
-								agreement=ensemble_mean.period[sea][period].copy()*0
-								for member in ensemble.values():
-									agreement+=np.sign(member.period[sea][period])==np.sign(ensemble_mean.period[sea][period])
+							# ensemble mean
+							for period in ensemble[0].period[name][sea].keys():
+								ensemble_mean.period[name][sea][period]=ensemble[0].period[name][sea][period]
+								for member in ensemble[1:]:
+									ensemble_mean.period[name][sea][period]+=member.period[name][sea][period]
+								ensemble_mean.period[name][sea][period]/=float(len(ensemble))
 
-								agreement[agreement<2./3.*len(ensemble)]=0
-								agreement[agreement>=2./3.*len(ensemble)]=1
-								ensemble_mean.agreement[sea][period]=agreement
-	
+							# model agreement
+							for period in ensemble_mean.period[name][sea].keys():
+								if len(period.split('-'))>1 and period.split('-')[-1]=='ref':
+									agreement=ensemble_mean.period[name][sea][period].copy()*0
+									for member in ensemble:
+										agreement+=np.sign(member.period[name][sea][period])==np.sign(ensemble_mean.period[name][sea][period])
+
+									agreement[agreement<2./3.*len(ensemble)]=0
+									agreement[agreement>=2./3.*len(ensemble)]=1
+									ensemble_mean.agreement[name][sea][period]=agreement
+
+	def annual_cycle(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},mask_style='lat_weighted',filters=[]):
+		'''
+		computes time averages for each grid-cell for a given period
+		periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
+		filters: list of strs: only computed for data which have the tags given in filters
+		'''
+
+		for data in self._DATA:
+			compute=True
+			for key in filters:
+				if key not in data.all_tags:
+					compute=False
+			if 'ensemble_mean' in data.all_tags:
+				compute=False
+
+			# handle warming slices and fixed periods
+			if depth(periods)==2:		
+				local_periods=periods
+			if depth(periods)>2:		
+				try:	local_periods=periods[data.model][data.scenario]
+				except:	compute=False
+
+			if compute:
+				if hasattr(data,'annual_cycle')==False:	data.annual_cycle={}
+				if mask_style not in data.annual_cycle.keys():		data.annual_cycle[mask_style]={}
+				#data.annual_cycle={key : val for key,val in zip(local_periods.keys(),local_periods.values())}
+
+				for region in self._regions.keys():
+					if region not in data.annual_cycle[mask_style].keys():		
+						data.annual_cycle[mask_style][region]={}
+					for period_name,period in zip(local_periods.keys(),local_periods.values()):	
+						annual_cycle=[]
+						for mon in range(1,13):
+							relevant_time=np.where((data.year>=period[0]) & (data.year<period[1]) & (data.month==mon))[0]
+							if len(relevant_time)>1:
+								annual_cycle.append(np.nanmean(data.area_average[mask_style][region][relevant_time]))
+						if len(annual_cycle)==12:
+							data.annual_cycle[mask_style][region][period_name]=np.array(annual_cycle)
+						else:
+							data.annual_cycle[mask_style][region][period_name]=np.zeros([12])*np.nan
+						
+						# annual cycle diff
+						for period_name in data.annual_cycle[mask_style][region].keys():	
+							if period_name!='ref' and 'ref' in data.annual_cycle[mask_style][region].keys():
+								data.annual_cycle[mask_style][region]['diff_'+period_name+'-'+'ref']=data.annual_cycle[mask_style][region][period_name]-data.annual_cycle[mask_style][region]['ref']
+								data.annual_cycle[mask_style][region]['diff_relative_'+period_name+'-'+'ref']=(data.annual_cycle[mask_style][region][period_name]-data.annual_cycle[mask_style][region]['ref'])/data.annual_cycle[mask_style][region]['ref']*100
+
+	def annual_cycle_ensemble_mean(self,filters=[]):
+		'''
+		computes time averages for each grid-cell for a given period
+		filters: list of strs: only computed for data which have the tags given in filters
+		'''
+		remaining=self._DATA[:]
+
+		for data in remaining:
+			compute=False
+			if hasattr(data,'model'):
+				if data.model!='ensemble_mean':
+					compute=True
+					for key in filters:
+						if key not in data.all_tags:
+							compute=False
+
+			if compute:
+				ensemble,ensemble_mean=self.find_ensemble([data.data_type,data.var_name,data.scenario])
+				ensemble=ensemble.values()
+
+				for member in ensemble:
+					remaining.remove(member)
+
+				# annual cycle ensemble mean
+				if hasattr(member,'annual_cycle'):
+					if hasattr(ensemble_mean,'annual_cycle')==False:			ensemble_mean.annual_cycle={}
+					for mask_style in ensemble[0].annual_cycle.keys():
+						if mask_style not in ensemble_mean.annual_cycle.keys():		ensemble_mean.annual_cycle[mask_style]={}
+						for region in self._regions.keys():
+							ensemble_mean.annual_cycle[mask_style][region]={}
+							for period in ensemble[0].annual_cycle[mask_style][region].keys():
+								ensemble_mean.annual_cycle[mask_style][region][period]=np.nanmean(np.vstack([member.annual_cycle[mask_style][region][period] for member in ensemble]),axis=0)
+
+
 	###########
 	# plot functions
 	###########
@@ -910,6 +1046,88 @@ class country_analysis(object):
 			self._adm_polygons[count]={'x':x,'y':y}
 			count+=1
 
+	def plot_map(self,to_plot,lat,lon,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title='',polygons=None):
+		# this actualy plots the map
+
+			if ax==None: show=True
+			if ax!=None: show=False
+
+			if ax==None:
+				fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(5,3))		
+
+
+			# handle limits
+			if limits==None:
+				half_lon_step=abs(np.diff(lon.copy(),1)[0]/2)
+				half_lat_step=abs(np.diff(lat.copy(),1)[0]/2)
+				relevant_lats=lat[np.where(np.isfinite(to_plot))[0]]
+				relevant_lons=lon[np.where(np.isfinite(to_plot))[1]]
+				limits=[np.min(relevant_lons)-half_lon_step,np.max(relevant_lons)+half_lon_step,np.min(relevant_lats)-half_lat_step,np.max(relevant_lats)+half_lat_step]
+
+
+			# handle 0 to 360 lon
+			if max(lon)>180:
+				problem_start=np.where(lon>180)[0][0]
+				new_order=np.array(range(problem_start,len(lon))+range(0,problem_start))
+				to_plot=to_plot[:,new_order]
+				lon=lon[new_order]
+				lon[lon>180]-=360
+
+			if limits[0]>180:limits[0]-=360
+			if limits[1]>180:limits[1]-=360
+
+
+			m = Basemap(ax=ax,llcrnrlon=limits[0],urcrnrlon=limits[1],llcrnrlat=limits[2],urcrnrlat=limits[3],resolution="l",projection='cyl')
+			m.drawmapboundary(fill_color='1.')
+
+			# get color_range
+			if color_range==None:
+				color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
+
+			x,y=lon.copy(),lat.copy()
+			x-=np.diff(x,1)[0]/2.
+			y-=np.diff(y,1)[0]/2.
+			x=np.append(x,[x[-1]+np.diff(x,1)[0]])
+			y=np.append(y,[y[-1]+np.diff(y,1)[0]])
+			x,y=np.meshgrid(x,y)
+			im = m.pcolormesh(x,y,to_plot,cmap=color_palette,vmin=color_range[0],vmax=color_range[1])
+
+
+			# mask some grid-cells
+			if grey_area!=None:
+				to_plot=grey_area.copy()
+				to_plot[to_plot==0]=0.5
+				to_plot[to_plot==1]=np.nan
+				to_plot=np.ma.masked_invalid(to_plot)
+				im2 = m.pcolormesh(x,y,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
+
+			# show coastlines and borders
+			m.drawcoastlines()
+			m.drawstates()
+			m.drawcountries()
+
+			# add polygons
+			if polygons==None and hasattr(self,'_adm_polygons'):
+				polygons=self._adm_polygons
+				for index in polygons.keys():
+					m.plot(polygons[index]['x'],polygons[index]['y'],color='black',linewidth=0.5)
+
+			# add colorbar
+			if color_bar==True:
+				cb = m.colorbar(im,'right', size="5%", pad="2%")
+				tick_locator = ticker.MaxNLocator(nbins=5)
+				cb.locator = tick_locator
+				cb.update_ticks()
+				cb.set_label(color_label, rotation=90)
+
+			ax.set_title(title.replace('_',' '))
+			ax.legend(loc='best')
+
+
+			if out_file==None and show==True:plt.show()
+			if out_file!=None:plt.savefig(out_file)
+
+			return(im,color_range)
 
 class new_data_object(object):
 	def __init__(SELF,outer_self,**kwargs):
@@ -978,7 +1196,17 @@ class new_data_object(object):
 		# 		SELF.time_bnds[i,0]=datetime.datetime(SELF.year[i],1,1)
 		# 		SELF.time_bnds[i,1]=datetime.datetime(SELF.year[i],12,days_in_month[12])
 
-	def display_map(SELF,period=None,time=None,color_bar=True,color_label=None,color_palette=None,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,polygons=None,season='year'):
+	def get_relevant_time_steps_in_season(SELF,months_in_season,relevant_years=None):
+		if relevant_years==None:
+			relevant_years=range(len(SELF.year))
+		relevenat_time_steps=[]
+		for yr in relevant_years:
+			if int(SELF.month[yr]) in months_in_season:
+				relevenat_time_steps.append(yr)
+		return(relevenat_time_steps)		
+
+
+	def display_map(SELF,period=None,name='mean',time=None,color_bar=True,color_label=None,color_palette=None,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,polygons=None,season='year'):
 		'''
 		plot maps of data. 
 		meta_data: list of strs: meta information required to acces data
@@ -1005,15 +1233,18 @@ class new_data_object(object):
 				to_plot=SELF.raw[time,:,:].copy()
 				if title==None:title='_'.join([SELF.name]+[str(int(SELF.month[time])),'/',str(int(SELF.year[time]))])
 		else:
-			to_plot=SELF.period[season][period].copy()
-			if title==None:title=SELF.name+'_'+period+'_'+season
+			to_plot=SELF.period[name][season][period].copy()
+			if title==None:title=SELF.name+'_'+name+'_'+period+'_'+season
 
 			if hasattr(SELF,'agreement'):
 				print 'agreement exists'
-				print SELF.agreement[season].keys()
-				if period in SELF.agreement[season].keys():
+				if period in SELF.agreement[name][season].keys():
 					print 'also for the period'
-					grey_area=SELF.agreement[season][period]
+					grey_area=SELF.agreement[name][season][period]
+
+		if len(np.where(np.isfinite(to_plot)==False)[0])==len(to_plot.flatten()):
+			print 'nothing to plot here'
+			return(None,None)
 
 		lat=SELF.lat.copy()
 		lon=SELF.lon.copy()
@@ -1039,11 +1270,10 @@ class new_data_object(object):
 				elif np.mean(color_range)<0:					color_palette=plt.cm.YlGn_r
 				elif np.mean(color_range)>0:					color_palette=plt.cm.RdPu
 
+		im,color_range=SELF.outer_self.plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons)
+		return(im,color_range)
 
-		im=plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons)
-		return(im)
-
-	def plot_transients(SELF,mask_style='lat_weighted',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None):
+	def plot_transients(SELF,mask_style='lat_weighted',season='year',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None):
 		'''
 		plot transient of countrywide average
 		mask_style: str: weighting used to compute countrywide averages
@@ -1066,25 +1296,31 @@ class new_data_object(object):
 			region=SELF.outer_self._iso
 
 		if SELF.time_format=='monthly':
-			running_mean=running_mean_years*12
+			running_mean=running_mean_years*len(SELF.outer_self._seasons[season])
+			relevenat_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
 
 		if SELF.time_format=='yearly':
 			running_mean=running_mean_years
+			relevenat_time_steps=range(len(SELF.year))
+			if season!='year':
+				return(0)
 
-		ax.plot(SELF.time_stamp,pd.rolling_mean(SELF.area_average[mask_style][region],running_mean),linestyle='-',label=label,color=color)
+		ax.plot(SELF.time_stamp[relevenat_time_steps],pd.rolling_mean(SELF.area_average[mask_style][region][relevenat_time_steps],running_mean),linestyle='-',label=label,color=color)
 
 		if hasattr(SELF,'model'):
 			if SELF.model=='ensemble_mean':
-				ensemble=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])[0].values()
+				ensemble,ensemble_mean=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])
 
+				relevenat_time_steps=ensemble_mean.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
+				time_axis=ensemble_mean.time_stamp[relevenat_time_steps]
 
-				time_axis=np.arange(min(SELF.time_stamp),max(SELF.time_stamp),1/12.)
 				ensemble_range=np.zeros([len(ensemble),len(time_axis)])*np.nan
 
-				for member,i in zip(ensemble,range(len(ensemble))):
-					member_runmean=pd.rolling_mean(member.area_average[mask_style][region],running_mean)
-					for t in member.time_stamp:
-						ensemble_range[i,np.where(abs(time_axis-t)<1/36.)]=member_runmean[np.where(member.time_stamp==t)]
+				for member,i in zip(ensemble.values(),range(len(ensemble))):
+					relevenat_time_steps=member.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
+					member_runmean=pd.rolling_mean(member.area_average[mask_style][region][relevenat_time_steps],running_mean)
+					for t in member.time_stamp[relevenat_time_steps]:
+						ensemble_range[i,np.where(abs(time_axis-t)<1/36.)]=member_runmean[np.where(member.time_stamp[relevenat_time_steps]==t)]
 					#ax.plot(member.time_stamp,pd.rolling_mean(member.area_average[mask_style][region],running_mean),linestyle='-',label=label,color='blue',linewidth=0.5)
 
 				ax.fill_between(time_axis,np.percentile(ensemble_range,0,axis=0),np.percentile(ensemble_range,100,axis=0),alpha=0.25,color=color)
@@ -1101,7 +1337,7 @@ class new_data_object(object):
 		if out_file==None and show==True:plt.show()
 		if out_file!=None:plt.savefig(out_file)
 
-		return(ax.get_ylim())
+		return(1)
 
 	def plot_annual_cycle(SELF,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue'):
 		'''
@@ -1129,22 +1365,12 @@ class new_data_object(object):
 		if region==None:
 			region=SELF._iso
 
-		annual_cycle=[]
-		for mon in range(1,13):
-			relevant_time=np.where((SELF.year>=period[0]) & (SELF.year<period[1]) & (SELF.month==mon))[0]
-			annual_cycle.append(np.nanmean(SELF.area_average[mask_style][region][relevant_time]))
-
-		ax.plot(range(0,12),annual_cycle,linestyle='-',label=label,color=color)
+		ax.plot(range(0,12),SELF.annual_cycle[mask_style][region][period],linestyle='-',label=label,color=color)
 
 		if hasattr(SELF,'model'):
 			if SELF.model=='ensemble_mean':
 				ensemble=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])[0].values()
-				ensemble_annual_cycle=np.zeros([len(ensemble),12])
-
-				for member,i in zip(ensemble,range(len(ensemble))):
-					for mon in range(1,13):
-						relevant_time=np.where((member.year>=period[0]) & (member.year<period[1]) & (member.month==mon))[0]
-						ensemble_annual_cycle[i,mon-1]=np.nanmean(member.area_average[mask_style][region][relevant_time])
+				ensemble_annual_cycle=np.vstack([member.annual_cycle[mask_style][region][period] for member in ensemble])
 
 				ax.fill_between(range(0,12),np.percentile(ensemble_annual_cycle,0./3.*100,axis=0),np.percentile(ensemble_annual_cycle,3./3.*100,axis=0),alpha=0.25,color=color)
 
@@ -1191,87 +1417,7 @@ class new_data_object(object):
 		if out_file==None and show==True:plt.show()
 		if out_file!=None:plt.savefig(out_file,dpi=300)
 
-def plot_map(to_plot,lat,lon,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title='',polygons=None):
-	# this actualy plots the map
 
-		if ax==None: show=True
-		if ax!=None: show=False
-
-		if ax==None:
-			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(5,3))		
-
-
-		# handle limits
-		if limits==None:
-			half_lon_step=abs(np.diff(lon.copy(),1)[0]/2)
-			half_lat_step=abs(np.diff(lat.copy(),1)[0]/2)
-			relevant_lats=lat[np.where(np.isfinite(to_plot))[0]]
-			relevant_lons=lon[np.where(np.isfinite(to_plot))[1]]
-			limits=[np.min(relevant_lons)-half_lon_step,np.max(relevant_lons)+half_lon_step,np.min(relevant_lats)-half_lat_step,np.max(relevant_lats)+half_lat_step]
-
-
-		# handle 0 to 360 lon
-		if max(lon)>180:
-			problem_start=np.where(lon>180)[0][0]
-			new_order=np.array(range(problem_start,len(lon))+range(0,problem_start))
-			to_plot=to_plot[:,new_order]
-			lon=lon[new_order]
-			lon[lon>180]-=360
-
-		if limits[0]>180:limits[0]-=360
-		if limits[1]>180:limits[1]-=360
-
-
-		m = Basemap(ax=ax,llcrnrlon=limits[0],urcrnrlon=limits[1],llcrnrlat=limits[2],urcrnrlat=limits[3],resolution="l",projection='cyl')
-		m.drawmapboundary(fill_color='1.')
-
-		# get color_range
-		if color_range==None:
-			color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
-
-		x,y=lon.copy(),lat.copy()
-		x-=np.diff(x,1)[0]/2.
-		y-=np.diff(y,1)[0]/2.
-		x=np.append(x,[x[-1]+np.diff(x,1)[0]])
-		y=np.append(y,[y[-1]+np.diff(y,1)[0]])
-		x,y=np.meshgrid(x,y)
-		im = m.pcolormesh(x,y,to_plot,cmap=color_palette,vmin=color_range[0],vmax=color_range[1])
-
-
-		# mask some grid-cells
-		if grey_area!=None:
-			to_plot=grey_area.copy()
-			to_plot[to_plot==0]=0.5
-			to_plot[to_plot==1]=np.nan
-			to_plot=np.ma.masked_invalid(to_plot)
-			im2 = m.pcolormesh(x,y,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
-
-		# show coastlines and borders
-		m.drawcoastlines()
-		m.drawstates()
-		m.drawcountries()
-
-		# add polygons
-		if polygons!=None:
-			for index in polygons.keys():
-				m.plot(polygons[index]['x'],polygons[index]['y'],color='black',linewidth=0.5)
-
-		# add colorbar
-		if color_bar==True:
-			cb = m.colorbar(im,'right', size="5%", pad="2%")
-			tick_locator = ticker.MaxNLocator(nbins=5)
-			cb.locator = tick_locator
-			cb.update_ticks()
-			cb.set_label(color_label, rotation=90)
-
-		ax.set_title(title.replace('_',' '))
-		ax.legend(loc='best')
-
-
-		if out_file==None and show==True:plt.show()
-		if out_file!=None:plt.savefig(out_file)
-
-		return(im)
 
 
 
