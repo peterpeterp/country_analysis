@@ -74,8 +74,14 @@ class country_analysis(object):
 			except:
 				var_name=tags['var_name']
 
+
+			print file_new
 			new_data=new_data_object(outer_self=self,**tags)
 			new_data.add_data(raw=nc_out.variables[var_name][:,:,:],lat=nc_out.variables['lat'][:],lon=nc_out.variables['lon'][:],time=nc_out.variables['time'][:],year=nc_out.variables['year'][:],month=nc_out.variables['month'][:])
+			try:
+				new_data.add_data(day=nc_out.variables['day'][:])
+			except:
+				print 'no days'
 			new_data.create_time_stamp()
 				
 
@@ -126,8 +132,9 @@ class country_analysis(object):
 		for data_type in types:
 			print '\n***********',data_type,'***********'
 			for var_name in var_names:
-				print '_',var_name
-				self.selection([data_type,var_name])
+				if len(self.selection([data_type,var_name],show_selection=False))>0:
+					print '_',var_name
+					self.selection([data_type,var_name])
 
 	def selection(self,filters,show_selection=True):
 		selection=[]
@@ -505,8 +512,9 @@ class country_analysis(object):
 		# create index variable
 		year=np.array([int(str(date).split("-")[0])	for date in datevar[0][:]])
 		month=np.array([int(str(date).split("-")[1])	for date in datevar[0][:]])
+		day=np.array([int(str(date).split("-")[2].split(' ')[0])	for date in datevar[0][:]])
 
-		return(time,year,month)
+		return(time,year,month,day)
 
 	def fill_gaps_in_time_axis(self,data_object,in_file,out_file):
 			# write additional information in copied file
@@ -516,19 +524,17 @@ class country_analysis(object):
 			raw_data=nc_in.variables[data_object.original_var_name][:,:,:]
 
 			# understand time format and create continuous time axis
-			time,year,month=self.understand_time_format(nc_in)
-			data_object.add_data(time=time,year=year,month=month)
+			time,year,month,day=self.understand_time_format(nc_in)
+			data_object.add_data(time=time,year=year,month=month,day=day)
 			data_object.create_time_stamp()	
 
-			time_axis=np.arange(np.nanmin(data_object.time_stamp),np.nanmax(data_object.time_stamp),data_object.time_step)
-			time_axis_rnd=np.array([round(t,3) for t in time_axis])
-			time_stamp_rnd=np.array([round(t,3) for t in data_object.time_stamp])
+			time_axis=np.around(np.arange(np.nanmin(data_object.time_stamp),np.nanmax(data_object.time_stamp),data_object.time_step),decimals=4)
 			out_data=np.zeros([len(time_axis),len(data_object.lat),len(data_object.lon)])*np.nan
-			for t in time_axis_rnd:
-				if t in time_stamp_rnd:
+			for t in time_axis:
+				if t in data_object.time_stamp:
 					# some files have more than one value per time step????
-					#print t,time_axis_rnd[np.where(time_axis_rnd==t)[0]],time_stamp_rnd[np.where(time_stamp_rnd==t)[0]]
-					out_data[np.where(time_axis_rnd==t)[0][0],:,:]=raw_data[np.where(time_stamp_rnd==t)[0][0],:,:]
+					#print t,time_axis[np.where(time_axis==t)[0]],data_object.time_stamp[np.where(data_object.time_stamp==t)[0]]
+					out_data[np.where(time_axis==t)[0][0],:,:]=raw_data[np.where(data_object.time_stamp==t)[0][0],:,:]
 
 			data_object.time_stamp=time_axis
 			data_object.convert_time_stamp()
@@ -551,8 +557,13 @@ class country_analysis(object):
  			outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=data_object.time
  			outVar.setncatts({'calendar':'proleptic_gregorian','units':'days since 1950-1-1 00:00:00'})
 
+ 			print len(data_object.year)
+ 			print len(data_object.month)
+ 			print len(data_object.day)
+
  			outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=data_object.year
  			outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=data_object.month
+ 			outVar = nc_out.createVariable('day', 'f', ('time',)) ; outVar[:]=data_object.day
 
 			varin=nc_in.variables[data_object.original_var_name]
 			outVar = nc_out.createVariable(data_object.original_var_name, varin.datatype, varin.dimensions)
@@ -665,15 +676,13 @@ class country_analysis(object):
 								remaining.remove(member)
 								time_min.append(min(member.time_stamp))
 								time_max.append(max(member.time_stamp))
-							time_axis=np.arange(max(time_min),min(time_max),member.time_step)	
-							time_axis_rnd=np.array([round(t,3) for t in time_axis])
+							time_axis=np.around(np.arange(max(time_min),min(time_max),member.time_step),decimals=4)	
 							ensemble_mean=np.zeros([len(ensemble),len(time_axis),len(member.lat),len(member.lon)])*np.nan
 
 							for member,i in zip(ensemble,range(len(ensemble))):
-								time_stamp_rnd=np.array([round(t,3) for t in member.time_stamp])
-								for t in time_stamp_rnd:
-									#print t,np.where(time_axis_rnd==t)[0],np.where(time_stamp_rnd==t)[0]
-									ensemble_mean[i,np.where(time_axis_rnd==t)[0],:,:]=member.raw[np.where(time_stamp_rnd==t)[0],:,:]													
+								for t in member.time_stamp:
+									#print t,np.where(time_axis==t)[0],np.where(member.time_stamp==t)[0]
+									ensemble_mean[i,np.where(time_axis==t)[0],:,:]=member.raw[np.where(member.time_stamp==t)[0],:,:]													
 
 							ensemble_mean=np.nanmean(ensemble_mean,axis=0)
 
@@ -713,6 +722,7 @@ class country_analysis(object):
 
 				 			outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=new_data.year
 				 			outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=new_data.month
+ 							outVar = nc_out.createVariable('day', 'f', ('time',)) ; outVar[:]=new_data.day
 
 							varin=nc_in.variables[new_data.original_var_name]
 							outVar = nc_out.createVariable(new_data.original_var_name, varin.datatype, varin.dimensions)
@@ -761,6 +771,7 @@ class country_analysis(object):
 					country_mean_csv['time']=data.time
 					country_mean_csv['month']=data.month
 					country_mean_csv['year']=data.year
+					country_mean_csv['day']=data.day
 
 					# load input data
 					var_in=data.raw.copy()			
@@ -839,6 +850,7 @@ class country_analysis(object):
 				if name not in data.period.keys(): data.period[name]={}
 
 				if data.time_format=='monthly':		seasons=self._seasons
+				if data.time_format=='10day':		seasons=self._seasons
 				if data.time_format=='yearly':		seasons={'year':range(1,13)}
 
 				if isinstance(threshold, (np.ndarray))==False and threshold!=None: threshold=np.ones([data.raw.shape[1],data.raw.shape[2]])*threshold
@@ -851,6 +863,9 @@ class country_analysis(object):
 						relevenat_time_steps=data.get_relevant_time_steps_in_season(mons_in_sea,relevant_years)
 
 						n_steps=len(relevenat_time_steps)
+						print data.name
+						print relevenat_time_steps
+						print data.raw[relevenat_time_steps,:,:]
 						if n_steps>0:
 							# compute average
 							if name=='mean':
@@ -867,6 +882,8 @@ class country_analysis(object):
 						else: 
 							print 'years missing for',period_name,'in',data.name
 							data.period[name][sea][period_name]=np.zeros([data.raw.shape[1],data.raw.shape[2]])*np.nan
+						print period_name,sea
+						print data.period[name][sea][period_name]
 
 				# period diff
 				for sea in data.period[name].keys():
@@ -902,6 +919,7 @@ class country_analysis(object):
 
 				if hasattr(member,'period'):
 					if member.time_format=='monthly':		seasons=self._seasons
+					if member.time_format=='10day':		seasons=self._seasons
 					if member.time_format=='yearly':		seasons={'year':range(1,13)}
 
 					for name in ensemble[0].period.keys():
@@ -929,18 +947,18 @@ class country_analysis(object):
 									agreement[agreement>=2./3.*len(ensemble)]=1
 									ensemble_mean.agreement[name][sea][period]=agreement
 
-	def annual_cycle(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},mask_style='lat_weighted',filters=[]):
+	def annual_cycle(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},mask_style='lat_weighted',selection=None):
 		'''
 		computes time averages for each grid-cell for a given period
 		periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
 		filters: list of strs: only computed for data which have the tags given in filters
 		'''
 
-		for data in self._DATA:
+		if selection==None:
+			selection=self._DATA
+
+		for data in selection:
 			compute=True
-			for key in filters:
-				if key not in data.all_tags:
-					compute=False
 			if 'ensemble_mean' in data.all_tags:
 				compute=False
 
@@ -952,6 +970,8 @@ class country_analysis(object):
 				except:	compute=False
 
 			if compute:
+				print data.name
+				data.steps_in_year=sorted(set(np.around(data.time_stamp-data.year,decimals=4)))
 				if hasattr(data,'annual_cycle')==False:	data.annual_cycle={}
 				if mask_style not in data.annual_cycle.keys():		data.annual_cycle[mask_style]={}
 				#data.annual_cycle={key : val for key,val in zip(local_periods.keys(),local_periods.values())}
@@ -961,14 +981,14 @@ class country_analysis(object):
 						data.annual_cycle[mask_style][region]={}
 					for period_name,period in zip(local_periods.keys(),local_periods.values()):	
 						annual_cycle=[]
-						for mon in range(1,13):
-							relevant_time=np.where((data.year>=period[0]) & (data.year<period[1]) & (data.month==mon))[0]
+						for time_in_year in data.steps_in_year:
+							relevant_time=np.where((data.year>=period[0]) & (data.year<period[1]) & (np.around(data.time_stamp-data.year,decimals=4)==time_in_year))[0]
 							if len(relevant_time)>1:
 								annual_cycle.append(np.nanmean(data.area_average[mask_style][region][relevant_time]))
-						if len(annual_cycle)==12:
+						if len(annual_cycle)==len(data.steps_in_year):
 							data.annual_cycle[mask_style][region][period_name]=np.array(annual_cycle)
 						else:
-							data.annual_cycle[mask_style][region][period_name]=np.zeros([12])*np.nan
+							data.annual_cycle[mask_style][region][period_name]=np.zeros([len(data.steps_in_year)])*np.nan
 						
 						# annual cycle diff
 						for period_name in data.annual_cycle[mask_style][region].keys():	
@@ -995,6 +1015,8 @@ class country_analysis(object):
 			if compute:
 				ensemble,ensemble_mean=self.find_ensemble([data.data_type,data.var_name,data.scenario])
 				ensemble=ensemble.values()
+
+				ensemble_mean.steps_in_year=sorted(set(np.around(ensemble_mean.time_stamp-ensemble_mean.year,decimals=4)))
 
 				for member in ensemble:
 					remaining.remove(member)
@@ -1138,6 +1160,7 @@ class new_data_object(object):
 
 		if 'raw_file' in kwargs.keys():	SELF.raw_file=outer_self._working_directory+'/raw/'+kwargs['raw_file'].split('raw/')[-1]
 		if 'grid' in kwargs.keys():	SELF.grid=kwargs['grid']
+		if 'time_format' in kwargs.keys():	SELF.time_format=kwargs['time_format']
 
 		SELF.original_var_name=kwargs['var_name']
 		if 'given_var_name' in kwargs.keys():	SELF.var_name=kwargs['given_var_name']
@@ -1148,7 +1171,6 @@ class new_data_object(object):
 		if 'model' in kwargs.keys():	SELF.model=kwargs['model']
 
 		SELF.area_average={}
-		SELF.annual_cycle={}
 
 		SELF.all_tags_dict=kwargs
 		SELF.all_tags_dict.pop('raw_file', None)
@@ -1166,35 +1188,66 @@ class new_data_object(object):
 		if 'time' in kwargs.keys():	SELF.time=kwargs['time']
 		if 'year' in kwargs.keys():	SELF.year=kwargs['year']
 		if 'month' in kwargs.keys():	SELF.month=kwargs['month']
+		if 'day' in kwargs.keys():	SELF.day=kwargs['day']
 		if 'lat' in kwargs.keys():	SELF.lat=kwargs['lat']
 		if 'lon' in kwargs.keys():	SELF.lon=kwargs['lon']
 
 	def create_time_stamp(SELF):
-		if len(np.where(np.diff(SELF.year)==1)[0])>len(SELF.year)*0.66:
+		try:
+			if SELF.time_format=='yearly':
+				SELF.time_step=1
+				SELF.time_stamp=np.around([int(SELF.year[i]) for i in range(len(SELF.year))])
+			elif SELF.time_format=='monthly':
+				SELF.time_step=1./12.
+				SELF.time_stamp=np.around([int(SELF.year[i])+int(SELF.month[i])/12. for i in range(len(SELF.year))],decimals=4)
+			elif SELF.time_format=='10day':
+				SELF.time_step=1./36.
+				SELF.time_stamp=np.around([int(SELF.year[i])+((int(SELF.month[i])-1)*3.+round((int(SELF.day[i])-5)/10.))/36. for i in range(len(SELF.year))],decimals=4)
+		except:
+			print 'this should not happen. please load the data with a time_format keyword'
+			SELF.create_time_stamp_automatic()
+
+		SELF.time_steps_in_year = list(set(SELF.time_stamp-SELF.year))
+
+	def create_time_stamp_automatic(SELF):
+		if len(np.where(np.diff(SELF.time)>300)[0])>len(SELF.time)*0.66:
 			SELF.time_format='yearly'
 			SELF.time_step=1
-			SELF.time_stamp=np.array([int(SELF.year[i]) for i in range(len(SELF.year))])
-		if len(np.where(np.diff(SELF.year)==0)[0])>len(SELF.year)*0.66:
+			SELF.time_stamp=np.around([int(SELF.year[i]) for i in range(len(SELF.year))])
+		elif len(np.where(np.diff(SELF.time)>25)[0])>len(SELF.time)*0.66:
 			SELF.time_format='monthly'
 			SELF.time_step=1./12.
-			SELF.time_stamp=np.array([int(SELF.year[i])+int(SELF.month[i])/12. for i in range(len(SELF.year))])
+			SELF.time_stamp=np.around([int(SELF.year[i])+int(SELF.month[i])/12. for i in range(len(SELF.year))],decimals=4)
+		elif len(np.where(np.diff(SELF.time)>5)[0])>len(SELF.time)*0.66:
+			SELF.time_format='10day'
+			SELF.time_step=1./36.
+			SELF.time_stamp=np.around([int(SELF.year[i])+((int(SELF.month[i])-1)*3.+round((int(SELF.day[i])-5)/10.))/36. for i in range(len(SELF.year))],decimals=4)
+		else:
+			print SELF.name
+			asdasd
+
+		SELF.time_steps_in_year = list(set(list(np.around(SELF.time_stamp-SELF.year,decimals=4))))
+		print SELF.time_steps_in_year,len(SELF.time_steps_in_year)
 
 	def convert_time_stamp(SELF):
 		SELF.year=np.array([int(t) for t in SELF.time_stamp])
 		SELF.month=np.array([int((t-int(t))*12+1) for t in SELF.time_stamp])
-		SELF.time=np.array([(datetime.datetime(SELF.year[i],SELF.month[i],15) - datetime.datetime(1950,1,1)).days for i in range(len(SELF.year))])
-		# days_in_month={1:31,2:28,3:31,4:30,5:31,6:30,7:31,8:31,9:30,10:31,11:30,12:31}
-		# SELF.time_bnds=np.zeros([len(SELF.time),2])*np.nan
 
-		# if SELF.time_step=='monthly':
-		# 	for i in range(len(SELF.time)):
-		# 		SELF.time_bnds[i,0]=datetime.datetime(SELF.year[i],SELF.month[i],1)
-		# 		SELF.time_bnds[i,1]=datetime.datetime(SELF.year[i],SELF.month[i],days_in_month[month[i]])
-		# # this is a bit ambigous I guess
-		# if SELF.time_step=='yearly':
-		# 	for i in range(len(SELF.time)):
-		# 		SELF.time_bnds[i,0]=datetime.datetime(SELF.year[i],1,1)
-		# 		SELF.time_bnds[i,1]=datetime.datetime(SELF.year[i],12,days_in_month[12])
+		# if SELF.time_format=='10day':
+		if len(np.where(np.diff(SELF.month)==1)[0])<len(SELF.year)*0.50:
+			day=[]
+			for t in SELF.time_stamp:
+				yr=int(t)
+				mth=int((t-yr)*12+1)
+				dy=int((t-yr-(mth-1)/12.)*36)*10+5
+				day.append(dy)
+			SELF.day=np.array(day)
+
+		else:
+			SELF.day=SELF.year.copy()*0+15
+
+		print SELF.day[1:50]
+		SELF.time=np.array([(datetime.datetime(SELF.year[i],SELF.month[i],SELF.day[i]) - datetime.datetime(1950,1,1)).days for i in range(len(SELF.year))])
 
 	def get_relevant_time_steps_in_season(SELF,months_in_season,relevant_years=None):
 		if relevant_years==None:
@@ -1204,7 +1257,6 @@ class new_data_object(object):
 			if int(SELF.month[yr]) in months_in_season:
 				relevenat_time_steps.append(yr)
 		return(relevenat_time_steps)		
-
 
 	def display_map(SELF,period=None,name='mean',time=None,color_bar=True,color_label=None,color_palette=None,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,polygons=None,season='year'):
 		'''
@@ -1299,6 +1351,10 @@ class new_data_object(object):
 			running_mean=running_mean_years*len(SELF.outer_self._seasons[season])
 			relevenat_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
 
+		if SELF.time_format=='10day':
+			running_mean=running_mean_years*len(SELF.outer_self._seasons[season])*3
+			relevenat_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
+
 		if SELF.time_format=='yearly':
 			running_mean=running_mean_years
 			relevenat_time_steps=range(len(SELF.year))
@@ -1365,17 +1421,19 @@ class new_data_object(object):
 		if region==None:
 			region=SELF._iso
 
-		ax.plot(range(0,12),SELF.annual_cycle[mask_style][region][period],linestyle='-',label=label,color=color)
+		print SELF.steps_in_year,SELF.annual_cycle[mask_style][region][period]
+
+		ax.plot(SELF.steps_in_year,SELF.annual_cycle[mask_style][region][period],linestyle='-',label=label,color=color)
 
 		if hasattr(SELF,'model'):
 			if SELF.model=='ensemble_mean':
 				ensemble=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])[0].values()
 				ensemble_annual_cycle=np.vstack([member.annual_cycle[mask_style][region][period] for member in ensemble])
 
-				ax.fill_between(range(0,12),np.percentile(ensemble_annual_cycle,0./3.*100,axis=0),np.percentile(ensemble_annual_cycle,3./3.*100,axis=0),alpha=0.25,color=color)
+				ax.fill_between(SELF.steps_in_year,np.percentile(ensemble_annual_cycle,0./3.*100,axis=0),np.percentile(ensemble_annual_cycle,3./3.*100,axis=0),alpha=0.25,color=color)
 
 
-		ax.set_xticks(range(0,12)) 
+		ax.set_xticks(SELF.steps_in_year) 
 		ax.set_xticklabels(['JAN','FEB','MAR','APR','MAI','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])
 
 		if ylabel==None:ylabel=SELF.var_name.replace('_',' ')
