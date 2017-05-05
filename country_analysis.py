@@ -853,7 +853,15 @@ class country_analysis(object):
 				if data.time_format=='10day':		seasons=self._seasons
 				if data.time_format=='yearly':		seasons={'year':range(1,13)}
 
-				if isinstance(threshold, (np.ndarray))==False and threshold!=None: threshold=np.ones([data.raw.shape[1],data.raw.shape[2]])*threshold
+				if isinstance(threshold, (float,int)) and threshold!=None: 
+					threshold=np.ones([data.raw.shape])*threshold
+
+				if isinstance(threshold, (dict)) and threshold!=None: 
+					threshold_new=data.raw.copy()*np.nan 
+					for tt,i in zip(data.time_in_year,range(len(data.time_in_year))):
+						threshold_new[i,:,:]=threshold[tt-int(tt)]
+					threshold=threshold_new
+
 
 				for period_name,period in zip(local_periods.keys(),local_periods.values()):	
 					for mons_in_sea,sea in zip(seasons.values(),seasons.keys()):
@@ -863,26 +871,29 @@ class country_analysis(object):
 						relevenat_time_steps=data.get_relevant_time_steps_in_season(mons_in_sea,relevant_years)
 
 						n_steps=len(relevenat_time_steps)
-						print data.name
-						print relevenat_time_steps
-						print data.raw[relevenat_time_steps,:,:]
 						if n_steps>0:
 							# compute average
 							if name=='mean':
 								data.period[name][sea][period_name]=np.nanmean(data.raw[relevenat_time_steps,:,:],axis=0)
 							# threshold exceeding
 							if threshold!=None:
+								# sub_thresh=np.zeros([data.raw.shape[1],data.raw.shape[2]])*np.nan
+								# for tt,i in zip(data.time_in_year,range(len(data.time_in_year))):
+								# 	data.period[name][sea][period_name][i,:,:]=data.raw[i,:,:]-thresh[tt-int(tt)]
+								# sub_thresh[sub_thresh>0]=1
+								# sub_thresh[sub_thresh<0]=-1
 								data.period[name][sea][period_name]=np.zeros([data.raw.shape[1],data.raw.shape[2]])*np.nan
 								for y in range(data.raw.shape[1]):
 									for x in range(data.raw.shape[2]):
 										if below==True: 
-											data.period[name][sea][period_name][y,x]=len(np.where(data.raw[relevenat_time_steps,y,x]<threshold[y,x])[0])/float(n_steps)
+											data.period[name][sea][period_name][y,x]=len(np.where(data.raw[relevenat_time_steps,y,x]<threshold[relevenat_time_steps,y,x])[0])/float(n_steps)
 										if below==False: 
-											data.period[name][sea][period_name][y,x]=len(np.where(data.raw[relevenat_time_steps,y,x]>threshold[y,x])[0])/float(n_steps)
+											data.period[name][sea][period_name][y,x]=len(np.where(data.raw[relevenat_time_steps,y,x]>threshold[relevenat_time_steps,y,x])[0])/float(n_steps)
 						else: 
 							print 'years missing for',period_name,'in',data.name
 							data.period[name][sea][period_name]=np.zeros([data.raw.shape[1],data.raw.shape[2]])*np.nan
 						print period_name,sea
+						print threshold[1:10,:,:]
 						print data.period[name][sea][period_name]
 
 				# period diff
@@ -1183,6 +1194,19 @@ class new_data_object(object):
 			if key not in ['raw_file','grid','var_name','given_var_name']:
 				SELF.name+='_'+kwargs[key]
 
+	# def duplicate(SELF,new_var_name):
+	# 	SELF=SELF.copy()
+	# 	SELF.outer_self._DATA.append(SELF)
+	# 	SELF.var_name=new_var_name
+	# 	SELF.all_tags_dict['given_var_name']=new_var_name
+
+	# 	delattr(SELF,'raw')
+	# 	delattr(SELF,'area_average')
+	# 	delattr(SELF,'perio')
+	# 	delattr(SELF,'annual_cycle')
+
+	# 	return(SELF)
+
 	def add_data(SELF,**kwargs):
 		if 'raw' in kwargs.keys():	SELF.raw=kwargs['raw']
 		if 'time' in kwargs.keys():	SELF.time=kwargs['time']
@@ -1207,7 +1231,8 @@ class new_data_object(object):
 			print 'this should not happen. please load the data with a time_format keyword'
 			SELF.create_time_stamp_automatic()
 
-		SELF.time_steps_in_year = list(set(SELF.time_stamp-SELF.year))
+		SELF.time_in_year = np.around(SELF.time_stamp-SELF.year,decimals=4)
+
 
 	def create_time_stamp_automatic(SELF):
 		if len(np.where(np.diff(SELF.time)>300)[0])>len(SELF.time)*0.66:
