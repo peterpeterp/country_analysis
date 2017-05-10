@@ -493,8 +493,6 @@ class country_analysis(object):
 	def understand_time_format(self,nc_in=None,time=None,time_units=None,time_calendar=None):
 		if time==None:
 			time=nc_in.variables['time'][:]
-		# issue with hadgem2 file
-		#time[time<0]=-999999
 		time=np.delete(time,np.where(time<0))
 
 		datevar = []
@@ -1217,62 +1215,49 @@ class new_data_object(object):
 		if 'lon' in kwargs.keys():	SELF.lon=kwargs['lon']
 
 	def create_time_stamp(SELF):
-		try:
-			if SELF.time_format=='yearly':
-				SELF.time_step=1
-				SELF.time_stamp=np.around([int(SELF.year[i]) for i in range(len(SELF.year))])
-			elif SELF.time_format=='monthly':
-				SELF.time_step=1./12.
-				SELF.time_stamp=np.around([int(SELF.year[i])+int(SELF.month[i])/12. for i in range(len(SELF.year))],decimals=4)
-			elif SELF.time_format=='10day':
-				SELF.time_step=1./36.
-				SELF.time_stamp=np.around([int(SELF.year[i])+((int(SELF.month[i])-1)*3.+round((int(SELF.day[i])-5)/10.))/36. for i in range(len(SELF.year))],decimals=4)
-		except:
-			print 'this should not happen. please load the data with a time_format keyword'
-			SELF.create_time_stamp_automatic()
+		SELF.time_stamp=np.array([(datetime.datetime(SELF.year[i],SELF.month[i],SELF.day[i]) - datetime.datetime(1950,1,1)).days for i in range(len(SELF.year))])
 
-		SELF.time_in_year = np.around(SELF.time_stamp-SELF.year,decimals=4)
+		# if SELF.time_format=='yearly':
+		# 	SELF.time_step=1
+		# 	SELF.time_stamp=np.around([int(SELF.year[i]) for i in range(len(SELF.year))])
+		# elif SELF.time_format=='monthly':
+		# 	SELF.time_step=1./12.
+		# 	SELF.time_stamp=np.around([int(SELF.year[i])+int(SELF.month[i])/12. for i in range(len(SELF.year))],decimals=4)
+		# elif SELF.time_format=='10day':
+		# 	SELF.time_step=1./36.
+		# 	SELF.time_stamp=np.around([int(SELF.year[i])+((int(SELF.month[i])-1)*3.+round((int(SELF.day[i])-5)/10.))/36. for i in range(len(SELF.year))],decimals=4)
 
-
-	def create_time_stamp_automatic(SELF):
-		if len(np.where(np.diff(SELF.time)>300)[0])>len(SELF.time)*0.66:
-			SELF.time_format='yearly'
-			SELF.time_step=1
-			SELF.time_stamp=np.around([int(SELF.year[i]) for i in range(len(SELF.year))])
-		elif len(np.where(np.diff(SELF.time)>25)[0])>len(SELF.time)*0.66:
-			SELF.time_format='monthly'
-			SELF.time_step=1./12.
-			SELF.time_stamp=np.around([int(SELF.year[i])+int(SELF.month[i])/12. for i in range(len(SELF.year))],decimals=4)
-		elif len(np.where(np.diff(SELF.time)>5)[0])>len(SELF.time)*0.66:
-			SELF.time_format='10day'
-			SELF.time_step=1./36.
-			SELF.time_stamp=np.around([int(SELF.year[i])+((int(SELF.month[i])-1)*3.+round((int(SELF.day[i])-5)/10.))/36. for i in range(len(SELF.year))],decimals=4)
-		else:
-			print SELF.name
-			asdasd
-
-		SELF.time_steps_in_year = list(set(list(np.around(SELF.time_stamp-SELF.year,decimals=4))))
-		print SELF.time_steps_in_year,len(SELF.time_steps_in_year)
+		# SELF.time_in_year = np.around(SELF.time_stamp-SELF.year,decimals=4)
 
 	def convert_time_stamp(SELF):
-		SELF.year=np.array([int(t) for t in SELF.time_stamp])
-		SELF.month=np.array([int((t-int(t))*12+1) for t in SELF.time_stamp])
+
+		datevar.append(num2date(SELF.time,units = 'days since 1950-1-1 00:00:00'))
+		year=np.array([int(str(date).split("-")[0])	for date in datevar[0][:]])
+		month=np.array([int(str(date).split("-")[1])	for date in datevar[0][:]])
+		day=np.array([int(str(date).split("-")[2].split(' ')[0])	for date in datevar[0][:]])
+
+
+		# SELF.year=np.array([int(t) for t in SELF.time_stamp])
+		# SELF.time_in_year = np.around(SELF.time_stamp-SELF.year,decimals=4)
+		# SELF.month=np.array([int(round(t*12)) for t in SELF.time_in_year])
 
 		# if SELF.time_format=='10day':
-		if len(np.where(np.diff(SELF.month)==1)[0])<len(SELF.year)*0.50:
-			day=[]
-			for t in SELF.time_stamp:
-				yr=int(t)
-				mth=int((t-yr)*12+1)
-				dy=int((t-yr-(mth-1)/12.)*36)*10+5
-				day.append(dy)
-			SELF.day=np.array(day)
+		# 	day=[]
+		# 	for t in SELF.time_stamp:
+		# 		yr=int(t)
+		# 		mth=int((t-yr)*12+1)
+		# 		dy=int((t-yr-(mth-1)/12.)*36)*10+5
+		# 		day.append(dy)
+		# 	SELF.day=np.array(day)
 
-		else:
-			SELF.day=SELF.year.copy()*0+15
+		# else:
+		# 	SELF.day=SELF.year.copy()*0+15
 
-		print SELF.day[1:50]
-		SELF.time=np.array([(datetime.datetime(SELF.year[i],SELF.month[i],SELF.day[i]) - datetime.datetime(1950,1,1)).days for i in range(len(SELF.year))])
+		# print SELF.day[1:50]
+		# print SELF.month[1:50]
+		# print SELF.year[1:50]
+		# print len(SELF.day),len(SELF.month),len(SELF.year)
+		# SELF.time=np.array([(datetime.datetime(SELF.year[i],SELF.month[i],SELF.day[i]) - datetime.datetime(1950,1,1)).days for i in range(len(SELF.year))])
 
 	def get_relevant_time_steps_in_season(SELF,months_in_season,relevant_years=None):
 		if relevant_years==None:
