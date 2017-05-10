@@ -6,12 +6,12 @@ import pandas as pd
 sys.path.append('/Users/peterpfleiderer/Documents/Projects/country_analysis/country_analysis_scripts/')
 try:del sys.modules['country_analysis'] 
 except:pass
-from country_analysis import country_analysis,plot_map
+from country_analysis import country_analysis
 sys.path.append('/Users/peterpfleiderer/Documents/')
 
 os.chdir('/Users/peterpfleiderer/Documents/')
 
-country_iso='SEN'
+country_iso='BEN'
 
 COU=country_analysis(country_iso,'Projects/country_analysis/'+country_iso+'/')
 COU.load_data()
@@ -19,9 +19,9 @@ COU.load_data()
 COU.data_summary()
 
 
-COU.area_average('lat_weighted',overwrite=True,filters=['CORDEX'])
-COU.area_average('pop2015_weighted',overwrite=True,filters=['CORDEX'])
-COU.area_average('pop1990_weighted',overwrite=True,filters=['CORDEX'])
+COU.area_average('lat_weighted',overwrite=False)
+COU.area_average('pop2015_weighted',overwrite=False)
+COU.area_average('pop1990_weighted',overwrite=False)
 
 
 
