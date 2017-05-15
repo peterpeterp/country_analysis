@@ -38,7 +38,7 @@ class country_analysis(object):
 		self._iso=iso
 		self._working_directory=working_directory
 
-		self.additional_tag=additional_tag
+		self._additional_tag=additional_tag
 		self._working_directory_raw=self._working_directory+'/raw'+additional_tag
 
 		self._seasons=seasons
@@ -70,7 +70,7 @@ class country_analysis(object):
 			self.load_masks(file_new)
 
 		for file in glob.glob(self._working_directory_raw+'/*'):
-			file_new=self._working_directory_raw+file.split('raw')[-1]
+			file_new=self._working_directory_raw+file.split('raw'+self._additional_tag)[-1]
 			if quiet==False:print file_new
 			nc_out=Dataset(file_new,"r")
 			tags={}
@@ -82,6 +82,7 @@ class country_analysis(object):
 				var_name=tags['var_name']
 
 			new_data=new_data_object(outer_self=self,**tags)
+			new_data.raw_file=file_new
 			new_data.add_data(raw=nc_out.variables[var_name][:,:,:],lat=nc_out.variables['lat'][:],lon=nc_out.variables['lon'][:],time=nc_out.variables['time'][:],year=nc_out.variables['year'][:],month=nc_out.variables['month'][:])
 			try:
 				new_data.add_data(day=nc_out.variables['day'][:])
@@ -130,18 +131,18 @@ class country_analysis(object):
 
 		self._extreme_events=extreme_events
 
-	def data_summary(self):
+	def summary(self,detailed=True):
 		types=set([dd.data_type for dd in self._DATA])
 		var_names=set([dd.var_name for dd in self._DATA])
 
 		for data_type in types:
-			print '\n***********',data_type,'***********'
+			print '\n\n***********',data_type,'*********************************'
 			for var_name in var_names:
 				if len(self.selection([data_type,var_name],show_selection=False))>0:
-					print '_',var_name
-					self.selection([data_type,var_name])
+					print '\n____________',var_name,'___________'
+					self.selection([data_type,var_name],detailed)
 
-	def selection(self,filters,show_selection=True):
+	def selection(self,filters,show_selection=True,detailed=True):
 		selection=[]
 		count=0
 		for data in self._DATA:
@@ -152,7 +153,7 @@ class country_analysis(object):
 			if selected:
 				selection.append(data)
 				if show_selection==True:
-					print count, data.name,min(data.year),max(data.year), data.index
+					print count,data.details(detailed)
 				count+=1
 		return selection
 
@@ -547,17 +548,20 @@ class country_analysis(object):
 
 		return(time,year,month,day)
 
-	def create_complete_time_axis(self,data_object,yearmin=1950,yearmax=2100):
+	def create_complete_time_axis(self,data_object,yearmin=None,yearmax=None):
+		if yearmin==None:	np.nanmin(data_object.year)
+		if yearmax==None:	np.nanmax(data_object.year)
+
 		if len(set(data_object.month))==1:
-			time_axis=[(year,6,15) for year in np.arange(np.nanmin(data_object.year),np.nanmax(data_object.year),1)]
+			time_axis=[(year,6,15) for year in np.arange(yearmin,yearmax,1)]
 		elif len(set(data_object.day))==1:
 			time_axis=[]
-			for year in np.arange(np.nanmin(data_object.year),np.nanmax(data_object.year),1):
+			for year in np.arange(yearmin,yearmax,1):
 				for month in sorted(set(data_object.month)):
 					time_axis.append((year,month,15))
 		elif len(set(data_object.day))>1:
 			time_axis=[]
-			for year in np.arange(np.nanmin(data_object.year),np.nanmax(data_object.year),1):
+			for year in np.arange(yearmin,yearmax,1):
 				for month in sorted(set(data_object.month)):
 					for day in sorted(set(data_object.day)):
 						time_axis.append((year,month,day))
@@ -569,8 +573,7 @@ class country_analysis(object):
 	def fill_gaps_in_time_axis(self,data_object,in_file,out_file):
 		# write additional information in copied file
 		nc_in=Dataset(in_file,"r")
-		os.system('rm '+out_file)
-		nc_out=Dataset(out_file,"w")
+
 		raw_data=nc_in.variables[data_object.original_var_name][:,:,:]
 
 		# understand time format and create continuous time axis
@@ -591,6 +594,9 @@ class country_analysis(object):
 		data_object.convert_time_stamp()
 		data_object.add_data(raw=out_data)
 
+		os.system('rm '+out_file)
+		nc_out=Dataset(out_file,"w")
+		
 		nc_out.createDimension('lat', len(data_object.lat))
 		nc_out.createDimension('lon', len(data_object.lon))
 		nc_out.createDimension('time', len(time_axis))
@@ -636,11 +642,18 @@ class country_analysis(object):
 		'''
 
 		print kwargs
-		out_file=self._working_directory_raw+'/'+input_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
+		#out_file=self._working_directory_raw+'/'+input_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
+		if 'given_var_name' in kwargs.keys():
+			out_file=self._working_directory_raw+'/'+self._iso+'_'+kwargs['given_var_name']
+		if 'given_var_name' not in kwargs.keys():
+			out_file=self._working_directory_raw+'/'+self._iso+'_'+var_name
+		for key in sorted(kwargs.keys()):
+			if key not in ['time_format','var_name','given_var_name']:
+				out_file+='_'+kwargs[key]
+		out_file+='.nc4'
 
 		if os.path.isfile(out_file) and overwrite==False:
 			nc_out=Dataset(out_file,"r")
-
 			new_data=new_data_object(outer_self=self,var_name=var_name,raw_file=out_file,grid=nc_out.getncattr('original_grid'),**kwargs)
 			new_data.add_data(raw=nc_out.variables[var_name][:,:,:],lat=nc_out.variables['lat'][:],lon=nc_out.variables['lon'][:],time=nc_out.variables['time'][:],year=nc_out.variables['year'][:],month=nc_out.variables['month'][:],day=nc_out.variables['day'][:])
 			new_data.create_time_stamp()
@@ -722,7 +735,7 @@ class country_analysis(object):
 								remaining.remove(member)
 								time_min.append(min(member.time_stamp))
 								time_max.append(max(member.time_stamp))
-							time_axis=self.create_complete_time_axis(member,yearmin=max(time_min),yearmax=min(time_max))
+							time_axis=self.create_complete_time_axis(member,yearmin=max(time_min)[0],yearmax=min(time_max)[0])
 							#time_axis=np.around(np.arange(max(time_min),min(time_max),member.time_step),decimals=4)	
 							ensemble_mean=np.zeros([len(ensemble),len(time_axis),len(member.lat),len(member.lon)])*np.nan
 
@@ -735,7 +748,7 @@ class country_analysis(object):
 
 							tags_=ensemble[0].all_tags_dict.copy()
 							tags_['model']='ensemble_mean'
-							out_file=self._working_directory_raw+'/'+ensemble[0].var_name+'_'+ensemble[0].data_type+'_ensemble-mean_'+ensemble[0].scenario+'.nc'
+							out_file=self._working_directory_raw+'/'+self._iso+'_'+ensemble[0].var_name+'_'+ensemble[0].data_type+'_ensemble-mean_'+ensemble[0].scenario+'.nc'
 							tags_['raw_file']=out_file
 
 							new_data=new_data_object(outer_self=self,**tags_)
@@ -745,6 +758,7 @@ class country_analysis(object):
 							new_data.convert_time_stamp()
 
 							# write ensemble_mean to file
+							print member.name
 							print member.raw_file
 							nc_in=Dataset(member.raw_file,"r")
 							os.system('rm '+out_file)
@@ -880,12 +894,12 @@ class country_analysis(object):
 				if data.time_format=='yearly':		seasons={'year':range(1,13)}
 
 				if isinstance(threshold, (float,int)) and threshold!=None: 
-					threshold=np.ones([data.raw.shape])*threshold
+					threshold=np.ones(data.raw.shape)*threshold
 
 				if isinstance(threshold, (dict)) and threshold!=None: 
 					threshold_new=data.raw.copy()*np.nan 
 					for tt,i in zip(data.time_in_year,range(len(data.time_in_year))):
-						threshold_new[i,:,:]=threshold[tt-int(tt)]
+						threshold_new[i,:,:]=threshold[tt]
 					threshold=threshold_new
 
 
@@ -903,18 +917,15 @@ class country_analysis(object):
 								data.period[name][sea][period_name]=np.nanmean(data.raw[relevenat_time_steps,:,:],axis=0)
 							# threshold exceeding
 							if threshold!=None:
-								# sub_thresh=np.zeros([data.raw.shape[1],data.raw.shape[2]])*np.nan
-								# for tt,i in zip(data.time_in_year,range(len(data.time_in_year))):
-								# 	data.period[name][sea][period_name][i,:,:]=data.raw[i,:,:]-thresh[tt-int(tt)]
-								# sub_thresh[sub_thresh>0]=1
-								# sub_thresh[sub_thresh<0]=-1
 								data.period[name][sea][period_name]=np.zeros([data.raw.shape[1],data.raw.shape[2]])*np.nan
 								for y in range(data.raw.shape[1]):
 									for x in range(data.raw.shape[2]):
+										diff=data.raw[relevenat_time_steps,y,x]-threshold[relevenat_time_steps,y,x]
 										if below==True: 
-											data.period[name][sea][period_name][y,x]=len(np.where(data.raw[relevenat_time_steps,y,x]<threshold[relevenat_time_steps,y,x])[0])/float(n_steps)
+											data.period[name][sea][period_name][y,x]=len(np.where(diff<0)[0])/float(n_steps)*100
 										if below==False: 
-											data.period[name][sea][period_name][y,x]=len(np.where(data.raw[relevenat_time_steps,y,x]>threshold[relevenat_time_steps,y,x])[0])/float(n_steps)
+											data.period[name][sea][period_name][y,x]=len(np.where(diff>0)[0])/float(n_steps)*100
+
 						else: 
 							print 'years missing for',period_name,'in',data.name
 							data.period[name][sea][period_name]=np.zeros([data.raw.shape[1],data.raw.shape[2]])*np.nan
@@ -931,55 +942,45 @@ class country_analysis(object):
 		computes time averages for each grid-cell for a given period
 		filters: list of strs: only computed for data which have the tags given in filters
 		'''
-		remaining=self._DATA[:]
+		remaining=self.selection(filters+['ensemble_mean'])
 
 		for data in remaining:
-			compute=False
-			if hasattr(data,'model'):
-				if data.model!='ensemble_mean':
-					compute=True
-					for key in filters:
-						if key not in data.all_tags:
-							compute=False
+			ensemble,ensemble_mean=self.find_ensemble([data.data_type,data.var_name,data.scenario])
+			ensemble=ensemble.values()
+			if hasattr(ensemble_mean,'period')==False:	ensemble_mean.period={}
+			if hasattr(ensemble_mean,'agreement')==False:	ensemble_mean.agreement={}
 
-			if compute:
-				ensemble,ensemble_mean=self.find_ensemble([data.data_type,data.var_name,data.scenario])
-				ensemble=ensemble.values()
-				if hasattr(ensemble_mean,'period')==False:	ensemble_mean.period={}
-				if hasattr(ensemble_mean,'agreement')==False:	ensemble_mean.agreement={}
+			member=ensemble[0]
 
-				for member in ensemble:
-					remaining.remove(member)
+			if hasattr(member,'period'):
+				if member.time_format=='monthly':		seasons=self._seasons
+				if member.time_format=='10day':		seasons=self._seasons
+				if member.time_format=='yearly':		seasons={'year':range(1,13)}
 
-				if hasattr(member,'period'):
-					if member.time_format=='monthly':		seasons=self._seasons
-					if member.time_format=='10day':		seasons=self._seasons
-					if member.time_format=='yearly':		seasons={'year':range(1,13)}
+				for name in ensemble[0].period.keys():
+					ensemble_mean.period[name]={}
+					ensemble_mean.agreement[name]={}
+					for sea in seasons.keys():
+						ensemble_mean.period[name][sea]={}
+						ensemble_mean.agreement[name][sea]={}
 
-					for name in ensemble[0].period.keys():
-						ensemble_mean.period[name]={}
-						ensemble_mean.agreement[name]={}
-						for sea in seasons.keys():
-							ensemble_mean.period[name][sea]={}
-							ensemble_mean.agreement[name][sea]={}
+						# ensemble mean
+						for period in ensemble[0].period[name][sea].keys():
+							ensemble_mean.period[name][sea][period]=ensemble[0].period[name][sea][period]
+							for member in ensemble[1:]:
+								ensemble_mean.period[name][sea][period]+=member.period[name][sea][period]
+							ensemble_mean.period[name][sea][period]/=float(len(ensemble))
 
-							# ensemble mean
-							for period in ensemble[0].period[name][sea].keys():
-								ensemble_mean.period[name][sea][period]=ensemble[0].period[name][sea][period]
-								for member in ensemble[1:]:
-									ensemble_mean.period[name][sea][period]+=member.period[name][sea][period]
-								ensemble_mean.period[name][sea][period]/=float(len(ensemble))
+						# model agreement
+						for period in ensemble_mean.period[name][sea].keys():
+							if len(period.split('-'))>1 and period.split('-')[-1]=='ref':
+								agreement=ensemble_mean.period[name][sea][period].copy()*0
+								for member in ensemble:
+									agreement+=np.sign(member.period[name][sea][period])==np.sign(ensemble_mean.period[name][sea][period])
 
-							# model agreement
-							for period in ensemble_mean.period[name][sea].keys():
-								if len(period.split('-'))>1 and period.split('-')[-1]=='ref':
-									agreement=ensemble_mean.period[name][sea][period].copy()*0
-									for member in ensemble:
-										agreement+=np.sign(member.period[name][sea][period])==np.sign(ensemble_mean.period[name][sea][period])
-
-									agreement[agreement<2./3.*len(ensemble)]=0
-									agreement[agreement>=2./3.*len(ensemble)]=1
-									ensemble_mean.agreement[name][sea][period]=agreement
+								agreement[agreement<2./3.*len(ensemble)]=0
+								agreement[agreement>=2./3.*len(ensemble)]=1
+								ensemble_mean.agreement[name][sea][period]=agreement
 
 	def annual_cycle(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},mask_style='lat_weighted',selection=None):
 		'''
@@ -1216,9 +1217,11 @@ class new_data_object(object):
 			if key not in ['raw_file','grid','var_name','given_var_name']:
 				SELF.name+='_'+kwargs[key]
 
-
 	def add_data(SELF,**kwargs):
-		if 'raw' in kwargs.keys():	SELF.raw=kwargs['raw']
+		if 'raw' in kwargs.keys():
+			tmp=kwargs['raw']
+			tmp[np.isfinite(tmp)==False]=np.nan
+			SELF.raw=tmp
 		if 'time' in kwargs.keys():	SELF.time=kwargs['time']
 		if 'year' in kwargs.keys():	SELF.year=kwargs['year']
 		if 'month' in kwargs.keys():	SELF.month=kwargs['month']
@@ -1244,6 +1247,9 @@ class new_data_object(object):
 		SELF.time_in_year_num=[((SELF.month[i]-1)*30 + SELF.day[i])/365. for i in range(len(SELF.year))]
 		SELF.plot_time=np.array([SELF.year[i]+((SELF.month[i]-1)*30 + SELF.day[i])/365. for i in range(len(SELF.year))])
 
+		miss=np.where(np.isfinite(np.nanmean(SELF.raw[:,:,:],axis=(1,2)))==False)
+		SELF.incomplete_years=sorted(set(SELF.year[miss]))
+
 	def convert_time_stamp(SELF):
 		SELF.year=np.array([int(t[0]) for t in SELF.time_stamp])
 		SELF.month=np.array([int(t[1]) for t in SELF.time_stamp])
@@ -1252,6 +1258,20 @@ class new_data_object(object):
 		SELF.time_in_year = np.array([(SELF.month[i],SELF.day[i]) for i in range(len(SELF.year))])
 
 		SELF.time=np.array([(datetime.datetime(int(SELF.year[i]),int(SELF.month[i]),int(SELF.day[i])) - datetime.datetime(1950,1,1)).days for i in range(len(SELF.year))])
+
+	def details(SELF,detailed=True):
+		if detailed:
+			text=SELF.name
+			text+='\ncoverage: '+str(int(min(SELF.year)))+'-'+str(int(max(SELF.year)))
+			text+='\tincomplete years: '+','.join([str(i) for i in SELF.incomplete_years])
+			if hasattr(SELF,'period'):
+				for key in SELF.period.keys():
+					text+='\nperiod '+key+': '+','.join(SELF.period[key]['year'].keys())
+			return(text)
+		else:
+			return(SELF.name)
+
+		
 
 	def get_relevant_time_steps_in_season(SELF,months_in_season,relevant_years=None):
 		if relevant_years==None:

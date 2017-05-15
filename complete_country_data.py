@@ -11,15 +11,17 @@ sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
 
 
 country_iso='BEN'
-COU=country_analysis(country_iso,'/p/projects/tumble/carls/shared_folder/country_analysis/'+country_iso+'_no_correction/')
+COU=country_analysis(country_iso,'/p/projects/tumble/carls/shared_folder/country_analysis/'+country_iso+'/',additional_tag='_cmip5')
 COU.load_data(quiet=False)
 
 COU.hist_merge()
 
-#COU.ensemble_mean()
+COU.summary()
 
-#COU.data_summary()
+# COU.ensemble_mean()
 
-#COU.zip_it()
+# COU.summary()
+
+# COU.zip_it('raw'+COU._additional_tag)
 
 

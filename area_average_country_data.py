@@ -16,7 +16,7 @@ country_iso='BEN'
 COU=country_analysis(country_iso,'Projects/country_analysis/'+country_iso+'/')
 COU.load_data()
 
-COU.data_summary()
+COU.summary()
 
 
 COU.area_average('lat_weighted',overwrite=False)
