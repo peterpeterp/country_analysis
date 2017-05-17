@@ -18,10 +18,9 @@ COU.load_data()
 
 COU.summary()
 
-
 COU.area_average('lat_weighted',overwrite=False)
-COU.area_average('pop2015_weighted',overwrite=False)
-COU.area_average('pop1990_weighted',overwrite=False)
+# COU.area_average('pop2015_weighted',overwrite=False)
+# COU.area_average('pop1990_weighted',overwrite=False)
 
 
 

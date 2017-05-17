@@ -10,18 +10,18 @@ from country_analysis import country_analysis
 sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
 
 
-country_iso='BEN'
-COU=country_analysis(country_iso,'/p/projects/tumble/carls/shared_folder/country_analysis/'+country_iso+'/',additional_tag='_cmip5')
+country_iso='SEN'
+COU=country_analysis(country_iso,'/p/projects/tumble/carls/shared_folder/country_analysis/'+country_iso+'/',additional_tag='_new_bc')
 COU.load_data(quiet=False)
 
 COU.hist_merge()
 
 COU.summary()
 
-# COU.ensemble_mean()
+COU.ensemble_mean()
 
-# COU.summary()
+COU.summary()
 
-# COU.zip_it('raw'+COU._additional_tag)
+COU.zip_it('raw'+COU._additional_tag)
 
 
