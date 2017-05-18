@@ -503,10 +503,11 @@ class country_analysis(object):
 		lat_mask=self._masks[grid]['lat_mask']
 		lon_mask=self._masks[grid]['lon_mask']
 
-		lat_mean=np.mean(mask,1)
+		cou_mask=self._masks[grid][mask_style][self._iso]
+		lat_mean=np.mean(cou_mask,1)
 		lats=np.where(lat_mean!=0)
 
-		lon_mean=np.mean(mask,0)
+		lon_mean=np.mean(cou_mask,0)
 		lons=np.where(lon_mean!=0)
 
 		if grid not in self._small_masks.keys():	self._small_masks[grid]={}
@@ -969,8 +970,10 @@ class country_analysis(object):
 
 						# ensemble mean
 						for period in member.period[name][sea].keys():
-							ensemble['mean'].period[name][sea][period]=member.period[name][sea][period].copy()
-							for member in ensemble['models'].values()[1:]:
+							ensemble['mean'].period[name][sea][period]=member.period[name][sea][period].copy()*0
+							print '**************'+member.name
+							for member in ensemble['models'].values():
+								print member.name
 								ensemble['mean'].period[name][sea][period]+=member.period[name][sea][period]
 							ensemble['mean'].period[name][sea][period]/=float(len(ensemble['models'].values()))
 
@@ -1018,6 +1021,7 @@ class country_analysis(object):
 						data.annual_cycle[mask_style][region]={}
 					for period_name,period in zip(local_periods.keys(),local_periods.values()):	
 						annual_cycle=[]
+						#print period_name,period,data.steps_in_year
 						for tt in data.steps_in_year:
 							relevant_time=np.where((data.year>=period[0]) & (data.year<period[1]) & (data.time_in_year_num==tt))[0]
 							if len(relevant_time)>1:
@@ -1306,7 +1310,7 @@ class new_data_object(object):
 				relevenat_time_steps.append(yr)
 		return(relevenat_time_steps)		
 
-	def display_map(SELF,period=None,name='mean',time=None,color_bar=True,color_label=None,color_palette=None,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,polygons=None,season='year'):
+	def display_map(SELF,period=None,name='mean',time=None,color_bar=True,color_label=None,color_palette=None,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,polygons=None,season='year',show_agreement=True):
 		'''
 		plot maps of data. 
 		meta_data: list of strs: meta information required to acces data
@@ -1340,7 +1344,7 @@ class new_data_object(object):
 			mask=SELF.outer_self._small_masks[SELF.grid]['lat_weighted'][SELF.outer_self._iso].copy()
 			to_plot[np.isfinite(mask)==False]=np.nan
 
-			if hasattr(SELF,'agreement'):
+			if hasattr(SELF,'agreement') and show_agreement:
 				print 'agreement exists'
 				if period in SELF.agreement[name][season].keys():
 					print 'also for the period'
@@ -1383,7 +1387,8 @@ class new_data_object(object):
 		im,color_range=SELF.outer_self.plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons)
 		return(im,color_range)
 
-	def plot_transients(SELF,mask_style='lat_weighted',season='year',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None):
+
+	def plot_transients(SELF,mask_style='lat_weighted',season='year',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None,x_range=[1960,2100]):
 		'''
 		plot transient of countrywide average
 		mask_style: str: weighting used to compute countrywide averages
@@ -1419,6 +1424,83 @@ class new_data_object(object):
 			if season!='year':
 				return(0)
 
+		
+
+		ax.plot(SELF.plot_time[relevenat_time_steps],pd.rolling_mean(SELF.area_average[mask_style][region][relevenat_time_steps],running_mean),linestyle='-',label=label,color=color)
+
+		if hasattr(SELF,'model'):
+			if SELF.model=='ensemble_mean':
+				ensemble=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])
+
+				relevenat_time_steps=ensemble['mean'].get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
+				time_axis=ensemble['mean'].time_stamp_num[relevenat_time_steps]
+
+				ensemble_range=np.zeros([len(ensemble['models'].values()),len(time_axis)])*np.nan
+
+				for member,i in zip(ensemble['models'].values(),range(len(ensemble['models'].values()))):
+					relevenat_time_steps=member.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
+					member_runmean=pd.rolling_mean(member.area_average[mask_style][region][relevenat_time_steps],running_mean)
+					for t in member.time_stamp_num[relevenat_time_steps]:
+						ensemble_range[i,np.where(time_axis==t)]=member_runmean[np.where(member.time_stamp_num[relevenat_time_steps]==t)]
+					#ax.plot(member.time_stamp,pd.rolling_mean(member.area_average[mask_style][region],running_mean),linestyle='-',label=label,color='blue',linewidth=0.5)
+
+				ax.fill_between(time_axis,np.percentile(ensemble_range,0,axis=0),np.percentile(ensemble_range,100,axis=0),alpha=0.25,color=color)
+
+		if ylabel==None:ylabel=SELF.var_name.replace('_',' ')
+		ax.set_ylabel(ylabel)
+		if title==None:title=SELF.name.replace('_',' ')
+		ax.set_title(title)
+
+		if y_range!=None:
+			ax.set_ylim(y_range)
+
+		if x_range!=None:
+			ax.set_xlim(x_range)
+		
+		if show==True:ax.legend(loc='best')
+		if out_file==None and show==True:plt.show()
+		if out_file!=None:plt.savefig(out_file)
+
+		return(1)
+
+	def plot_transients_old(SELF,mask_style='lat_weighted',season='year',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None):
+		'''
+		plot transient of countrywide average
+		mask_style: str: weighting used to compute countrywide averages
+		running_mean: int: years to be averaged in moving average		
+		ax: subplot: subplot on which the map will be plotted
+		out_file: str: location where the plot is saved
+		title: str: title of the plot
+		ylabel: str: labe to put on y-axis
+		show: logical: show the subplot?
+		'''
+
+		if ax!=None:
+			show=False
+
+		if ax==None:
+			show=True
+			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
+
+		if region==None:
+			region=SELF.outer_self._iso
+
+		if SELF.time_format=='monthly':
+			running_mean=running_mean_years*len(SELF.outer_self._seasons[season])
+			relevenat_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
+
+		if SELF.time_format=='10day':
+			running_mean=running_mean_years*len(SELF.outer_self._seasons[season])*3
+			relevenat_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
+
+		if SELF.time_format=='yearly':
+			running_mean=running_mean_years
+			relevenat_time_steps=range(len(SELF.year))
+			if season!='year':
+				return(0)
+
+
+
 		ax.plot(SELF.plot_time[relevenat_time_steps],pd.rolling_mean(SELF.area_average[mask_style][region][relevenat_time_steps],running_mean),linestyle='-',label=label,color=color)
 
 		if hasattr(SELF,'model'):
@@ -1453,7 +1535,7 @@ class new_data_object(object):
 
 		return(1)
 
-	def plot_annual_cycle(SELF,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue'):
+	def plot_annual_cycle(SELF,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',xlabel=True):
 		'''
 		plot transient of countrywide average
 		meta_data: list of strs: meta information required to acces data
@@ -1491,9 +1573,12 @@ class new_data_object(object):
 				ax.fill_between(SELF.steps_in_year,np.percentile(ensemble_annual_cycle,0./3.*100,axis=0),np.percentile(ensemble_annual_cycle,3./3.*100,axis=0),alpha=0.25,color=color)
 
 
-		ax.set_xticks(np.arange(1/24.,25./24.,1/12.)) 
-		#ax.set_xticklabels(['JAN','FEB','MAR','APR','MAI','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])
-		ax.set_xticklabels(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])
+		if xlabel==True:
+			ax.set_xticks(np.arange(1/24.,25./24.,1/12.)) 
+			ax.set_xticklabels(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])
+		if xlabel==False:
+			ax.set_xticks([0.5]) 
+			ax.set_xticklabels([''])			
 
 		if ylabel==None:ylabel=SELF.var_name.replace('_',' ')
 		ax.set_ylabel(ylabel)
