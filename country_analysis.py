@@ -131,7 +131,43 @@ class country_analysis(object):
 
 		self._extreme_events=extreme_events
 
-	def summary(self,detailed=True):
+	def short_summary(self):
+		types=sorted(set([dd.data_type for dd in self._DATA]))
+		var_names=sorted(set([dd.var_name for dd in self._DATA]))
+
+		scenarios=[]
+		for dd in self._DATA:
+			if hasattr(dd,'scenario'):
+				scenarios.append(dd.scenario)
+		scenarios=sorted(list(set(scenarios)))
+
+		print 'Variables: '+', '.join(var_names)
+		print 'Datasets: '+', '.join(types)
+		print 'Scenarios: '+', '.join(scenarios)
+
+	def summary(self):
+		types=set([dd.data_type for dd in self._DATA])
+		var_names=set([dd.var_name for dd in self._DATA])
+
+		scenarios=[]
+		for dd in self._DATA:
+			if hasattr(dd,'scenario'):
+				scenarios.append(dd.scenario)
+		scenarios=list(set(scenarios))
+		print scenarios
+
+		for var_name in var_names:
+			print var_name+': '
+			for data_type in types:
+				if len(self.selection([data_type,var_name],show_selection=False))>0:
+					out='\t-'+data_type+': '
+					if hasattr(self.selection([data_type,var_name],show_selection=False)[0],'scenario'):
+						for scenario in scenarios:
+							if len(self.selection([data_type,var_name,scenario],show_selection=False))>0:
+								out+=scenario+', '
+					print out
+
+	def complete_summary(self,detailed=True):
 		types=set([dd.data_type for dd in self._DATA])
 		var_names=set([dd.var_name for dd in self._DATA])
 
@@ -144,7 +180,6 @@ class country_analysis(object):
 
 	def selection(self,filters,show_selection=True,detailed=True):
 		selection=[]
-		count=0
 		for data in self._DATA:
 			selected=True
 			for key in filters:
@@ -152,9 +187,9 @@ class country_analysis(object):
 					selected=False
 			if selected:
 				selection.append(data)
-				if show_selection==True:
-					print count,data.details(detailed)
-				count+=1
+		if show_selection==True:
+			for count,data in zip(range(len(selection)),selection):
+				print count,data.details(detailed)
 		return selection
 
 	def find_ensemble(self,filters,quiet=True):
@@ -750,7 +785,7 @@ class country_analysis(object):
 
 							tags_=member.all_tags_dict.copy()
 							tags_['model']='ensemble_mean'
-							out_file=self._working_directory_raw+'/'+self._iso+'_'+member.var_name+'_'+member.data_type+'_ensemble-mean_'+member.scenario+'.nc'
+							out_file=self._working_directory_raw+'/'+self._iso+'_'+member.var_name+'_'+member.data_type+'_ensemble-mean_'+member.scenario+'.nc4'
 							tags_['raw_file']=out_file
 
 							new_data=new_data_object(outer_self=self,**tags_)
@@ -804,67 +839,60 @@ class country_analysis(object):
 	# analysis tools
 	###########
 
-	def area_average(self,mask_style='lat_weighted',filters=[],overwrite=False):
+	def area_average(self,mask_style='lat_weighted',selection=None,overwrite=False):
 		'''
 		compute countrywide averages for all loaded datasets
 		mask_style: str: weighting used to compute countrywide averages
 		filters: list of strs: only computed for data which have the tags given in filters
 		'''
+		if selection==None:
+			selection=self._DATA
 
-		for data in self._DATA:
-			compute=True
-			for key in filters:
-				if key not in data.all_tags:
-					compute=False
+		for data in selection:
+			# check if file has been saved
+			out_file=self._working_directory+'/area_average/country_mean-'+data.name+'-'+mask_style+'.csv'
+			if mask_style not in data.area_average.keys():	data.area_average[mask_style]={}
+			data.area_average[mask_style]['out_file']=out_file
 
-			if compute:
-				# check if file has been saved
-				out_file=self._working_directory+'/area_average/country_mean-'+data.name+'-'+mask_style+'.csv'
-				if mask_style not in data.area_average.keys():	data.area_average[mask_style]={}
-				data.area_average[mask_style]['out_file']=out_file
+			if os.path.isfile(out_file) and overwrite==False:
+				table=pd.read_csv(out_file,sep=';')
+				for key in table.keys():
+					if key not in ['time','year','month']:
+						data.area_average[mask_style][key]=np.array(table[key])
 
-				if os.path.isfile(out_file) and overwrite==False:
-					table=pd.read_csv(out_file,sep=';')
-					for key in table.keys():
-						if key not in ['time','year','month']:
-							data.area_average[mask_style][key]=np.array(table[key])
+			else:
+				# prepare table
+				country_mean_csv = pd.DataFrame(index=range(len(data.time)))
+				country_mean_csv['time']=data.time
+				country_mean_csv['month']=data.month
+				country_mean_csv['year']=data.year
+				country_mean_csv['day']=data.day
 
-				else:
-					# prepare table
-					country_mean_csv = pd.DataFrame(index=range(len(data.time)))
-					country_mean_csv['time']=data.time
-					country_mean_csv['month']=data.month
-					country_mean_csv['year']=data.year
-					country_mean_csv['day']=data.day
+				# load input data
+				var_in=data.raw.copy()			
+				try:	# handle masked array
+					masked=np.ma.getmask(var_in)
+					var_in=np.ma.getdata(var_in)
+					var_in[masked]=np.nan
+				except: pass
 
-					# load input data
-					var_in=data.raw.copy()			
-					try:	# handle masked array
-						masked=np.ma.getmask(var_in)
-						var_in=np.ma.getdata(var_in)
-						var_in[masked]=np.nan
-					except: pass
+				# get mask
+				for name in self._masks[data.grid][mask_style].keys():
+					mask=self._small_masks[data.grid][mask_style][name]
 
-					# get mask
-					for name in self._masks[data.grid][mask_style].keys():
-						mask=self._small_masks[data.grid][mask_style][name]
+					country_area=np.where(mask>0)
 
-						country_area=np.where(mask>0)
-
-						data.area_average[mask_style][name]=data.time.copy()*np.nan
-						for i in range(len(data.time)):
-							var_of_area=var_in[i,:,:][country_area]
-							# NA handling: sum(mask*var)/sum(mask) for the area where var is not NA
-							not_missing_in_var=np.where(np.isfinite(var_of_area))[0]	# np.where()[0] because of array([],)
-							if len(not_missing_in_var)>0:
-								data.area_average[mask_style][name][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
-				
-
-						country_mean_csv[name]=data.area_average[mask_style][name]
-
-
-					# save as csv 
-					country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index',encoding='utf-8')
+					data.area_average[mask_style][name]=data.time.copy()*np.nan
+					for i in range(len(data.time)):
+						var_of_area=var_in[i,:,:][country_area]
+						# NA handling: sum(mask*var)/sum(mask) for the area where var is not NA
+						not_missing_in_var=np.where(np.isfinite(var_of_area))[0]	# np.where()[0] because of array([],)
+						if len(not_missing_in_var)>0:
+							data.area_average[mask_style][name][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
+			
+					country_mean_csv[name]=data.area_average[mask_style][name]
+				# save as csv 
+				country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index',encoding='utf-8')
 
 	def period_statistics(self,name='mean',threshold=None,below=False,selection=None,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]}):
 		'''
@@ -945,10 +973,13 @@ class country_analysis(object):
 		computes time averages for each grid-cell for a given period
 		filters: list of strs: only computed for data which have the tags given in filters
 		'''
-		remaining=self.selection(filters+['ensemble_mean'])
+		remaining=self.selection(filters+['ensemble_mean'],show_selection=False)
 
 		for data in remaining:
+			print data.name
+			print data.data_type,data.var_name,data.scenario
 			ensemble=self.find_ensemble([data.data_type,data.var_name,data.scenario])
+			print ensemble['mean'].name
 			if hasattr(ensemble['mean'],'period')==False:	ensemble['mean'].period={}
 			if hasattr(ensemble['mean'],'agreement')==False:	ensemble['mean'].agreement={}
 
@@ -1115,7 +1146,9 @@ class country_analysis(object):
 			if ax!=None: show=False
 
 			if ax==None:
-				fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3,3))		
+				asp=(len(lon)/float(len(lat)))**0.5
+				print 3*asp,3/asp
+				fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3*asp+1,3/asp))		
 
 
 			# handle limits
@@ -1207,7 +1240,11 @@ class new_data_object(object):
 		if 'given_var_name' not in kwargs.keys():	SELF.var_name=kwargs['var_name']
 
 		if 'data_type' in kwargs.keys():	SELF.data_type=kwargs['data_type']
-		if 'scenario' in kwargs.keys():	SELF.scenario=kwargs['scenario'].replace('.','p').lower()
+
+		if 'scenario' in kwargs.keys():	
+			kwargs['scenario']=kwargs['scenario'].replace('.','p').replace('45','4p5').lower()
+			SELF.scenario=kwargs['scenario']	
+
 		if 'model' in kwargs.keys():	SELF.model=kwargs['model']
 
 		SELF.area_average={}
@@ -1291,12 +1328,12 @@ class new_data_object(object):
 
 	def details(SELF,detailed=True):
 		if detailed:
-			text=SELF.name
-			text+='\ncoverage: '+str(int(min(SELF.year)))+'-'+str(int(max(SELF.year)))
+			text=SELF.name.replace('_',' ')
+			text+='\t\t\tcoverage: '+str(int(min(SELF.year)))+'-'+str(int(max(SELF.year)))
 			#text+='\tincomplete years: '+','.join([str(i) for i in SELF.incomplete_years])
 			if hasattr(SELF,'period'):
 				for key in SELF.period.keys():
-					text+='\nperiod '+key+': '+','.join(SELF.period[key]['year'].keys())
+					text+='\nperiod '+key+': '+','.join(sorted(SELF.period[key]['year'].keys()))
 			return(text)
 		else:
 			return(SELF.name)
@@ -1371,22 +1408,21 @@ class new_data_object(object):
 		if color_palette==None:
 			print color_range
 			if SELF.var_name in ['pr','RX1','year_RX5']:	
-				if np.mean(color_range)==0:						color_palette=plt.cm.seismic_r
+				if np.mean(color_range)==0:						color_palette=plt.cm.RdBu
 				elif np.mean(color_range)<0:					color_palette=plt.cm.Reds_r
 				elif np.mean(color_range)>0:					color_palette=plt.cm.Blues
 			elif SELF.var_name in ['tas','TXx']:			
-				if np.mean(color_range)==0:						color_palette=plt.cm.seismic
+				if np.mean(color_range)==0:						color_palette=plt.cm.RdBu_r
 				elif np.mean(color_range)<0:					color_palette=plt.cm.Blues_r
 				elif np.mean(color_range)>0:					color_palette=plt.cm.Reds
 			else:											
-				if np.mean(color_range)==0:						color_palette=plt.cm.seismic_r
-				elif np.mean(color_range)<0:					color_palette=plt.cm.Reds_r
-				elif np.mean(color_range)>0:					color_palette=plt.cm.Blues
+				if np.mean(color_range)==0:						color_palette=plt.cm.RdBu
+				elif np.mean(color_range)<0:					color_palette=plt.cm.Reds
+				elif np.mean(color_range)>0:					color_palette=plt.cm.Blues_r
 
 
 		im,color_range=SELF.outer_self.plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons)
 		return(im,color_range)
-
 
 	def plot_transients(SELF,mask_style='lat_weighted',season='year',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None,x_range=[1960,2100]):
 		'''

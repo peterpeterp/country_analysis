@@ -16,9 +16,15 @@ country_iso='BEN'
 COU=country_analysis(country_iso,'Projects/country_analysis/'+country_iso+'/')
 COU.load_data()
 
+# for data in COU.selection(['RX5']): data.year_max('year_RX5')
+# for data in COU.selection(['year_RX5','ensemble_mean']): COU._DATA.remove(data)
+# COU.ensemble_mean()
+
 COU.summary()
 
-COU.area_average('lat_weighted',overwrite=True)
+COU.area_average('lat_weighted',overwrite=True,selection=COU.selection(['tas','CORDEX_BC']))
+
+COU.area_average('lat_weighted',overwrite=False)
 # COU.area_average('pop2015_weighted',overwrite=False)
 # COU.area_average('pop1990_weighted',overwrite=False)
 
