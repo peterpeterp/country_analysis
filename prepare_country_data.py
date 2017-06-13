@@ -11,6 +11,7 @@ sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
 
 
 all_isos=['AGO', 'DZA', 'EGY', 'GNQ', 'BEN', 'NGA', 'NER', 'ZWE', 'NAM', 'GNB', 'SWZ', 'GHA', 'COG', 'SLE', 'ETH', 'COM', 'ERI', 'CPV', 'LBR', 'LBY', 'LSO', 'UGA', 'RWA', 'SOM', 'MDG', 'CMR', 'TZA', 'BWA', 'SEN', 'TCD', 'GAB', 'BFA', 'MWI', 'MOZ', 'MRT', 'GMB', 'MLI', 'BDI', 'STP', 'DJI', 'GIN', 'ESH', 'KEN', 'MAR', 'COD', 'ZMB', 'ZAF', 'TGO', 'TUN', 'CAF', 'SSD', 'SDN', 'CIV']
+all_isos=['EGY', 'GNQ', 'ZWE', 'NAM', 'SWZ', 'COG', 'ETH', 'COM', 'ERI', 'CPV', 'UGA', 'RWA', 'SOM', 'MDG', 'CMR', 'TZA', 'SEN', 'MWI', 'MOZ', 'STP', 'ESH', 'KEN', 'MAR', 'COD', 'ZAF', 'CAF', 'SSD', 'SDN']
 
 # # ##############
 # # # Pre-Prepare
@@ -34,7 +35,7 @@ except:
 	job_id=0	
 
 print job_id
-isos=all_isos[(job_id*9):((job_id+1)*9)]
+isos=all_isos[(job_id*4):((job_id+1)*4)]
 print isos
 
 

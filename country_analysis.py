@@ -263,9 +263,11 @@ class country_analysis(object):
 			if data.var_name in ['tas','TXx']:
 				if np.nanmean(data.raw)>100:
 					data.raw-=273.15
-					for mask_style in data.area_average.keys():
-						for region in data.area_average[mask_style].keys():
-							data.area_average[mask_style][region]-=273.15
+				for mask_style in data.area_average.keys():
+					for region in data.area_average[mask_style].keys():
+						if region in self._regions.keys():
+							if np.nanmean(data.area_average[mask_style][region])>100:
+								data.area_average[mask_style][region]-=273.15
 
 	def get_warming_slices(self,GMT_path,warming_lvls=[1.5,2,2.5,3],ref_period=[1986,2006],warming_of_ref_period=0.61 ,model_real_names=None):
 		'''
@@ -404,8 +406,13 @@ class country_analysis(object):
 				#grid_polygons[i,j] = Polygon([(y1,x1),(y1,x2),(y2,x2),(y2,x1)])
 
 		# since the lon axis has been shifted, masks and outputs will have to be shifted as well. This shift is computed here
+		print lon
+		print lon_shift
 		lon-=lon_shift
+		print lon
+		print len(lon)
 		shift = len(lon)-np.where(lon==lon[0]-lon_shift)[0][0]
+		print shift
 
 		self._masks[grid]['lat_mask']=lat
 		self._masks[grid]['lon_mask']=lon
@@ -446,7 +453,6 @@ class country_analysis(object):
 		name: str: country-name or region name
 		pop_mask: np.array: population mask from regrid_pop_mask
 		'''
-
 		nx = len(lon)	;	ny = len(lat)
 
 		overlap = np.zeros((ny,nx))
@@ -464,11 +470,9 @@ class country_analysis(object):
 						overlap[j,i] = intersect*np.cos(np.radians(lat[j]))
 
 		# renormalize overlap to get sum(mask)=1
-		overlap_zwi=overlap.copy()
-		overlap_sum=sum(overlap_zwi.flatten())
+		overlap_sum=sum(overlap.copy().flatten())
 		if overlap_sum!=0:
-			output=np.zeros(overlap.shape)
-			output=overlap/overlap_sum
+			output=overlap.copy()/overlap_sum
 			# mask zeros
 			output[output==0]=np.nan
 			output=np.ma.masked_invalid(output)
@@ -518,7 +522,8 @@ class country_analysis(object):
 						country_polygons = Polygon(shape)
 
 			# get boundaries for faster computation
-			xmin, xmax, ymin, ymax = country_polygons.bounds
+			x1, x2, y1, y2 = country_polygons.bounds
+			xmin, xmax, ymin, ymax = min([x1,x2]), max([x1,x2]), min([y1,y2]), max([y1,y2])
 			ext = [(xmin,ymin),(xmin,ymax),(xmax,ymax),(xmax,ymin),(xmin,ymin)]
 			ext_poly = Polygon(ext)
 
@@ -594,16 +599,15 @@ class country_analysis(object):
 				else:
 					region_polygons[name] = Polygon(shape)
 
-
 			# get boundaries for faster computation
-			xmins, xmaxs, ymins, ymaxs = [], [], [], []
+			xs, ys = [], []
 			for name in region_polygons.keys():
 				bounds=region_polygons[name].bounds
-				xmins.append(bounds[0])
-				xmaxs.append(bounds[1])
-				ymins.append(bounds[2])
-				ymaxs.append(bounds[3])
-			xmin, xmax, ymin, ymax = min(xmins), max(xmaxs), min(ymins), max(ymaxs)
+				xs.append(bounds[0])
+				xs.append(bounds[1])
+				ys.append(bounds[2])
+				ys.append(bounds[3])
+			xmin, xmax, ymin, ymax = min(xs), max(xs), min(ys), max(ys)
 			ext = [(xmin,ymin),(xmin,ymax),(xmax,ymax),(xmax,ymin),(xmin,ymin)]
 			ext_poly = Polygon(ext)
 
@@ -1256,8 +1260,19 @@ class country_analysis(object):
 
 
 class country_data_object(object):
+	'''
+	objects of this class store information of one data-source.  
+	'''
 	def __init__(SELF,outer_self,**kwargs):
-		SELF.index=len(outer_self._DATA)
+		'''
+		When loading a new data-input to the country_analysis-object meta-information is stored here
+		outer_self: country_analysis object: functions of this class sometimes use variables and functions of the country_analysis class
+		**kwargs: dict: meta information is given through kwargs
+		The following keywords will be recognized when given in kwargs: 
+			mandatory:	raw_file, grid, time_format, var_name
+			optional: 	given_var_name,  scenario, model, data_type
+		'''
+
 		SELF.outer_self=outer_self
 		outer_self._DATA.append(SELF)
 		SELF._iso=outer_self._iso
@@ -1292,6 +1307,10 @@ class country_data_object(object):
 				SELF.name+='_'+kwargs[key]
 
 	def add_data(SELF,**kwargs):
+		'''
+		add data to object
+		Recognized data names: raw, time, year, month, day, lat, lon
+		'''
 		if 'raw' in kwargs.keys():
 			tmp=kwargs['raw']
 			tmp[np.isfinite(tmp)==False]=np.nan
@@ -1304,6 +1323,9 @@ class country_data_object(object):
 		if 'lon' in kwargs.keys():	SELF.lon=kwargs['lon']
 
 	def create_time_stamp(SELF):
+		'''
+		creates a custom time_stamp and time_in_year which is required for the annual cycle 
+		'''
 		if SELF.time_format=='yearly':
 			SELF.day=SELF.year.copy()*0+15
 			SELF.month=SELF.year.copy()*0+6
@@ -1314,26 +1336,30 @@ class country_data_object(object):
 			SELF.day[np.where((SELF.day>10) & (SELF.day<20))]=15
 			SELF.day[SELF.day>20]=25
 
+		# uniform time-stamp
 		SELF.time_stamp=[(SELF.year[i],SELF.month[i],SELF.day[i]) for i in range(len(SELF.year))]
 		SELF.time_stamp_num=np.array([SELF.year[i]+((SELF.month[i]-1)*30 + SELF.day[i])/365. for i in range(len(SELF.year))])
 
-		SELF.time_in_year=[(SELF.month[i],SELF.day[i]) for i in range(len(SELF.year))]
-		SELF.time_in_year_num=[((SELF.month[i]-1)*30 + SELF.day[i])/365. for i in range(len(SELF.year))]
+		# time in year (required for annual_cycle)
+		SELF.time_in_year=np.array([(SELF.month[i],SELF.day[i]) for i in range(len(SELF.year))])
+		SELF.time_in_year_num=np.array([((SELF.month[i]-1)*30 + SELF.day[i])/365. for i in range(len(SELF.year))])
 		SELF.plot_time=np.array([SELF.year[i]+((SELF.month[i]-1)*30 + SELF.day[i])/365. for i in range(len(SELF.year))])
 
-		#miss=np.where(np.isfinite(np.nanmean(SELF.raw[:,:,:],axis=(1,2)))==False)
-		#SELF.incomplete_years=sorted(set(SELF.year[miss]))
-
 	def convert_time_stamp(SELF):
+		'''
+		converts custom time_stamp from create_time_stamp to year, month, day and time
+		'''
 		SELF.year=np.array([int(t[0]) for t in SELF.time_stamp])
 		SELF.month=np.array([int(t[1]) for t in SELF.time_stamp])
 		SELF.day=np.array([int(t[2]) for t in SELF.time_stamp])
 
-		SELF.time_in_year = np.array([(SELF.month[i],SELF.day[i]) for i in range(len(SELF.year))])
-
 		SELF.time=np.array([(datetime.datetime(int(SELF.year[i]),int(SELF.month[i]),int(SELF.day[i])) - datetime.datetime(1950,1,1)).days for i in range(len(SELF.year))])
 
 	def year_max(SELF,new_var_name):
+		'''
+		computes annual max using 'cdo yearmax'. this function could be used as a template for other functions of this kind
+		new_var_name: str: given new var name
+		'''
 		if hasattr(SELF,'model'):
 			if SELF.model=='ensemble_mean':
 				return 'not a good idea to apply yearmax on ensemble mean'
@@ -1358,10 +1384,13 @@ class country_data_object(object):
 		SELF.outer_self.fill_gaps_in_time_axis(new_data,out_file.replace('.nc','_tmp.nc'),out_file)
 
 	def details(SELF,detailed=True):
+		'''
+		show details of country_data_object
+		detailed: bool: if True, detailed details are shown
+		'''
 		if detailed:
 			text=SELF.name.replace('_',' ')
 			text+='\t\t\tcoverage: '+str(int(min(SELF.year)))+'-'+str(int(max(SELF.year)))
-			#text+='\tincomplete years: '+','.join([str(i) for i in SELF.incomplete_years])
 			if hasattr(SELF,'period'):
 				for key in SELF.period.keys():
 					text+='\nperiod '+key+': '+','.join(sorted(SELF.period[key]['year'].keys()))
@@ -1370,6 +1399,11 @@ class country_data_object(object):
 			return(SELF.name)
 
 	def get_relevant_time_steps_in_season(SELF,months_in_season,relevant_years=None):
+		'''
+		get relevant time indices
+		months_in_season: list: months (as 1:12) 
+		relevant years: list: years as int
+		'''
 		if relevant_years is None:
 			relevant_years=range(len(SELF.year))
 		relevenat_time_steps=[]
@@ -1378,107 +1412,113 @@ class country_data_object(object):
 				relevenat_time_steps.append(yr)
 		return(relevenat_time_steps)		
 
-	def plot_map(SELF,to_plot,lat,lon,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title='',polygons=None):
-		# this actualy plots the map
+	def plot_map(SELF,to_plot,lat,lon,limits=None,ax=None,out_file=None,title='',polygons=None,grey_area=None,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None):
+		'''
+		this function creates a map
+		to_plot: np.ndarray: values to plot
+		lat: array: latitudes
+		lon: array: longitudes
+		limits: list: [xmin,xmax,ymin,ymax]
+		ax: sub_plot_ax: axes on which to plot. If None new figure is created
+		out_file: file path: path where the plot is saved
+		title: str: plot title
+		polygons: list: list of polygon objects to be overlayed
+		grey_area: np.ndarray: same dimensions as to_plot. 0 will be colored in gray, 1 will be left transparent
+		color_bar: bool: if True, a color bar is added to the plot
+		color_label: str: label of color bar
+		color_palette: plt.cm.object: color palette of the plot
+		color_range: list: [min-value,max-value]
+		'''
+		if ax is None: show=True
+		if ax is not None: show=False
 
-			if ax is None: show=True
-			if ax is not None: show=False
-
-			if ax is None:
-				asp=(len(lon)/float(len(lat)))**0.5
-				fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3*asp+1,3/asp))		
-
-
-			# handle limits
-			if limits is None:
-				half_lon_step=abs(np.diff(lon.copy(),1)[0]/2)
-				half_lat_step=abs(np.diff(lat.copy(),1)[0]/2)
-				relevant_lats=lat[np.where(np.isfinite(to_plot))[0]]
-				relevant_lons=lon[np.where(np.isfinite(to_plot))[1]]
-				limits=[np.min(relevant_lons)-half_lon_step,np.max(relevant_lons)+half_lon_step,np.min(relevant_lats)-half_lat_step,np.max(relevant_lats)+half_lat_step]
-
-
-			# handle 0 to 360 lon
-			if max(lon)>180:
-				problem_start=np.where(lon>180)[0][0]
-				new_order=np.array(range(problem_start,len(lon))+range(0,problem_start))
-				to_plot=to_plot[:,new_order]
-				lon=lon[new_order]
-				lon[lon>180]-=360
-
-			if limits[0]>180:limits[0]-=360
-			if limits[1]>180:limits[1]-=360
+		if ax is None:
+			asp=(len(lon)/float(len(lat)))**0.5
+			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3*asp+1,3/asp))		
 
 
-			m = Basemap(ax=ax,llcrnrlon=limits[0],urcrnrlon=limits[1],llcrnrlat=limits[2],urcrnrlat=limits[3],resolution="l",projection='cyl')
-			m.drawmapboundary(fill_color='1.')
-
-			# get color_range
-			if color_range is None:
-				color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
-
-			x,y=lon.copy(),lat.copy()
-			x-=np.diff(x,1)[0]/2.
-			y-=np.diff(y,1)[0]/2.
-			x=np.append(x,[x[-1]+np.diff(x,1)[0]])
-			y=np.append(y,[y[-1]+np.diff(y,1)[0]])
-			x,y=np.meshgrid(x,y)
-			im = m.pcolormesh(x,y,np.ma.masked_invalid(to_plot),cmap=color_palette,vmin=color_range[0],vmax=color_range[1])
+		# handle limits
+		if limits is None:
+			half_lon_step=abs(np.diff(lon.copy(),1)[0]/2)
+			half_lat_step=abs(np.diff(lat.copy(),1)[0]/2)
+			relevant_lats=lat[np.where(np.isfinite(to_plot))[0]]
+			relevant_lons=lon[np.where(np.isfinite(to_plot))[1]]
+			limits=[np.min(relevant_lons)-half_lon_step,np.max(relevant_lons)+half_lon_step,np.min(relevant_lats)-half_lat_step,np.max(relevant_lats)+half_lat_step]
 
 
-			# mask some grid-cells
-			if grey_area is not None:
-				to_plot=grey_area.copy()
-				to_plot[to_plot==0]=0.5
-				to_plot[to_plot==1]=np.nan
-				to_plot=np.ma.masked_invalid(to_plot)
-				im2 = m.pcolormesh(x,y,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
+		# handle 0 to 360 lon
+		if max(lon)>180:
+			problem_start=np.where(lon>180)[0][0]
+			new_order=np.array(range(problem_start,len(lon))+range(0,problem_start))
+			to_plot=to_plot[:,new_order]
+			lon=lon[new_order]
+			lon[lon>180]-=360
 
-			# show coastlines and borders
-			m.drawcoastlines()
-			m.drawstates()
-			m.drawcountries()
+		if limits[0]>180:limits[0]-=360
+		if limits[1]>180:limits[1]-=360
 
-			# add polygons
-			if polygons is None and hasattr(SELF.outer_self,'_adm_polygons'):
-				polygons=SELF.outer_self._adm_polygons
-				for index in polygons.keys():
-					m.plot(polygons[index]['x'],polygons[index]['y'],color='black',linewidth=0.5)
 
-			# add colorbar
-			if color_bar==True:
-				cb = m.colorbar(im,'right', size="5%", pad="2%")
-				tick_locator = ticker.MaxNLocator(nbins=5)
-				cb.locator = tick_locator
-				cb.update_ticks()
-				cb.set_label(color_label, rotation=90)
+		m = Basemap(ax=ax,llcrnrlon=limits[0],urcrnrlon=limits[1],llcrnrlat=limits[2],urcrnrlat=limits[3],resolution="l",projection='cyl')
+		m.drawmapboundary(fill_color='1.')
 
-			ax.set_title(title.replace('_',' '))
+		# get color_range
+		if color_range is None:
+			color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
 
-			if out_file is None and show==True:plt.show()
-			if out_file is not None:plt.savefig(out_file)
+		x,y=lon.copy(),lat.copy()
+		x-=np.diff(x,1)[0]/2.
+		y-=np.diff(y,1)[0]/2.
+		x=np.append(x,[x[-1]+np.diff(x,1)[0]])
+		y=np.append(y,[y[-1]+np.diff(y,1)[0]])
+		x,y=np.meshgrid(x,y)
+		im = m.pcolormesh(x,y,np.ma.masked_invalid(to_plot),cmap=color_palette,vmin=color_range[0],vmax=color_range[1])
 
-			return(im,color_range)
 
-	def display_map(SELF,period=None,method='mean',time=None,color_bar=True,color_label=None,color_palette=None,color_range=None,grey_area=None,limits=None,ax=None,out_file=None,title=None,polygons=None,season='year',show_agreement=True):
+		# mask some grid-cells
+		if grey_area is not None:
+			to_plot=grey_area.copy()
+			to_plot[to_plot==0]=0.5
+			to_plot[to_plot==1]=np.nan
+			to_plot=np.ma.masked_invalid(to_plot)
+			im2 = m.pcolormesh(x,y,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
+
+		# show coastlines and borders
+		m.drawcoastlines()
+		m.drawstates()
+		m.drawcountries()
+
+		# add polygons
+		if polygons is None and hasattr(SELF.outer_self,'_adm_polygons'):
+			polygons=SELF.outer_self._adm_polygons
+			for index in polygons.keys():
+				m.plot(polygons[index]['x'],polygons[index]['y'],color='black',linewidth=0.5)
+
+		# add colorbar
+		if color_bar==True:
+			cb = m.colorbar(im,'right', size="5%", pad="2%")
+			tick_locator = ticker.MaxNLocator(nbins=5)
+			cb.locator = tick_locator
+			cb.update_ticks()
+			cb.set_label(color_label, rotation=90)
+
+		ax.set_title(title.replace('_',' '))
+
+		if out_file is None and show==True:plt.show()
+		if out_file is not None:plt.savefig(out_file)
+
+		return(im,color_range)
+
+	def display_map(SELF,period=None,method='mean',season='year',show_agreement=True,limits=None,ax=None,out_file=None,title=None,polygons=None,color_bar=True,color_label=None,color_palette=None,color_range=None,time=None):
 		'''
 		plot maps of data. 
-		meta_data: list of strs: meta information required to acces data
-		source: str: default='_data'. if masks are to be plotted, specify source='_masks'
 		period: str: if  the averag over a period is to be plotted specify the period name
-		time: int: index in time axis of data (to be plotted)
-		color_bar: logical: if True, color-scale is plotted besides the map
-		color_label: str: label of the color-scale
-		color_palette: plt.cm. object: colors used
-		color_range: [float,float]: minimal and maximal value on color-scale
-		limits: [lon_min,lon_max,lat_min,lat_max]: extend of the map
-		ax: subplot: subplot on which the map will be plotted
-		out_file: str: location where the plot is saved
-		title: str: title of the plot
-		show: logical: show the subplot?
+		method: str: 'mean' for period mean. 'custom_name' for frequency above/below threshold (see period_statistcs())
+		season: str: name of the season
+		show_agreement: bool: if True, if ensemble_mean is plotted, model-disagreement is masked in gray
+		see plot_map() for remaining kwargs
 		'''
 
-		# this prepares plotting
+		grey_area=None
 
 		if period is None:
 			if time is None:
@@ -1498,6 +1538,7 @@ class country_data_object(object):
 				if period in SELF.agreement[method][season].keys():
 					grey_area=SELF.agreement[method][season][period].copy()
 					grey_area[np.isfinite(mask)==False]=1
+				
 
 		if len(np.where(np.isfinite(to_plot)==False)[0])==len(to_plot.flatten()):
 			print 'nothing to plot here'
@@ -1534,7 +1575,14 @@ class country_data_object(object):
 		im,color_range=SELF.plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons)
 		return(im,color_range)
 
-	def display_mask(SELF,mask_style=None):
+	def display_mask(SELF,mask_style=None,region=None):
+		'''
+		show a map of the used mask
+		mask_style: str: mask_style to be shown (see create_mask_country or create_mask_admin)
+		region: str: region to be shown
+		'''
+
+		if region is None:	region=SELF._iso
 
 		outer_self=SELF.outer_self
 		if mask_style is None:
@@ -1543,12 +1591,19 @@ class country_data_object(object):
 			mask_style=mask_styles[0]
 			print 'mask_style: '+mask_style+'\nother available mask_styles: '+', '.join(mask_styles[1:-1])
 
-
-		toplo=outer_self._masks[SELF.grid][mask_style][outer_self._iso]
-		lat=outer_self._masks[SELF.grid]['lat_mask'].copy()
-		lon=outer_self._masks[SELF.grid]['lon_mask'].copy()
-
-		SELF.plot_map(toplo,lat,lon,title=SELF.grid+' '+mask_style,color_label='importance for area average',color_palette=plt.cm.plasma)
+		try:
+			to_plot=outer_self._masks[SELF.grid][mask_style][region]
+			lat=outer_self._masks[SELF.grid]['lat_mask'].copy()
+			lon=outer_self._masks[SELF.grid]['lon_mask'].copy()
+			half_lon_step=abs(np.diff(lon.copy(),1)[0]/2)
+			half_lat_step=abs(np.diff(lat.copy(),1)[0]/2)
+			cou_mask=outer_self._masks[SELF.grid][mask_style][SELF._iso]
+			relevant_lats=lat[np.where(np.isfinite(cou_mask))[0]]
+			relevant_lons=lon[np.where(np.isfinite(cou_mask))[1]]
+			limits=[np.min(relevant_lons)-half_lon_step,np.max(relevant_lons)+half_lon_step,np.min(relevant_lats)-half_lat_step,np.max(relevant_lats)+half_lat_step]
+			SELF.plot_map(to_plot,lat,lon,title=SELF.grid+' '+mask_style,color_label='importance for area average',color_palette=plt.cm.plasma,limits=limits)
+		except:
+			print 'no mask has been created for '+mask_style+' and '+region
 
 	def plot_transients(SELF,mask_style='lat_weighted',season='year',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None,x_range=[1960,2100]):
 		'''
@@ -1587,7 +1642,6 @@ class country_data_object(object):
 				return(0)
 
 		
-
 		ax.plot(SELF.plot_time[relevenat_time_steps],pd.DataFrame(SELF.area_average[mask_style][region][relevenat_time_steps]).rolling(running_mean).mean()[0],linestyle='-',label=label,color=color)
 
 		if hasattr(SELF,'model'):
@@ -1618,78 +1672,6 @@ class country_data_object(object):
 
 		if x_range is not None:
 			ax.set_xlim(x_range)
-		
-		if show==True:ax.legend(loc='best')
-		if out_file is None and show==True:plt.show()
-		if out_file is not None:plt.savefig(out_file)
-
-		return(1)
-
-	def plot_transients_old(SELF,mask_style='lat_weighted',season='year',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None):
-		'''
-		plot transient of countrywide average
-		mask_style: str: weighting used to compute countrywide averages
-		running_mean: int: years to be averaged in moving average		
-		ax: subplot: subplot on which the map will be plotted
-		out_file: str: location where the plot is saved
-		title: str: title of the plot
-		ylabel: str: labe to put on y-axis
-		show: logical: show the subplot?
-		'''
-
-		if ax is not None:
-			show=False
-
-		if ax is None:
-			show=True
-			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
-
-		if region is None:
-			region=SELF.outer_self._iso
-
-		if SELF.time_format=='monthly':
-			running_mean=running_mean_years*len(SELF.outer_self._seasons[season])
-			relevenat_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
-
-		if SELF.time_format=='10day':
-			running_mean=running_mean_years*len(SELF.outer_self._seasons[season])*3
-			relevenat_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
-
-		if SELF.time_format=='yearly':
-			running_mean=running_mean_years
-			relevenat_time_steps=range(len(SELF.year))
-			if season!='year':
-				return(0)
-
-
-
-		ax.plot(SELF.plot_time[relevenat_time_steps],pd.DataFrame(SELF.area_average[mask_style][region][relevenat_time_steps]).rolling(running_mean).mean()[0],linestyle='-',label=label,color=color)
-
-		if hasattr(SELF,'model'):
-			if SELF.model=='ensemble_mean':
-				ensemble=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])
-
-				relevenat_time_steps=ensemble['mean'].get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
-				time_axis=ensemble['mean'].time_stamp_num[relevenat_time_steps]
-
-				ensemble_range=np.zeros([len(ensemble['models'].values()),len(time_axis)])*np.nan
-
-				for member,i in zip(ensemble['models'].values(),range(len(ensemble['models'].values()))):
-					relevenat_time_steps=member.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
-					member_runmean=np.array(pd.DataFrame(member.area_average[mask_style][region][relevenat_time_steps]).rolling(running_mean).mean()[0])
-					for t in member.time_stamp_num[relevenat_time_steps]:
-						ensemble_range[i,np.where(time_axis==t)]=member_runmean[np.where(member.time_stamp_num[relevenat_time_steps]==t)]
-					#ax.plot(member.time_stamp,pd.DataFrame(member.area_average[mask_style][region]).rolling(running_mean).mean()[0],linestyle='-',label=label,color='blue',linewidth=0.5)
-
-				ax.fill_between(time_axis,np.percentile(ensemble_range,0,axis=0),np.percentile(ensemble_range,100,axis=0),alpha=0.25,color=color)
-
-		if ylabel is None:ylabel=SELF.var_name.replace('_',' ')
-		ax.set_ylabel(ylabel)
-		if title is None:title=SELF.name.replace('_',' ')
-		ax.set_title(title)
-
-		if y_range is not None:
-			ax.set_ylim(y_range)
 		
 		if show==True:ax.legend(loc='best')
 		if out_file is None and show==True:plt.show()
