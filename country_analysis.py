@@ -52,7 +52,7 @@ class country_analysis(object):
 		self._seasons=seasons
 
 		self._masks={}
-		self._small_masks={}
+		self._grid_dict={}
 		self._DATA=[]
 		self._regions={}
 
@@ -123,18 +123,12 @@ class country_analysis(object):
 							if 'unidecode' not in sys.modules:
 								data.area_average[mask_style][key]=np.array(table[key])
 
-		try:
-			# try to load polygons of adm regions for plotting
-			self._adm_polygons={}
-			m = Basemap()
-			m.readshapefile(self._working_directory+'/masks/'+self._iso+'_adm1', 'admin', drawbounds=False)
-			count=0			
-			for shape in m.admin:	
-				x,y=Polygon(shape).exterior.xy
-				self._adm_polygons[count]={'x':x,'y':y}
-				count+=1
-		except:
-			pass
+
+
+
+		# try to load polygons of adm regions for plotting
+		try:self._adm_polygons=self.get_admin_polygons(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1')
+		except:pass
 
 	def get_historical_extreme_events(self,path):
 		'''
@@ -269,7 +263,7 @@ class country_analysis(object):
 							if np.nanmean(data.area_average[mask_style][region])>100:
 								data.area_average[mask_style][region]-=273.15
 
-	def get_warming_slices(self,GMT_path,warming_lvls=[1.5,2,2.5,3],ref_period=[1986,2006],warming_of_ref_period=0.61 ,model_real_names=None):
+	def get_warming_slices(self,warming_lvls=[1.5,2,2.5,3],ref_period=[1986,2006],model_real_names=None,wlcalculator_path='/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/'):
 		'''
 		get model specific periods corresponding to global mean temperature warming levels
 		GMT_path: path: Path to GMT files (wlcalculator)
@@ -278,6 +272,12 @@ class country_analysis(object):
 		warming_of_ref_period: float: GMT of reference period in deg C above preindustrial
 		model_real_names: dict: exact names of models {'given model name in country_analysis class':'corresponding model name in GMT files'}
 		'''
+
+		current_path=os.getcwd()
+		os.chdir(wlcalculator_path)
+		import wacalc.CmipData as CmipData; reload(CmipData)
+		import wacalc.hadcrut_warming as hadcrut_warming; reload(hadcrut_warming)
+
 		self._warming_slices={}
 		for data in self._DATA:
 			if hasattr(data,'model'):
@@ -289,35 +289,18 @@ class country_analysis(object):
 						# model names from cordex are not explicit!
 						if model_real_names is not None:		model_name=model_real_names[data.model]
 						if model_real_names is None:		model_name=data.model.lower()
-						GMT=glob.glob(GMT_path+model_name+'.'+data.scenario+'.r1i*')
-						if len(GMT)>0:
-							nc_in=Dataset(GMT[0],"r")
-							# handle time information
-							time=nc_in.variables['time'][:]
-							year=time/12
-							# GMT
-							GMT = nc_in.variables['tas_global'][:]	
-							ave_window=20
-							rmean=GMT.copy()*np.nan
-							for i in range(19,len(rmean)):
-								#print i-ave_window+1,i
-								rmean[i]=GMT[i-ave_window:i].mean()
-							try:
-								ref_warming=rmean[np.where(year==ref_period[1])[0]][0]
-							except:
-								ref_warming=rmean[np.where(year==ref_period[1])[0]]
-							rmean=rmean-ref_warming
 
-							self._warming_slices[data.model][data.scenario]['ref']=ref_period
-							for change in warming_lvls:
-								# is this the warming level of the referene period?
-								change_to_ref=change-warming_of_ref_period
-								closest=np.nanargmin(abs(rmean-change_to_ref))
-								print data.model,change_to_ref,np.nanmin(abs(rmean-change_to_ref)),year[closest],rmean[closest]
-								if np.nanmin(abs(rmean-change_to_ref))<0.1:
-									print 'selected'
-									self._warming_slices[data.model][data.scenario][str(change)]=[year[closest]-20,year[closest]]
+						scenario=data.scenario.replace('4p5','45').replace('2p6','26').replace('6p0','60').replace('8p5','85')
 
+						cmipdata = CmipData.CmipData('CMIP5',[model_name],[scenario])
+						cmipdata.get_cmip()
+						cmipdata.compute_period( ref_period, [1850,1900], warming_lvls, window=19)
+						lvls=cmipdata.exceedance_tm
+
+						for wlvl in lvls.wlevel:
+							self._warming_slices[data.model][data.scenario][wlvl]=[lvls[scenario][wlvl]-20,lvls[scenario][wlvl]]
+
+		os.chdir(current_path)
 
 	###########
 	# masks
@@ -418,6 +401,38 @@ class country_analysis(object):
 		self._masks[grid]['lon_mask']=lon
 
 		return grid_polygons,shift
+
+	def get_admin_polygons(self,shape_file):
+		# load shape file
+		m = Basemap()
+		m.readshapefile(shape_file, 'admin', drawbounds=False)
+
+		# collect all shapes of region
+		region_polygons={}
+		count=0			
+		for shape, region in zip(m.admin, m.admin_info):
+			region = {k.lower():v for k,v in region.items()}	
+			name = region['name_1']
+			if name in region_polygons.keys():
+				region_polygons[name] = \
+				region_polygons[name].symmetric_difference(Polygon(shape))
+			else:
+				region_polygons[name] = Polygon(shape)
+
+		return region_polygons
+
+	def merge_adm_regions(self,region_names,new_region_name=None):
+		if new_region_name is None:
+			new_region_name='_'.join(sorted(region_names))
+		self._adm_polygons[new_region_name]=self._adm_polygons[region_names[0]]
+		for region in region_names[1:]:
+			self._adm_polygons[new_region_name] = \
+			self._adm_polygons[new_region_name].symmetric_difference(self._adm_polygons[region])
+
+	def get_region_area(self,region):
+		poly=self._adm_polygons[region]
+		lat=poly.centroid.xy[1][0]
+		return({'km2':poly.area*(12742./360.)**2*np.cos(np.radians(lat))*10,'latxlon':poly.area})
 
 	def regrid_pop_mask(self,grid,lon,lat,shift,pop_mask_file,mask_style):
 		'''
@@ -552,7 +567,7 @@ class country_analysis(object):
 
 			self.zoom_mask(grid,mask_style,self._iso)
 
-	def create_mask_admin(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file='',overwrite=False,lat_name='lat',lon_name='lon'):
+	def create_mask_admin(self,input_file,var_name,shape_file=None,mask_style='lat_weighted',pop_mask_file='',overwrite=False,lat_name='lat',lon_name='lon',regions=None):
 		'''
 		create country mask
 		input_file: str: location of example input data (required for the identification of the grid)
@@ -572,7 +587,10 @@ class country_analysis(object):
 		if mask_style not in self._masks[grid].keys():
 			self._masks[grid][mask_style]={}
 
-		mask_file=self._working_directory+'/masks/'+self._iso+'_admin_'+grid+'_'+mask_style+'.nc4'
+		if regions is None:
+			mask_file=self._working_directory+'/masks/'+self._iso+'_admin_'+grid+'_'+mask_style+'_all.nc4'
+		if regions is not None:
+			mask_file=self._working_directory+'/masks/'+self._iso+'_admin_'+grid+'_'+mask_style+'_'+'_'.join(regions)+'.nc4'
 
 		if os.path.isfile(mask_file) and overwrite==False:
  			self.load_masks(mask_file)
@@ -580,24 +598,14 @@ class country_analysis(object):
 		else:
 			grid_polygons,shift = self.get_grid_polygons(grid,lon,lat,lon_shift)
 			
-			# dopy shape file
-			os.system('cp '+shape_file+'* '+self._working_directory+'/masks/')
-
-			# load shape file
-			m = Basemap()
-			m.readshapefile(shape_file, 'admin', drawbounds=False)
-
-			# collect all shapes of region
-			region_polygons={}
-			count=0			
-			for shape, region in zip(m.admin, m.admin_info):
-				region = {k.lower():v for k,v in region.items()}	
-				name = region['name_1']
-				if name in region_polygons.keys():
-					region_polygons[name] = \
-					region_polygons[name].symmetric_difference(Polygon(shape))
-				else:
-					region_polygons[name] = Polygon(shape)
+			'''
+			not testes yet!!!
+			'''
+			# get admin polygons
+			if hasattr(self,'_adm_polygons')==False:
+				if shape_file is not None:	self._adm_polygons=self.get_admin_polygons(shape_file)
+				if shape_file is None: 		return('no shape_file specified')
+			region_polygons=self._adm_polygons
 
 			# get boundaries for faster computation
 			xs, ys = [], []
@@ -625,8 +633,13 @@ class country_analysis(object):
  			outVar = nc_mask.createVariable('lat', 'f', ('lat',)) ; outVar[:]=lat[:]	;	outVar.setncattr('units','deg south')
  			outVar = nc_mask.createVariable('lon', 'f', ('lon',)) ; outVar[:]=lon[:]	;	outVar.setncattr('units','deg east')
 
-			for name in region_polygons.keys():
-				print name
+ 			if regions is None:
+ 				selected_regions=region_polygons.keys()
+ 			if regions is not None:
+ 				selected_regions=regions
+
+			for name in selected_regions:
+				print name,region_polygons.keys()
 				region_shape = region_polygons[name]
 				self.grid_polygon_overlap(grid,lon, lat, grid_polygons, region_shape, shift, mask_style, ext_poly, name, pop_mask)
 				outVar = nc_mask.createVariable(name, 'f', ('lat','lon',),fill_value='NaN') ; outVar[:]=self._masks[grid][mask_style][name][:,:]
@@ -650,15 +663,19 @@ class country_analysis(object):
 
 		cou_mask=self._masks[grid][mask_style][self._iso]
 		lat_mean=np.mean(cou_mask,1)
-		lats=np.where(lat_mean!=0)
+		lats=np.where(lat_mean!=0)[0]
+		lat_=lat_mask[lats]
 
 		lon_mean=np.mean(cou_mask,0)
-		lons=np.where(lon_mean!=0)
+		lons=np.where(lon_mean!=0)[0]
+		lon_=lon_mask[lons]
 
-		if grid not in self._small_masks.keys():	self._small_masks[grid]={}
-		if mask_style not in self._small_masks[grid].keys():	self._small_masks[grid][mask_style]={}
+		small_grid=str(len(lat_))+'x'+str(len(lon_))+'_lat_'+str(lat_[0])+'_'+str(lat_[-1])+'_lon_'+str(lon_[0])+'_'+str(lon_[-1])
+		if small_grid not in self._masks.keys():	self._masks[small_grid]={}
+		if mask_style not in self._masks[small_grid].keys():	self._masks[small_grid][mask_style]={}
 
-		self._small_masks[grid][mask_style][region]=mask[np.ix_(list(lats[0]),list(lons[0]))]
+		self._masks[small_grid][mask_style][region]=mask[np.ix_(list(lats),list(lons))]
+		self._grid_dict[grid]=small_grid
 
 	###########
 	# raw data treatment
@@ -1012,7 +1029,7 @@ class country_analysis(object):
 
 				# get mask
 				for name in self._masks[data.grid][mask_style].keys():
-					mask=self._small_masks[data.grid][mask_style][name]
+					mask=self._masks[self._grid_dict[data.grid]][mask_style][name]
 
 					country_area=np.where(mask>0)
 
@@ -1028,7 +1045,7 @@ class country_analysis(object):
 				# save as csv 
 				country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index',encoding='utf-8')
 
-	def period_statistics(self,method='mean',threshold=None,below=False,selection=None,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]}):
+	def period_statistics(self,method='mean',threshold=None,below=False,selection=None,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},ref_name='ref'):
 		'''
 		computes time averages for each grid-cell for a given period. possible to compute mean or frequency above or below threshold
 		method: str: if 'mean', the period mean is computed. if frequency above threshold has to be calculated, method is a given name
@@ -1102,13 +1119,17 @@ class country_analysis(object):
 							data.period[method][sea][period_name]=np.zeros([data.raw.shape[1],data.raw.shape[2]])*np.nan
 
 				# period diff
-				for sea in data.period[method].keys():
-					for period_name in data.period[method][sea].keys():	
-						if period_name!='ref' and 'ref' in data.period[method][sea].keys() and period_name.split('_')[0]!='diff':
-							data.period[method][sea]['diff_'+period_name+'-'+'ref']=data.period[method][sea][period_name]-data.period[method][sea]['ref']
-							data.period[method][sea]['diff_relative_'+period_name+'-'+'ref']=(data.period[method][sea][period_name]-data.period[method][sea]['ref'])/data.period[method][sea]['ref']*100
+				self.period_statistic_diff(data,method,sea,ref_name=ref_name)
 
-	def period_model_agreement(self):
+	def period_statistic_diff(self,data,method,sea,ref_name='ref'):
+		# period diff
+		for sea in data.period[method].keys():
+			for period_name in data.period[method][sea].keys():	
+				if period_name!=ref_name and ref_name in data.period[method][sea].keys() and period_name.split('_')[0]!='diff':
+					data.period[method][sea]['diff_'+period_name+'-'+ref_name]=data.period[method][sea][period_name]-data.period[method][sea][ref_name]
+					data.period[method][sea]['diff_relative_'+period_name+'-'+ref_name]=(data.period[method][sea][period_name]-data.period[method][sea][ref_name])/data.period[method][sea][ref_name]*100
+
+	def period_model_agreement(self,ref_name='ref'):
 		'''
 		computes ensemble mean and model agreement for period means and frequencies
 		'''
@@ -1142,7 +1163,7 @@ class country_analysis(object):
 
 						# model agreement
 						for period in ensemble['mean'].period[method][sea].keys():
-							if len(period.split('-'))>1 and period.split('-')[-1]=='ref':
+							if len(period.split('-'))>1 and period.split('-')[-1]==ref_name:
 								agreement=ensemble['mean'].period[method][sea][period].copy()*0
 								for member in ensemble['models'].values():
 									agreement+=np.sign(member.period[method][sea][period])==np.sign(ensemble['mean'].period[method][sea][period])
@@ -1412,7 +1433,7 @@ class country_data_object(object):
 				relevenat_time_steps.append(yr)
 		return(relevenat_time_steps)		
 
-	def plot_map(SELF,to_plot,lat,lon,limits=None,ax=None,out_file=None,title='',polygons=None,grey_area=None,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None):
+	def plot_map(SELF,to_plot,lat,lon,limits=None,ax=None,out_file=None,title='',polygons=None,grey_area=None,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,highlight_region=None):
 		'''
 		this function creates a map
 		to_plot: np.ndarray: values to plot
@@ -1490,8 +1511,28 @@ class country_data_object(object):
 		# add polygons
 		if polygons is None and hasattr(SELF.outer_self,'_adm_polygons'):
 			polygons=SELF.outer_self._adm_polygons
-			for index in polygons.keys():
-				m.plot(polygons[index]['x'],polygons[index]['y'],color='black',linewidth=0.5)
+			for name in polygons.keys():
+				try: 
+					x,y=polygons[name].exterior.xy
+					m.plot(x,y,color='black',linewidth=0.5)
+				except:
+					for shape in polygons[name]:
+						x,y=shape.exterior.xy
+						m.plot(x,y,color='black',linewidth=0.5)
+
+			# highlight one region
+			if highlight_region is not None:
+				if highlight_region!=SELF._iso:
+					try: 
+						x,y=polygons[highlight_region].exterior.xy
+						m.plot(x,y,color='green',linewidth=1.2)
+						m.plot(x,y,color='magenta',linewidth=1.2,linestyle='--')
+					except:
+						for shape in polygons[highlight_region]:
+							x,y=shape.exterior.xy
+							m.plot(x,y,color='green',linewidth=1.2)		
+							m.plot(x,y,color='magenta',linewidth=1.2,linestyle='--')			
+
 
 		# add colorbar
 		if color_bar==True:
@@ -1508,7 +1549,7 @@ class country_data_object(object):
 
 		return(im,color_range)
 
-	def display_map(SELF,period=None,method='mean',season='year',show_agreement=True,limits=None,ax=None,out_file=None,title=None,polygons=None,color_bar=True,color_label=None,color_palette=None,color_range=None,time=None):
+	def display_map(SELF,period=None,method='mean',season='year',show_agreement=True,limits=None,ax=None,out_file=None,title=None,polygons=None,color_bar=True,color_label=None,color_palette=None,color_range=None,time=None,highlight_region=None):
 		'''
 		plot maps of data. 
 		period: str: if  the averag over a period is to be plotted specify the period name
@@ -1531,7 +1572,7 @@ class country_data_object(object):
 			if title is None:title=SELF.name+'_'+method+'_'+period+'_'+season
 
 			# mask 
-			mask=SELF.outer_self._small_masks[SELF.grid]['lat_weighted'][SELF.outer_self._iso].copy()
+			mask=SELF.outer_self._masks[SELF.outer_self._grid_dict[SELF.grid]]['lat_weighted'][SELF.outer_self._iso].copy()
 			to_plot[np.isfinite(mask)==False]=np.nan
 
 			if hasattr(SELF,'agreement') and show_agreement:
@@ -1543,7 +1584,6 @@ class country_data_object(object):
 		if len(np.where(np.isfinite(to_plot)==False)[0])==len(to_plot.flatten()):
 			print 'nothing to plot here'
 			return(None,None)
-
 
 
 		lat=SELF.lat.copy()
@@ -1572,7 +1612,7 @@ class country_data_object(object):
 				elif np.mean(color_range)>0:					color_palette=plt.cm.Blues_r
 
 
-		im,color_range=SELF.plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons)
+		im,color_range=SELF.plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons,highlight_region=highlight_region)
 		return(im,color_range)
 
 	def display_mask(SELF,mask_style=None,region=None):
