@@ -88,6 +88,8 @@ class country_analysis(object):
 				file_new=self._working_directory+'/masks'+file.split('masks')[-1]
 				if quiet==False:print file_new
 				self.load_masks(file_new)
+				
+		for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
 			if 'admin' in file.split('_'):
 				file_new=self._working_directory+'/masks'+file.split('masks')[-1]
 				if quiet==False:print file_new
