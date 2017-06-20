@@ -139,6 +139,7 @@ class country_analysis(object):
 
 
 		# try to load polygons of adm regions for plotting
+		self._adm_polygons=self.get_admin_polygons(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1')
 		try:self._adm_polygons=self.get_admin_polygons(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1')
 		except:pass
 
@@ -423,8 +424,12 @@ class country_analysis(object):
 		region_polygons={}
 		count=0			
 		for shape, region in zip(m.admin, m.admin_info):
-			region = {k.lower():v for k,v in region.items()}	
-			name = region['name_1']
+			region = {k.lower():v for k,v in region.items()}
+			print region['name_1']	
+			if 'unidecode' in sys.modules:
+				name = unidecode(region['name_1'].decode('utf-8'))
+			if 'unidecode' not in sys.modules:
+				name = region['name_1']
 			if name in region_polygons.keys():
 				region_polygons[name] = \
 				region_polygons[name].symmetric_difference(Polygon(shape))
