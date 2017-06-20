@@ -21,7 +21,7 @@ import seaborn as sns
 from matplotlib.colors import ListedColormap
 
 from matplotlib import rc
-#rc('text', usetex=True)
+rc('text', usetex=True)
 rc('font', family='Arial')
 
 try:
