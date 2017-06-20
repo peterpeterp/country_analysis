@@ -83,9 +83,15 @@ class country_analysis(object):
 		quiet: bool: if quiet, no file-names are printed
 		'''
 		for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
-			file_new=self._working_directory+'/masks'+file.split('masks')[-1]
-			if quiet==False:print file_new
-			self.load_masks(file_new)
+			if 'admin' not in file.split('_'):
+				file_new=self._working_directory+'/masks'+file.split('masks')[-1]
+				if quiet==False:print file_new
+				self.load_masks(file_new)
+		for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
+			if 'admin' in file.split('_'):
+				file_new=self._working_directory+'/masks'+file.split('masks')[-1]
+				if quiet==False:print file_new
+				self.load_masks(file_new)
 
 		for file in glob.glob(self._working_directory_raw+'/*'):
 			file_new=self._working_directory_raw+file.split('raw'+self._additional_tag)[-1]
@@ -415,7 +421,10 @@ class country_analysis(object):
 		count=0			
 		for shape, region in zip(m.admin, m.admin_info):
 			region = {k.lower():v for k,v in region.items()}	
-			name = region['name_1']
+			
+
+			if 'unidecode' in sys.modules: name = unidecode(region['name_1'].decode('utf-8'))
+			if 'unidecode' not in sys.modules: name = region['name_1']
 			if name in region_polygons.keys():
 				region_polygons[name] = \
 				region_polygons[name].symmetric_difference(Polygon(shape))
