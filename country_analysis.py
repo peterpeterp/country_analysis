@@ -430,7 +430,6 @@ class country_analysis(object):
 			if 'unidecode' in sys.modules: name = unidecode(region['name_1'].decode('utf-8'))
 			if 'unidecode' not in sys.modules: name = region['name_1']
 			region = {k.lower():v for k,v in region.items()}
-			print region['name_1']	
 			if 'unidecode' in sys.modules:
 				name = unidecode(region['name_1'].decode('utf-8'))
 			if 'unidecode' not in sys.modules:
@@ -1231,7 +1230,7 @@ class country_analysis(object):
 		self.period_statistics(method=method,threshold=threshold,below=True,selection=selection,periods=periods)
 		self.period_model_agreement()
 
-	def annual_cycle(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},mask_style='lat_weighted',selection=None):
+	def annual_cycle(self,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},mask_style='lat_weighted',selection=None,regions=None,ref_name='ref'):
 		'''
 		computes the annual cycle in different periods and regions using the averages from area_average()
 		periods: dict={'period_name':[start_year,end_year], ...}: start and end years of period
@@ -1247,6 +1246,9 @@ class country_analysis(object):
 			if 'ensemble_mean' in data.all_tags:
 				compute=False
 
+			if regions is None:
+				regions=self._masks[data.grid][mask_style].keys()
+
 			# handle warming slices and fixed periods
 			if depth(periods)==2:		
 				local_periods=periods
@@ -1260,7 +1262,8 @@ class country_analysis(object):
 				if mask_style not in data.annual_cycle.keys():		data.annual_cycle[mask_style]={}
 				#data.annual_cycle={key : val for key,val in zip(local_periods.keys(),local_periods.values())}
 
-				for region in self._regions.keys():
+				print regions
+				for region in regions:
 					if region not in data.annual_cycle[mask_style].keys():		
 						data.annual_cycle[mask_style][region]={}
 					for period_name,period in zip(local_periods.keys(),local_periods.values()):	
@@ -1275,13 +1278,16 @@ class country_analysis(object):
 						else:
 							data.annual_cycle[mask_style][region][period_name]=np.zeros([len(data.steps_in_year)])*np.nan
 						
-						# annual cycle diff
-						for period_name in data.annual_cycle[mask_style][region].keys():	
-							if period_name!='ref' and 'ref' in data.annual_cycle[mask_style][region].keys():
-								data.annual_cycle[mask_style][region]['diff_'+period_name+'-'+'ref']=data.annual_cycle[mask_style][region][period_name]-data.annual_cycle[mask_style][region]['ref']
-								data.annual_cycle[mask_style][region]['diff_relative_'+period_name+'-'+'ref']=(data.annual_cycle[mask_style][region][period_name]-data.annual_cycle[mask_style][region]['ref'])/data.annual_cycle[mask_style][region]['ref']*100
+						self.annual_cycle_diff(data=data,mask_style=mask_style,region=region,ref_name=ref_name)
 
-	def annual_cycle_ensemble_mean(self):
+		
+	def annual_cycle_diff(self,data,mask_style,region,ref_name='ref'):			
+		for period_name in data.annual_cycle[mask_style][region].keys():	
+			if period_name!=ref_name and ref_name in data.annual_cycle[mask_style][region].keys():
+				data.annual_cycle[mask_style][region]['diff_'+period_name+'-'+ref_name]=data.annual_cycle[mask_style][region][period_name]-data.annual_cycle[mask_style][region][ref_name]
+				data.annual_cycle[mask_style][region]['diff_relative_'+period_name+'-'+ref_name]=(data.annual_cycle[mask_style][region][period_name]-data.annual_cycle[mask_style][region][ref_name])/data.annual_cycle[mask_style][region][ref_name]*100
+
+	def annual_cycle_ensemble_mean(self,regions=None):
 		'''
 		computes time averages for each grid-cell for a given period
 		'''
@@ -1306,7 +1312,9 @@ class country_analysis(object):
 					if hasattr(ensemble['mean'],'annual_cycle')==False:			ensemble['mean'].annual_cycle={}
 					for mask_style in member.annual_cycle.keys():
 						if mask_style not in ensemble['mean'].annual_cycle.keys():		ensemble['mean'].annual_cycle[mask_style]={}
-						for region in self._regions.keys():
+						if regions is None:
+							regions=self._masks[data.grid][mask_style].keys()
+						for region in regions:
 							ensemble['mean'].annual_cycle[mask_style][region]={}
 							for period in member.annual_cycle[mask_style][region].keys():
 								ensemble['mean'].annual_cycle[mask_style][region][period]=np.nanmean(np.vstack([member.annual_cycle[mask_style][region][period] for member in ensemble['models'].values()]),axis=0)
