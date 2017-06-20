@@ -139,7 +139,6 @@ class country_analysis(object):
 
 
 		# try to load polygons of adm regions for plotting
-		self._adm_polygons=self.get_admin_polygons(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1')
 		try:self._adm_polygons=self.get_admin_polygons(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1')
 		except:pass
 
