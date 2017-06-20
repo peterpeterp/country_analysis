@@ -1,3 +1,5 @@
+
+# -*- coding: utf-8 -*-
 '''
 Class to analyze climate data on national (& sub national) scale
 Peter Pfleiderer
@@ -20,6 +22,7 @@ from matplotlib.colors import ListedColormap
 
 from matplotlib import rc
 rc('text', usetex=True)
+rc('font', family='Arial')
 
 try:
 	from unidecode import unidecode
@@ -423,11 +426,16 @@ class country_analysis(object):
 
 	def merge_adm_regions(self,region_names,new_region_name=None):
 		if new_region_name is None:
-			new_region_name='_'.join(sorted(region_names))
+			single_regions=[]
+			for region in region_names:
+				for split in region.split('+'):
+					single_regions.append(split)
+			new_region_name='+'.join(sorted(single_regions))
 		self._adm_polygons[new_region_name]=self._adm_polygons[region_names[0]]
 		for region in region_names[1:]:
 			self._adm_polygons[new_region_name] = \
 			self._adm_polygons[new_region_name].symmetric_difference(self._adm_polygons[region])
+		return new_region_name
 
 	def get_region_area(self,region):
 		poly=self._adm_polygons[region]
@@ -989,7 +997,7 @@ class country_analysis(object):
 	# analysis tools
 	###########
 
-	def area_average(self,mask_style='lat_weighted',selection=None,overwrite=False):
+	def area_average(self,mask_style='lat_weighted',selection=None,overwrite=False,regions=None):
 		'''
 		compute or load countrywide (and region-wide) averages
 		mask_style: str: weighting used to compute countrywide averages
@@ -1000,16 +1008,19 @@ class country_analysis(object):
 			selection=self._DATA
 
 		for data in selection:
-			# check if file has been saved
 			out_file=self._working_directory+'/area_average/country_mean-'+data.name+'-'+mask_style+'.csv'
+
+			if regions is None:
+				regions=self._masks[data.grid][mask_style].keys()
+
 			if mask_style not in data.area_average.keys():	data.area_average[mask_style]={}
 			data.area_average[mask_style]['out_file']=out_file
 
 			if os.path.isfile(out_file) and overwrite==False:
-				table=pd.read_csv(out_file,sep=';')
-				for key in table.keys():
+				country_mean_csv=pd.read_csv(out_file,sep=';')
+				for key in country_mean_csv.keys():
 					if key not in ['time','year','month']:
-						data.area_average[mask_style][key]=np.array(table[key])
+						data.area_average[mask_style][key]=np.array(country_mean_csv[key])
 
 			else:
 				# prepare table
@@ -1019,16 +1030,17 @@ class country_analysis(object):
 				country_mean_csv['year']=data.year
 				country_mean_csv['day']=data.day
 
-				# load input data
-				var_in=data.raw.copy()			
-				try:	# handle masked array
-					masked=np.ma.getmask(var_in)
-					var_in=np.ma.getdata(var_in)
-					var_in[masked]=np.nan
-				except: pass
+			# load input data
+			var_in=data.raw.copy()			
+			try:	# handle masked array
+				masked=np.ma.getmask(var_in)
+				var_in=np.ma.getdata(var_in)
+				var_in[masked]=np.nan
+			except: pass
 
-				# get mask
-				for name in self._masks[data.grid][mask_style].keys():
+			# get mask
+			for name in regions:
+				if name not in data.area_average[mask_style].keys():
 					mask=self._masks[self._grid_dict[data.grid]][mask_style][name]
 
 					country_area=np.where(mask>0)
@@ -1042,8 +1054,9 @@ class country_analysis(object):
 							data.area_average[mask_style][name][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
 			
 					country_mean_csv[name]=data.area_average[mask_style][name]
-				# save as csv 
-				country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index',encoding='utf-8')
+					
+			# save as csv 
+			country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index',encoding='utf-8')
 
 	def period_statistics(self,method='mean',threshold=None,below=False,selection=None,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},ref_name='ref'):
 		'''
@@ -1433,7 +1446,7 @@ class country_data_object(object):
 				relevenat_time_steps.append(yr)
 		return(relevenat_time_steps)		
 
-	def plot_map(SELF,to_plot,lat,lon,limits=None,ax=None,out_file=None,title='',polygons=None,grey_area=None,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,highlight_region=None):
+	def plot_map(SELF,to_plot,limits=None,ax=None,out_file=None,title='',polygons=None,grey_area=None,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,highlight_region=None,show_region_names=False,show_merged_region_names=False):
 		'''
 		this function creates a map
 		to_plot: np.ndarray: values to plot
@@ -1453,6 +1466,13 @@ class country_data_object(object):
 		if ax is None: show=True
 		if ax is not None: show=False
 
+		lat=SELF.lat.copy()
+		lon=SELF.lon.copy()
+
+		if to_plot=='empty':
+			to_plot=np.zeros([len(lat),len(lon)])*np.nan
+			color_range=[0,1]
+
 		if ax is None:
 			asp=(len(lon)/float(len(lat)))**0.5
 			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3*asp+1,3/asp))		
@@ -1462,9 +1482,7 @@ class country_data_object(object):
 		if limits is None:
 			half_lon_step=abs(np.diff(lon.copy(),1)[0]/2)
 			half_lat_step=abs(np.diff(lat.copy(),1)[0]/2)
-			relevant_lats=lat[np.where(np.isfinite(to_plot))[0]]
-			relevant_lons=lon[np.where(np.isfinite(to_plot))[1]]
-			limits=[np.min(relevant_lons)-half_lon_step,np.max(relevant_lons)+half_lon_step,np.min(relevant_lats)-half_lat_step,np.max(relevant_lats)+half_lat_step]
+			limits=[np.min(lon)-half_lon_step,np.max(lon)+half_lon_step,np.min(lat)-half_lat_step,np.max(lat)+half_lat_step]
 
 
 		# handle 0 to 360 lon
@@ -1515,10 +1533,21 @@ class country_data_object(object):
 				try: 
 					x,y=polygons[name].exterior.xy
 					m.plot(x,y,color='black',linewidth=0.5)
-				except:
+					if show_region_names:
+						if show_merged_region_names or len(name.split('+'))==1:
+							ctr=polygons[name].centroid.xy
+							plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)
+				except Exception,e: 
+					print str(e)
+					areas=[]
 					for shape in polygons[name]:
+						areas.append(shape.area)
 						x,y=shape.exterior.xy
 						m.plot(x,y,color='black',linewidth=0.5)
+					if show_region_names:
+						if show_merged_region_names or len(name.split('+'))==1:
+							ctr=polygons[name][areas.index(max(areas))].centroid.xy
+							plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)					
 
 			# highlight one region
 			if highlight_region is not None:
@@ -1549,7 +1578,7 @@ class country_data_object(object):
 
 		return(im,color_range)
 
-	def display_map(SELF,period=None,method='mean',season='year',show_agreement=True,limits=None,ax=None,out_file=None,title=None,polygons=None,color_bar=True,color_label=None,color_palette=None,color_range=None,time=None,highlight_region=None):
+	def display_map(SELF,period=None,method='mean',season='year',show_agreement=True,limits=None,ax=None,out_file=None,title=None,polygons=None,color_bar=True,color_label=None,color_palette=None,color_range=None,time=None,highlight_region=None,show_region_names=False,show_merged_region_names=False):
 		'''
 		plot maps of data. 
 		period: str: if  the averag over a period is to be plotted specify the period name
@@ -1585,9 +1614,6 @@ class country_data_object(object):
 			print 'nothing to plot here'
 			return(None,None)
 
-
-		lat=SELF.lat.copy()
-		lon=SELF.lon.copy()
 		if color_label is None:color_label=SELF.var_name.replace('_',' ')
 
 		if color_range is None:
@@ -1612,7 +1638,7 @@ class country_data_object(object):
 				elif np.mean(color_range)>0:					color_palette=plt.cm.Blues_r
 
 
-		im,color_range=SELF.plot_map(to_plot,lat,lon,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons,highlight_region=highlight_region)
+		im,color_range=SELF.plot_map(to_plot,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons,highlight_region=highlight_region,show_region_names=show_region_names,show_merged_region_names=show_merged_region_names)
 		return(im,color_range)
 
 	def display_mask(SELF,mask_style=None,region=None):

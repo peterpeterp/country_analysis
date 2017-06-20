@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import sys,glob,os,pickle
 import numpy as np
 from netCDF4 import Dataset,netcdftime,num2date
@@ -28,10 +29,18 @@ BEN.area_average(selection=tas,mask_style='lat_weighted')
 BEN.unit_conversions()
 
 
+BEN.area_average('lat_weighted',overwrite=False)
+
+BEN.merge_adm_regions(['Mono','Kouffo'])
+BEN.create_mask_admin(tas[0].raw_file,'tas',regions=['Kouffo+Mono'])
+BEN.area_average('lat_weighted',overwrite=False,regions=['Kouffo+Mono'])
+
+#tas[0].plot_map(to_plot='empty',show_region_names=True,color_bar=False)
+
 #BEN.period_statistics(periods={'badf':[1980,2000],'dasdas':[2000,2020]})
 
-BEN.get_region_area('Atakora')
+# BEN.get_region_area('Atakora')
 
-BEN.get_warming_slices(warming_lvls=[1.5,2,2.5,3],ref_period=[1986,2006],model_real_names={'IPSL':'ipsl-cm5a-lr','HADGEM2':'hadgem2-es','ECEARTH':'ec-earth','MPIESM':'mpi-esm-lr'},wlcalculator_path='/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/')
+# BEN.get_warming_slices(warming_lvls=[1.5,2,2.5,3],ref_period=[1986,2006],model_real_names={'IPSL':'ipsl-cm5a-lr','HADGEM2':'hadgem2-es','ECEARTH':'ec-earth','MPIESM':'mpi-esm-lr'},wlcalculator_path='/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/')
 
-print BEN._warming_slices
+# print BEN._warming_slices
