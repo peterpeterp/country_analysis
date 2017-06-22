@@ -10,19 +10,17 @@ import sys,glob,os,itertools,datetime,pickle
 import numpy as np
 from netCDF4 import Dataset,netcdftime,num2date
 import pandas as pd
-import random as random
 from mpl_toolkits.basemap import Basemap
 from shapely.geometry import Polygon, MultiPolygon
 import matplotlib.pylab as plt 
 import matplotlib as mpl
-from matplotlib import ticker
-from matplotlib.ticker import MaxNLocator
-import seaborn as sns
-from matplotlib.colors import ListedColormap
+
 
 from matplotlib import rc
 rc('text', usetex=True)
-rc('font', family='Arial')
+plt.rcParams["font.family"] = "sans-serif"
+plt.style.use('classic')
+
 
 try:
 	from unidecode import unidecode
@@ -402,13 +400,8 @@ class country_analysis(object):
 				#grid_polygons[i,j] = Polygon([(y1,x1),(y1,x2),(y2,x2),(y2,x1)])
 
 		# since the lon axis has been shifted, masks and outputs will have to be shifted as well. This shift is computed here
-		print lon
-		print lon_shift
 		lon-=lon_shift
-		print lon
-		print len(lon)
 		shift = len(lon)-np.where(lon==lon[0]-lon_shift)[0][0]
-		print shift
 
 		self._masks[grid]['lat_mask']=lat
 		self._masks[grid]['lon_mask']=lon
@@ -1073,6 +1066,10 @@ class country_analysis(object):
 			
 					country_mean_csv[name]=data.area_average[mask_style][name]
 					
+			# delete index columns
+			for key in country_mean_csv.keys():
+				if key.split('.')[0]=='index': country_mean_csv.drop(key, axis=1, inplace=True)
+
 			# save as csv 
 			country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index',encoding='utf-8')
 
@@ -1593,7 +1590,7 @@ class country_data_object(object):
 		# add colorbar
 		if color_bar==True:
 			cb = m.colorbar(im,'right', size="5%", pad="2%")
-			tick_locator = ticker.MaxNLocator(nbins=5)
+			tick_locator = mpl.ticker.MaxNLocator(nbins=5)
 			cb.locator = tick_locator
 			cb.update_ticks()
 			cb.set_label(color_label, rotation=90)
@@ -1753,7 +1750,7 @@ class country_data_object(object):
 						ensemble_range[i,np.where(time_axis==t)]=member_runmean[np.where(member.time_stamp_num[relevenat_time_steps]==t)]
 					#ax.plot(member.time_stamp,pd.DataFrame(member.area_average[mask_style][region]).rolling(running_mean)[0],linestyle='-',label=label,color='blue',linewidth=0.5)
 
-				ax.fill_between(time_axis,np.percentile(ensemble_range,0,axis=0),np.percentile(ensemble_range,100,axis=0),alpha=0.25,color=color)
+				ax.fill_between(time_axis,np.percentile(ensemble_range,0,axis=0),np.percentile(ensemble_range,100,axis=0),alpha=0.20,color=color)
 
 		if ylabel is None:ylabel=SELF.var_name.replace('_',' ')
 		ax.set_ylabel(ylabel)
@@ -1805,7 +1802,7 @@ class country_data_object(object):
 				ensemble=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])
 				ensemble_annual_cycle=np.vstack([member.annual_cycle[mask_style][region][period] for member in ensemble['models'].values()])
 
-				ax.fill_between(SELF.steps_in_year,np.percentile(ensemble_annual_cycle,0./3.*100,axis=0),np.percentile(ensemble_annual_cycle,3./3.*100,axis=0),alpha=0.25,color=color)
+				ax.fill_between(SELF.steps_in_year,np.percentile(ensemble_annual_cycle,0./3.*100,axis=0),np.percentile(ensemble_annual_cycle,3./3.*100,axis=0),alpha=0.20,color=color)
 
 
 		if xlabel==True:

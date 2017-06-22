@@ -13,7 +13,7 @@ os.chdir('/Users/peterpfleiderer/Documents/')
 
 country_iso='BEN'
 
-COU=country_analysis(country_iso,'Projects/country_analysis/'+country_iso+'/')
+COU=country_analysis(country_iso,'Projects/country_analysis/data/'+country_iso+'/')
 COU.load_data()
 
 # for data in COU.selection(['RX5']): data.year_max('year_RX5')
