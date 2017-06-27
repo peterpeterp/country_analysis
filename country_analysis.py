@@ -68,12 +68,14 @@ class country_analysis(object):
 		Prepares a compressed tar 
 		subfolder: str: name of the sub-folder that has to be compressed. If none, all the data for the country is compressed
 		'''
+		actual_path=os.getcwd()
 		os.chdir(self._working_directory)
 		os.chdir('../')
 		if subfolder is None:
-			os.system('tar -zcf '+self._working_directory[0:-1]+'.tar.gz '+self._working_directory.split('/')[-2])
+			os.system('tar -zcf '+self._iso+'.tar.gz '+self._iso)
 		else:
 			os.system('tar -zcf '+self._working_directory[0:-1]+'_'+subfolder+'.tar.gz '+self._working_directory.split('/')[-2]+'/'+subfolder)
+		os.chdir(actual_path)
 
 	def load_data(self,quiet=True):
 		'''
@@ -511,7 +513,10 @@ class country_analysis(object):
 			output[output==0]=np.nan
 			output=np.ma.masked_invalid(output)
 			# shift back to original longitudes
-			self._masks[grid][mask_style][name]=np.roll(output,shift,axis=1)		
+			self._masks[grid][mask_style][name]=np.roll(output,shift,axis=1)
+		else:
+			print 'something went wring with the mask'
+
 
 	def create_mask_country(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file='',overwrite=False,lat_name='lat',lon_name='lon'):
 		'''
@@ -556,7 +561,7 @@ class country_analysis(object):
 						country_polygons = Polygon(shape)
 
 			# get boundaries for faster computation
-			x1, x2, y1, y2 = country_polygons.bounds
+			x1, y1, x2, y2 = country_polygons.bounds
 			xmin, xmax, ymin, ymax = min([x1,x2]), max([x1,x2]), min([y1,y2]), max([y1,y2])
 			ext = [(xmin,ymin),(xmin,ymax),(xmax,ymax),(xmax,ymin),(xmin,ymin)]
 			ext_poly = Polygon(ext)
@@ -631,8 +636,8 @@ class country_analysis(object):
 			for name in region_polygons.keys():
 				bounds=region_polygons[name].bounds
 				xs.append(bounds[0])
-				xs.append(bounds[1])
-				ys.append(bounds[2])
+				xs.append(bounds[2])
+				ys.append(bounds[1])
 				ys.append(bounds[3])
 			xmin, xmax, ymin, ymax = min(xs), max(xs), min(ys), max(ys)
 			ext = [(xmin,ymin),(xmin,ymax),(xmax,ymax),(xmax,ymin),(xmin,ymin)]
@@ -1276,9 +1281,8 @@ class country_analysis(object):
 							data.annual_cycle[mask_style][region][period_name]=np.zeros([len(data.steps_in_year)])*np.nan
 						
 						self.annual_cycle_diff(data=data,mask_style=mask_style,region=region,ref_name=ref_name)
-
 		
-	def annual_cycle_diff(self,data,mask_style,region,ref_name='ref'):			
+	def annual_cycle_diff(self,data,mask_style,region,ref_name='ref'):
 		for period_name in data.annual_cycle[mask_style][region].keys():	
 			if period_name!=ref_name and ref_name in data.annual_cycle[mask_style][region].keys():
 				data.annual_cycle[mask_style][region]['diff_'+period_name+'-'+ref_name]=data.annual_cycle[mask_style][region][period_name]-data.annual_cycle[mask_style][region][ref_name]
@@ -1315,7 +1319,6 @@ class country_analysis(object):
 							ensemble['mean'].annual_cycle[mask_style][region]={}
 							for period in member.annual_cycle[mask_style][region].keys():
 								ensemble['mean'].annual_cycle[mask_style][region][period]=np.nanmean(np.vstack([member.annual_cycle[mask_style][region][period] for member in ensemble['models'].values()]),axis=0)
-
 
 class country_data_object(object):
 	'''
