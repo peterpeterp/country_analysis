@@ -22,26 +22,41 @@ sys.path.append(basepath)
 
 os.chdir(basepath)
 
-country_iso='SEN'
 
-COU=country_analysis(country_iso,'country_analysis/data/'+country_iso+'/')
-COU.load_data()
+all_isos=['AGO', 'DZA', 'EGY', 'GNQ', 'BEN', 'NGA', 'NER', 'ZWE', 'NAM', 'GNB', 'SWZ', 'GHA', 'COG', 'SLE', 'ETH', 'COM', 'ERI', 'CPV', 'LBR', 'LBY', 'LSO', 'UGA', 'RWA', 'SOM', 'MDG', 'CMR', 'TZA', 'BWA', 'SEN', 'TCD', 'GAB', 'BFA', 'MWI', 'MOZ', 'MRT', 'GMB', 'MLI', 'BDI', 'STP', 'DJI', 'GIN', 'ESH', 'KEN', 'MAR', 'COD', 'ZMB', 'ZAF', 'TGO', 'TUN', 'CAF', 'SSD', 'SDN', 'CIV']
 
+try:
+	job_id=int(os.environ["SLURM_ARRAY_TASK_ID"])
+	print 'job_id=',job_id
+	print job_id
+	isos=all_isos[(job_id*6):((job_id+1)*6)]
+	print isos
 
-
-if COU.selection(['year_RX5'])<2:
-	for data in COU.selection(['RX5']): data.year_max('year_RX5')
-	for data in COU.selection(['year_RX5','ensemble_mean']): COU._DATA.remove(data)
-	COU.ensemble_mean()
-
-COU.summary()	
-
-
-COU.area_average('lat_weighted',overwrite=False)
-# COU.area_average('pop2015_weighted',overwrite=False)
-# COU.area_average('pop1990_weighted',overwrite=False)
+except:
+	isos=['GRD']	
 
 
-COU.zip_it()
+for country_iso in isos:
+	print country_iso
+
+	COU=country_analysis(country_iso,'country_analysis/data/'+country_iso+'/')
+	COU.load_data(quiet=False)
+
+
+
+	if COU.selection(['year_RX5'])<2:
+		for data in COU.selection(['RX5']): data.year_max('year_RX5')
+		for data in COU.selection(['year_RX5','ensemble_mean']): COU._DATA.remove(data)
+		COU.ensemble_mean()
+
+	COU.summary()	
+
+
+	COU.area_average('lat_weighted',overwrite=True)
+	# COU.area_average('pop2015_weighted',overwrite=False)
+	# COU.area_average('pop1990_weighted',overwrite=False)
+
+
+	COU.zip_it()
 
 

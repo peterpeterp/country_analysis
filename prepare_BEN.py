@@ -12,24 +12,6 @@ from country_analysis import country_analysis
 sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
 
 
-all_isos=['AGO', 'DZA', 'EGY', 'GNQ', 'BEN', 'NGA', 'NER', 'ZWE', 'NAM', 'GNB', 'SWZ', 'GHA', 'COG', 'SLE', 'ETH', 'COM', 'ERI', 'CPV', 'LBR', 'LBY', 'LSO', 'UGA', 'RWA', 'SOM', 'MDG', 'CMR', 'TZA', 'BWA', 'SEN', 'TCD', 'GAB', 'BFA', 'MWI', 'MOZ', 'MRT', 'GMB', 'MLI', 'BDI', 'STP', 'DJI', 'GIN', 'ESH', 'KEN', 'MAR', 'COD', 'ZMB', 'ZAF', 'TGO', 'TUN', 'CAF', 'SSD', 'SDN', 'CIV']
-#all_isos=['EGY', 'GNQ', 'ZWE', 'NAM', 'SWZ', 'COG', 'ETH', 'COM', 'ERI', 'CPV', 'UGA', 'RWA', 'SOM', 'MDG', 'CMR', 'TZA', 'SEN', 'MWI', 'MOZ', 'STP', 'ESH', 'KEN', 'MAR', 'COD', 'ZAF', 'CAF', 'SSD', 'SDN']
-
-# # ##############
-# # # Pre-Prepare
-# # ##############
-# for country_iso in all_isos:
-# 	print country_iso
-# 	COU=country_analysis(country_iso,'/p/projects/tumble/carls/shared_folder/country_analysis/data/'+country_iso+'/',additional_tag='')
-
-# 	os.chdir(COU._working_directory)
-# 	#os.system('wget biogeo.ucdavis.edu/data/gadm2.8/shp/'+country_iso+'_adm_shp.zip')
-# 	os.system('mkdir '+country_iso+'_adm_shp')
-# 	os.system('ls')
-# 	os.chdir(COU._working_directory+country_iso+'_adm_shp')
-# 	os.system('unzip ../'+country_iso+'_adm_shp.zip')
-
-
 try:
 	job_id=int(os.environ["SLURM_ARRAY_TASK_ID"])
 	print 'job_id=',job_id
@@ -38,12 +20,12 @@ try:
 	print isos
 
 except:
-	isos=['GRD']	
+	isos=['BEN']	
 
 for country_iso in isos:
 	print country_iso
 	if True:
-		COU=country_analysis(country_iso,'/p/projects/tumble/carls/shared_folder/country_analysis/data/'+country_iso+'/',additional_tag='')
+		COU=country_analysis(country_iso,'/p/projects/tumble/carls/shared_folder/country_analysis/data/'+country_iso+'_full/',additional_tag='')
 
 
 		# ##############
@@ -60,55 +42,55 @@ for country_iso in isos:
 		COU.create_mask_country('/p/projects/tumble/carls/shared_folder/EWEMBI/mon_year/mon_tas_EWEMBI_1979-2014.nc4','tas','/home/pepflei/CA/masks/shapefiles/world/ne_50m_admin_0_countries',mask_style='pop2015_weighted',pop_mask_file='/home/pepflei/CA/masks/population/population_2015_incrLat.nc',overwrite=True)
 		COU.create_mask_admin('/p/projects/tumble/carls/shared_folder/EWEMBI/mon_year/mon_tas_EWEMBI_1979-2014.nc4','tas',COU._working_directory+country_iso+'_adm_shp/'+country_iso+'_adm1',overwrite=True)
 
-		# COU.create_mask_country('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_HadGEM2-ES_historical_0-2004_BC.nc4','tas','/home/pepflei/CA/masks/shapefiles/world/ne_50m_admin_0_countries',overwrite=True)
-		# COU.create_mask_country('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_HadGEM2-ES_historical_0-2004_BC.nc4','tas','/home/pepflei/CA/masks/shapefiles/world/ne_50m_admin_0_countries',mask_style='pop1990_weighted',pop_mask_file='/home/pepflei/CA/masks/population/population_1990_incrLat.nc',overwrite=True)
-		# COU.create_mask_country('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_HadGEM2-ES_historical_0-2004_BC.nc4','tas','/home/pepflei/CA/masks/shapefiles/world/ne_50m_admin_0_countries',mask_style='pop2015_weighted',pop_mask_file='/home/pepflei/CA/masks/population/population_2015_incrLat.nc',overwrite=True)
-		# COU.create_mask_admin('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_HadGEM2-ES_historical_0-2004_BC.nc4','tas',COU._working_directory+country_iso+'_adm_shp/'+country_iso+'_adm1',overwrite=True)
+		COU.create_mask_country('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_HadGEM2-ES_historical_0-2004_BC.nc4','tas','/home/pepflei/CA/masks/shapefiles/world/ne_50m_admin_0_countries',overwrite=True)
+		COU.create_mask_country('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_HadGEM2-ES_historical_0-2004_BC.nc4','tas','/home/pepflei/CA/masks/shapefiles/world/ne_50m_admin_0_countries',mask_style='pop1990_weighted',pop_mask_file='/home/pepflei/CA/masks/population/population_1990_incrLat.nc',overwrite=True)
+		COU.create_mask_country('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_HadGEM2-ES_historical_0-2004_BC.nc4','tas','/home/pepflei/CA/masks/shapefiles/world/ne_50m_admin_0_countries',mask_style='pop2015_weighted',pop_mask_file='/home/pepflei/CA/masks/population/population_2015_incrLat.nc',overwrite=True)
+		COU.create_mask_admin('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_HadGEM2-ES_historical_0-2004_BC.nc4','tas',COU._working_directory+country_iso+'_adm_shp/'+country_iso+'_adm1',overwrite=True)
 
 
 		# ##############
 		# #CMIP5_BC
 		# ##############
 
-		# #tas 
-		# all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_*')
-		# for in_file in all_files:
-		# 	model=in_file.split('/')[-1].split('_')[2]
-		# 	rcp=in_file.split('/')[-1].split('_')[3]
-		# 	print rcp,model,in_file
-		# 	COU.country_zoom(in_file,var_name='tas',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+		#tas 
+		all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_*')
+		for in_file in all_files:
+			model=in_file.split('/')[-1].split('_')[2]
+			rcp=in_file.split('/')[-1].split('_')[3]
+			print rcp,model,in_file
+			COU.country_zoom(in_file,var_name='tas',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-		# #TXx 
-		# all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/TXx/mon_TXx_*')
-		# for in_file in all_files:
-		# 	model=in_file.split('/')[-1].split('_')[2]
-		# 	rcp=in_file.split('/')[-1].split('_')[3]
-		# 	print rcp,model,in_file
-		# 	COU.country_zoom(in_file,var_name='tasmax',given_var_name='TXx',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+		#TXx 
+		all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/TXx/mon_TXx_*')
+		for in_file in all_files:
+			model=in_file.split('/')[-1].split('_')[2]
+			rcp=in_file.split('/')[-1].split('_')[3]
+			print rcp,model,in_file
+			COU.country_zoom(in_file,var_name='tasmax',given_var_name='TXx',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-		# #pr 
-		# all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*')
-		# for in_file in all_files:
-		# 	model=in_file.split('/')[-1].split('_')[2]
-		# 	rcp=in_file.split('/')[-1].split('_')[3]
-		# 	print rcp,model,in_file
-		# 	COU.country_zoom(in_file,var_name='pr',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+		#pr 
+		all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*')
+		for in_file in all_files:
+			model=in_file.split('/')[-1].split('_')[2]
+			rcp=in_file.split('/')[-1].split('_')[3]
+			print rcp,model,in_file
+			COU.country_zoom(in_file,var_name='pr',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-		# # #RX5 
-		# # all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/RX5/mon_RX5_*')
-		# # for in_file in all_files:
-		# # 	model=in_file.split('/')[-1].split('_')[2]
-		# # 	rcp=in_file.split('/')[-1].split('_')[3]
-		# # 	print rcp,model,in_file
-		# # 	COU.country_zoom(in_file,var_name='pr',given_var_name='RX5',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+		#RX5 
+		all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/RX5/mon_RX5_*')
+		for in_file in all_files:
+			model=in_file.split('/')[-1].split('_')[2]
+			rcp=in_file.split('/')[-1].split('_')[3]
+			print rcp,model,in_file
+			COU.country_zoom(in_file,var_name='pr',given_var_name='RX5',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-		# #RX1 
-		# all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/RX1/mon_RX1_*')
-		# for in_file in all_files:
-		# 	model=in_file.split('/')[-1].split('_')[2]
-		# 	rcp=in_file.split('/')[-1].split('_')[3]
-		# 	print rcp,model,in_file
-		# 	COU.country_zoom(in_file,var_name='pr',given_var_name='RX1',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+		#RX1 
+		all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/RX1/mon_RX1_*')
+		for in_file in all_files:
+			model=in_file.split('/')[-1].split('_')[2]
+			rcp=in_file.split('/')[-1].split('_')[3]
+			print rcp,model,in_file
+			COU.country_zoom(in_file,var_name='pr',given_var_name='RX1',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
 		# #year_CDD 
 		# all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/CDD/year_cdd_*')
@@ -174,45 +156,45 @@ for country_iso in isos:
 		# # CORDEX
 		# ##############
 
-		# #tas 
-		# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/tas/mon_tas_*')
-		# for in_file in all_files:
-		# 	model=in_file.split('/')[-1].split('_')[2]
-		# 	rcp=in_file.split('/')[-1].split('_')[3]
-		# 	print rcp,model,in_file
-		# 	COU.country_zoom(in_file,var_name='tas',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+		#tas 
+		all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/tas/mon_tas_*')
+		for in_file in all_files:
+			model=in_file.split('/')[-1].split('_')[2]
+			rcp=in_file.split('/')[-1].split('_')[3]
+			print rcp,model,in_file
+			COU.country_zoom(in_file,var_name='tas',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-		# #TXx 
-		# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/TXx/mon_TXx_*')
-		# for in_file in all_files:
-		# 	model=in_file.split('/')[-1].split('_')[2]
-		# 	rcp=in_file.split('/')[-1].split('_')[3]
-		# 	print rcp,model,in_file
-		# 	COU.country_zoom(in_file,var_name='tasmax',given_var_name='TXx',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+		#TXx 
+		all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/TXx/mon_TXx_*')
+		for in_file in all_files:
+			model=in_file.split('/')[-1].split('_')[2]
+			rcp=in_file.split('/')[-1].split('_')[3]
+			print rcp,model,in_file
+			COU.country_zoom(in_file,var_name='tasmax',given_var_name='TXx',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-		# #pr 
-		# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/pr/mon_pr_*')
-		# for in_file in all_files:
-		# 	model=in_file.split('/')[-1].split('_')[2]
-		# 	rcp=in_file.split('/')[-1].split('_')[3]
-		# 	print rcp,model,in_file
-		# 	COU.country_zoom(in_file,var_name='pr',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+		#pr 
+		all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/pr/mon_pr_*')
+		for in_file in all_files:
+			model=in_file.split('/')[-1].split('_')[2]
+			rcp=in_file.split('/')[-1].split('_')[3]
+			print rcp,model,in_file
+			COU.country_zoom(in_file,var_name='pr',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-		# # #RX5 
-		# # all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/RX5/mon_RX5_*')
-		# # for in_file in all_files:
-		# # 	model=in_file.split('/')[-1].split('_')[2]
-		# # 	rcp=in_file.split('/')[-1].split('_')[3]
-		# # 	print rcp,model,in_file
-		# # 	COU.country_zoom(in_file,var_name='pr',given_var_name='RX5',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+		#RX5 
+		all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/RX5/mon_RX5_*')
+		for in_file in all_files:
+			model=in_file.split('/')[-1].split('_')[2]
+			rcp=in_file.split('/')[-1].split('_')[3]
+			print rcp,model,in_file
+			COU.country_zoom(in_file,var_name='pr',given_var_name='RX5',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-		# #RX1 
-		# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/RX1/mon_RX1_*')
-		# for in_file in all_files:
-		# 	model=in_file.split('/')[-1].split('_')[2]
-		# 	rcp=in_file.split('/')[-1].split('_')[3]
-		# 	print rcp,model,in_file
-		# 	COU.country_zoom(in_file,var_name='pr',given_var_name='RX1',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+		#RX1 
+		all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/RX1/mon_RX1_*')
+		for in_file in all_files:
+			model=in_file.split('/')[-1].split('_')[2]
+			rcp=in_file.split('/')[-1].split('_')[3]
+			print rcp,model,in_file
+			COU.country_zoom(in_file,var_name='pr',given_var_name='RX1',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
 		# #year_CDD 
 		# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/CDD/year_cdd_*')
@@ -392,10 +374,6 @@ for country_iso in isos:
 
 		COU.summary()
 		
-		if COU.selection(['year_RX5'])<2:
-			for data in COU.selection(['RX5']): data.year_max('year_RX5')
-			for data in COU.selection(['year_RX5','ensemble_mean']): COU._DATA.remove(data)
-			COU.ensemble_mean()
 
 		# COU.summary()
 

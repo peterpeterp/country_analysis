@@ -165,6 +165,12 @@ class country_analysis(object):
 
 		self._extreme_events=extreme_events
 
+	def variables(self):
+		print '\n'.join(sorted(set([dd.var_name for dd in self._DATA])))
+
+	def datasets(self):
+		print '\n'.join(sorted(set([dd.data_type for dd in self._DATA])))
+
 	def short_summary(self):
 		'''
 		display available variables, datasets and scenarios
@@ -516,7 +522,6 @@ class country_analysis(object):
 			self._masks[grid][mask_style][name]=np.roll(output,shift,axis=1)
 		else:
 			print 'something went wring with the mask'
-
 
 	def create_mask_country(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file='',overwrite=False,lat_name='lat',lon_name='lon'):
 		'''
@@ -1264,7 +1269,6 @@ class country_analysis(object):
 				if mask_style not in data.annual_cycle.keys():		data.annual_cycle[mask_style]={}
 				#data.annual_cycle={key : val for key,val in zip(local_periods.keys(),local_periods.values())}
 
-				print regions
 				for region in regions:
 					if region not in data.annual_cycle[mask_style].keys():		
 						data.annual_cycle[mask_style][region]={}
@@ -1281,18 +1285,21 @@ class country_analysis(object):
 							data.annual_cycle[mask_style][region][period_name]=np.zeros([len(data.steps_in_year)])*np.nan
 						
 						self.annual_cycle_diff(data=data,mask_style=mask_style,region=region,ref_name=ref_name)
-		
+
 	def annual_cycle_diff(self,data,mask_style,region,ref_name='ref'):
 		for period_name in data.annual_cycle[mask_style][region].keys():	
 			if period_name!=ref_name and ref_name in data.annual_cycle[mask_style][region].keys():
 				data.annual_cycle[mask_style][region]['diff_'+period_name+'-'+ref_name]=data.annual_cycle[mask_style][region][period_name]-data.annual_cycle[mask_style][region][ref_name]
 				data.annual_cycle[mask_style][region]['diff_relative_'+period_name+'-'+ref_name]=(data.annual_cycle[mask_style][region][period_name]-data.annual_cycle[mask_style][region][ref_name])/data.annual_cycle[mask_style][region][ref_name]*100
 
-	def annual_cycle_ensemble_mean(self,regions=None):
+	def annual_cycle_ensemble_mean(self,regions=None,selection=None):
 		'''
 		computes time averages for each grid-cell for a given period
 		'''
-		remaining=self._DATA[:]
+		if selection is None:
+			selection=self._DATA[:]
+
+		remaining=selection[:]
 
 		for data in remaining:
 			compute=False
@@ -1301,6 +1308,7 @@ class country_analysis(object):
 					compute=True
 
 			if compute:
+				print data.data_type,data.var_name,data.scenario
 				ensemble=self.find_ensemble([data.data_type,data.var_name,data.scenario])
 
 				ensemble['mean'].steps_in_year=sorted(set(ensemble['mean'].time_in_year_num))
@@ -1415,6 +1423,15 @@ class country_data_object(object):
 		SELF.day=np.array([int(t[2]) for t in SELF.time_stamp])
 
 		SELF.time=np.array([(datetime.datetime(int(SELF.year[i]),int(SELF.month[i]),int(SELF.day[i])) - datetime.datetime(1950,1,1)).days for i in range(len(SELF.year))])
+
+	def show_periods(SELF):
+		periods=[]
+		for method in SELF.period.keys():
+			for sea in SELF.outer_self._seasons.keys():
+				periods+=SELF.period[method][sea].keys()
+
+		print '\n'.join(sorted(set(periods)))
+
 
 	def year_max(SELF,new_var_name):
 		'''
@@ -1685,7 +1702,7 @@ class country_data_object(object):
 			print 'mask_style: '+mask_style+'\nother available mask_styles: '+', '.join(mask_styles[1:-1])
 
 		try:
-			to_plot=outer_self._masks[SELF.grid][mask_style][region]
+			to_plot=outer_self._masks[outer_self._grid_dict[SELF.grid]][mask_style][region]
 			lat=outer_self._masks[SELF.grid]['lat_mask'].copy()
 			lon=outer_self._masks[SELF.grid]['lon_mask'].copy()
 			half_lon_step=abs(np.diff(lon.copy(),1)[0]/2)
@@ -1694,7 +1711,7 @@ class country_data_object(object):
 			relevant_lats=lat[np.where(np.isfinite(cou_mask))[0]]
 			relevant_lons=lon[np.where(np.isfinite(cou_mask))[1]]
 			limits=[np.min(relevant_lons)-half_lon_step,np.max(relevant_lons)+half_lon_step,np.min(relevant_lats)-half_lat_step,np.max(relevant_lats)+half_lat_step]
-			SELF.plot_map(to_plot,lat,lon,title=SELF.grid+' '+mask_style,color_label='importance for area average',color_palette=plt.cm.plasma,limits=limits)
+			SELF.plot_map(to_plot,title=SELF.grid+' '+mask_style,color_label='importance for area average',color_palette=plt.cm.plasma,limits=limits)
 		except:
 			print 'no mask has been created for '+mask_style+' and '+region
 
