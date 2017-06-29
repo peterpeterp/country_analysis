@@ -32,6 +32,13 @@ def depth(d, level=1):
         return level
     return max(depth(d[k], level + 1) for k in d)
 
+def running_mean_func(xx,N):
+    x=np.ma.masked_invalid(xx.copy())
+    ru_mean=x.copy()*np.nan
+    for t in range(int(N/2)+1,len(x)-int(N/2)):
+        ru_mean[t]=np.nanmean(x[t-int(N/2):t+int(N/2)])
+    return ru_mean
+        
 
 class country_analysis(object):
 
@@ -1432,7 +1439,6 @@ class country_data_object(object):
 
 		print '\n'.join(sorted(set(periods)))
 
-
 	def year_max(SELF,new_var_name):
 		'''
 		computes annual max using 'cdo yearmax'. this function could be used as a template for other functions of this kind
@@ -1752,7 +1758,9 @@ class country_data_object(object):
 				return(0)
 
 		
-		ax.plot(SELF.plot_time[relevenat_time_steps],pd.DataFrame(SELF.area_average[mask_style][region][relevenat_time_steps]).rolling(running_mean).mean()[0],linestyle='-',label=label,color=color)
+		#ax.plot(SELF.plot_time[relevenat_time_steps],pd.DataFrame(SELF.area_average[mask_style][region][relevenat_time_steps]).rolling(running_mean).mean()[0],linestyle='-',label=label,color=color)
+		ax.plot(SELF.plot_time[relevenat_time_steps],running_mean_func(np.array(SELF.area_average[mask_style][region][relevenat_time_steps]), running_mean),linestyle='-',label=label,color=color)
+
 
 		if hasattr(SELF,'model'):
 			if SELF.model=='ensemble_mean':
@@ -1765,12 +1773,14 @@ class country_data_object(object):
 
 				for member,i in zip(ensemble['models'].values(),range(len(ensemble['models'].values()))):
 					relevenat_time_steps=member.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
-					member_runmean=np.array(pd.DataFrame(member.area_average[mask_style][region][relevenat_time_steps]).rolling(running_mean).mean()[0])
+					#member_runmean=np.array(pd.running_mean_func(member.area_average[mask_style][region][relevenat_time_steps]).rolling(running_mean).mean()[0])
+					member_runmean=np.array(running_mean_func(member.area_average[mask_style][region][relevenat_time_steps], running_mean))
 					for t in member.time_stamp_num[relevenat_time_steps]:
 						ensemble_range[i,np.where(time_axis==t)]=member_runmean[np.where(member.time_stamp_num[relevenat_time_steps]==t)]
 					#ax.plot(member.time_stamp,pd.DataFrame(member.area_average[mask_style][region]).rolling(running_mean)[0],linestyle='-',label=label,color='blue',linewidth=0.5)
 
-				ax.fill_between(time_axis,np.percentile(ensemble_range,0,axis=0),np.percentile(ensemble_range,100,axis=0),alpha=0.20,color=color)
+				ax.fill_between(time_axis,np.percentile(ensemble_range,0,axis=0),np.percentile(ensemble_range,100,axis=0),alpha=0.10,color=color)
+				ax.fill_between(time_axis,np.percentile(ensemble_range,20,axis=0),np.percentile(ensemble_range,80,axis=0),alpha=0.20,color=color)
 
 		if ylabel is None:ylabel=SELF.var_name.replace('_',' ')
 		ax.set_ylabel(ylabel)
@@ -1822,7 +1832,8 @@ class country_data_object(object):
 				ensemble=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])
 				ensemble_annual_cycle=np.vstack([member.annual_cycle[mask_style][region][period] for member in ensemble['models'].values()])
 
-				ax.fill_between(SELF.steps_in_year,np.percentile(ensemble_annual_cycle,0./3.*100,axis=0),np.percentile(ensemble_annual_cycle,3./3.*100,axis=0),alpha=0.20,color=color)
+				ax.fill_between(SELF.steps_in_year,np.percentile(ensemble_annual_cycle,0,axis=0),np.percentile(ensemble_annual_cycle,100,axis=0),alpha=0.10,color=color)
+				ax.fill_between(SELF.steps_in_year,np.percentile(ensemble_annual_cycle,20,axis=0),np.percentile(ensemble_annual_cycle,80,axis=0),alpha=0.20,color=color)
 
 
 		if xlabel==True:
