@@ -1721,7 +1721,7 @@ class country_data_object(object):
 		except:
 			print 'no mask has been created for '+mask_style+' and '+region
 
-	def plot_transients(SELF,mask_style='lat_weighted',season='year',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None,x_range=[1960,2100]):
+	def plot_transients(SELF,mask_style='lat_weighted',season='year',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None,x_range=[1960,2100],extra_shading=False):
 		'''
 		plot transient of countrywide average
 		mask_style: str: weighting used to compute countrywide averages
@@ -1758,7 +1758,6 @@ class country_data_object(object):
 				return(0)
 
 		
-		#ax.plot(SELF.plot_time[relevenat_time_steps],pd.DataFrame(SELF.area_average[mask_style][region][relevenat_time_steps]).rolling(running_mean).mean()[0],linestyle='-',label=label,color=color)
 		ax.plot(SELF.plot_time[relevenat_time_steps],running_mean_func(np.array(SELF.area_average[mask_style][region][relevenat_time_steps]), running_mean),linestyle='-',label=label,color=color)
 
 
@@ -1773,14 +1772,12 @@ class country_data_object(object):
 
 				for member,i in zip(ensemble['models'].values(),range(len(ensemble['models'].values()))):
 					relevenat_time_steps=member.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
-					#member_runmean=np.array(pd.running_mean_func(member.area_average[mask_style][region][relevenat_time_steps]).rolling(running_mean).mean()[0])
 					member_runmean=np.array(running_mean_func(member.area_average[mask_style][region][relevenat_time_steps], running_mean))
 					for t in member.time_stamp_num[relevenat_time_steps]:
 						ensemble_range[i,np.where(time_axis==t)]=member_runmean[np.where(member.time_stamp_num[relevenat_time_steps]==t)]
-					#ax.plot(member.time_stamp,pd.DataFrame(member.area_average[mask_style][region]).rolling(running_mean)[0],linestyle='-',label=label,color='blue',linewidth=0.5)
 
 				ax.fill_between(time_axis,np.percentile(ensemble_range,0,axis=0),np.percentile(ensemble_range,100,axis=0),alpha=0.10,color=color)
-				ax.fill_between(time_axis,np.percentile(ensemble_range,20,axis=0),np.percentile(ensemble_range,80,axis=0),alpha=0.20,color=color)
+				if extra_shading: ax.fill_between(time_axis,np.percentile(ensemble_range,20,axis=0),np.percentile(ensemble_range,80,axis=0),alpha=0.20,color=color)
 
 		if ylabel is None:ylabel=SELF.var_name.replace('_',' ')
 		ax.set_ylabel(ylabel)
@@ -1799,7 +1796,7 @@ class country_data_object(object):
 
 		return(1)
 
-	def plot_annual_cycle(SELF,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',xlabel=True):
+	def plot_annual_cycle(SELF,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',xlabel=True,extra_shading=False):
 		'''
 		plot transient of countrywide average
 		meta_data: list of strs: meta information required to acces data
@@ -1833,7 +1830,7 @@ class country_data_object(object):
 				ensemble_annual_cycle=np.vstack([member.annual_cycle[mask_style][region][period] for member in ensemble['models'].values()])
 
 				ax.fill_between(SELF.steps_in_year,np.percentile(ensemble_annual_cycle,0,axis=0),np.percentile(ensemble_annual_cycle,100,axis=0),alpha=0.10,color=color)
-				ax.fill_between(SELF.steps_in_year,np.percentile(ensemble_annual_cycle,20,axis=0),np.percentile(ensemble_annual_cycle,80,axis=0),alpha=0.20,color=color)
+				if extra_shading: ax.fill_between(SELF.steps_in_year,np.percentile(ensemble_annual_cycle,20,axis=0),np.percentile(ensemble_annual_cycle,80,axis=0),alpha=0.20,color=color)
 
 
 		if xlabel==True:
