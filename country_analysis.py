@@ -6,7 +6,7 @@ Peter Pfleiderer
 peter.pfleiderer@climateanalytics.org
 '''
 
-import sys,glob,os,itertools,datetime,pickle
+import sys,glob,os,itertools,datetime,pickle,subprocess
 import numpy as np
 from netCDF4 import Dataset,netcdftime,num2date
 import pandas as pd
@@ -14,6 +14,10 @@ from mpl_toolkits.basemap import Basemap
 from shapely.geometry import Polygon, MultiPolygon
 import matplotlib.pylab as plt 
 import matplotlib as mpl
+
+'''
+more elegant with subprocess?
+'''
 
 
 from matplotlib import rc
@@ -52,7 +56,8 @@ class country_analysis(object):
 		'''
 
 		self._iso=iso
-		self._working_directory=working_directory
+		#self._working_directory=working_directory
+		self._working_directory=os.getcwd()+'/'+working_directory
 
 		self._additional_tag=additional_tag
 		self._working_directory_raw=self._working_directory+'/raw'+additional_tag
@@ -84,7 +89,7 @@ class country_analysis(object):
 			os.system('tar -zcf '+self._working_directory[0:-1]+'_'+subfolder+'.tar.gz '+self._working_directory.split('/')[-2]+'/'+subfolder)
 		os.chdir(actual_path)
 
-	def load_data(self,quiet=True):
+	def load_data(self,quiet=True,filename_filter=''):
 		'''
 		Loads data from existing country_analysis project
 		quiet: bool: if quiet, no file-names are printed
@@ -103,7 +108,7 @@ class country_analysis(object):
 				self.load_masks(file_new)
 
 
-		for file in glob.glob(self._working_directory_raw+'/*'):
+		for file in glob.glob(self._working_directory_raw+'/*'+filename_filter+'*'):
 			file_new=self._working_directory_raw+file.split('raw'+self._additional_tag)[-1]
 			if quiet==False:print file_new
 			nc_out=Dataset(file_new,"r")
@@ -146,9 +151,19 @@ class country_analysis(object):
 
 
 		# try to load polygons of adm regions for plotting
-		self._adm_polygons=self.get_admin_polygons(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1')
-		try:self._adm_polygons=self.get_admin_polygons(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1')
-		except:pass
+		try:
+			self._adm_polygons=self.get_admin_polygons(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1')
+			for region_name in self._regions.keys():
+				if '+' in region_name:
+					sub_regs=region_name.split('+')
+					self._adm_polygons[region_name]=self._adm_polygons[sub_regs[0]]
+					for region in sub_regs[1:]:
+						self._adm_polygons[region_name] = \
+						self._adm_polygons[region_name].symmetric_difference(self._adm_polygons[region])
+
+
+		except:
+			pass
 
 	def get_historical_extreme_events(self,path):
 		'''
@@ -233,7 +248,7 @@ class country_analysis(object):
 					print '\n____________',var_name,'___________'
 					self.selection([data_type,var_name],detailed)
 
-	def selection(self,filters,show_selection=True,detailed=True):
+	def selection(self,filters,show_selection=False,detailed=True):
 		'''
 		select datasets for further analysis. returns a list of country_data_objects
 		filters: list: keywords that all selected elements should share
@@ -261,19 +276,34 @@ class country_analysis(object):
 		'''
 		ensemble={}
 		ensemble_mean=None
+		ensemble_median=None
+		ensemble_min=None
+		ensemble_max=None		
+		ensemble_25=None
+		ensemble_75=None
 		for data in self._DATA:
 			selected=True
 			for key in filters:
 				if key not in data.all_tags:
 					selected=False
-			if selected and data.model!='ensemble_mean':
+			if selected and data.model not in ['ensemble_mean','ensemble_median','ensemble_min','ensemble_max','ensemble_25','ensemble_75']:
 				ensemble[data.model]=data
 				if quiet==False:
 					print data.model+': '+data.name+' '+str(min(data.year))+'-'+str(max(data.year))
 			if selected and data.model=='ensemble_mean':
 				ensemble_mean=data
+			if selected and data.model=='ensemble_median':
+				ensemble_median=data
+			if selected and data.model=='ensemble_min':
+				ensemble_min=data
+			if selected and data.model=='ensemble_max':
+				ensemble_max=data
+			if selected and data.model=='ensemble_25':
+				ensemble_25=data
+			if selected and data.model=='ensemble_75':
+				ensemble_75=data
 
-		return {'models':ensemble,'mean':ensemble_mean}
+		return {'models':ensemble,'mean':ensemble_mean,'median':ensemble_median,'min':ensemble_min,'max':ensemble_max,'25':ensemble_25,'75':ensemble_75}
 
 	def unit_conversions(self):
 		'''
@@ -288,6 +318,20 @@ class country_analysis(object):
 						if region in self._regions.keys():
 							if np.nanmean(data.area_average[mask_style][region])>100:
 								data.area_average[mask_style][region]-=273.15
+
+	def clean_above_or_below(self,above=999,below=-999):
+		'''
+		delete weird features		
+		'''
+		for data in self._DATA:
+			data.raw[data.raw>above]=np.nan
+			data.raw[data.raw<below]=np.nan
+			for mask_style in data.area_average.keys():
+				for region in data.area_average[mask_style].keys():
+					if region in self._regions.keys():
+						x=data.area_average[mask_style][region].copy()
+						x[x>above]=np.nan
+						x[x<below]=np.nan
 
 	def get_warming_slices(self,warming_lvls=[1.5,2,2.5,3],ref_period=[1986,2006],model_real_names=None,wlcalculator_path='/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/'):
 		'''
@@ -869,7 +913,11 @@ class country_analysis(object):
 		out_file+='.nc4'
 		print out_file
 
-		if os.path.isfile(out_file) and overwrite==False:
+		if overwrite:
+			os.system('rm '+out_file)
+			os.system('rm '+out_file.replace('.nc','_merged.nc'))
+
+		if os.path.isfile(out_file):
 			nc_out=Dataset(out_file,"r")
 			new_data=country_data_object(outer_self=self,var_name=var_name,grid=nc_out.getncattr('original_grid'),**kwargs)
 			new_data.raw_file=out_file
@@ -877,8 +925,15 @@ class country_analysis(object):
 			new_data.create_time_stamp()
 			nc_out.close()
 
+		if os.path.isfile(out_file.replace('.nc','_merged.nc')):
+			nc_out=Dataset(out_file.replace('.nc','_merged.nc'),"r")
+			new_data=country_data_object(outer_self=self,var_name=var_name,grid=nc_out.getncattr('original_grid'),**kwargs)
+			new_data.raw_file=out_file.replace('.nc','_merged.nc')
+			new_data.add_data(raw=nc_out.variables[var_name][:,:,:],lat=nc_out.variables['lat'][:],lon=nc_out.variables['lon'][:],time=nc_out.variables['time'][:],year=nc_out.variables['year'][:],month=nc_out.variables['month'][:],day=nc_out.variables['day'][:])
+			new_data.create_time_stamp()
+			nc_out.close()
 
-		else:
+		if os.path.isfile(out_file.replace('.nc','_merged.nc'))==False and os.path.isfile(out_file)==False:
 			# open file to get information
 			print input_file
 			lon_in,lat_in,grid,lon_shift = self.identify_grid(input_file,lat_name,lon_name)
@@ -938,6 +993,48 @@ class country_analysis(object):
 						if delete_hist:	
 							self._DATA.remove(hist)
 							os.system('rm '+hist.raw_file)
+
+	def ensemble_statistic(self,stat='median',selection=None,write=True):
+		'''
+		identify ensembles and compute ensemble mean for each ensemble
+		'''
+		if selection is None:
+			selection=self._DATA[:]
+
+		# why do I need this????? see hist_merge
+		for i in range(2):
+			remaining=selection[:]
+			for data in remaining:
+				if hasattr(data,'model'):
+					if data.model not in ['ensemble_median','ensemble_mean','ensemble_min','ensemble_max']:
+						#print '__ ',data.name
+						ensemble=self.find_ensemble([data.data_type,data.var_name,data.scenario])
+						if ensemble[stat] is None:
+							if stat=='median':command='cdo -O enspctl,50 '
+							if stat=='min':command='cdo -O enspctl,0 '
+							if stat=='max':command='cdo -O enspctl,100 '
+							if stat=='25':command='cdo -O enspctl,25 '
+							if stat=='75':command='cdo -O enspctl,75 '
+							if stat=='mean':command='cdo -O ensmean '
+
+							for member in ensemble['models'].values():
+								command+=member.raw_file+' '
+
+							out_file=self._working_directory_raw+'/'+self._iso+'_'+member.var_name+'_'+member.data_type+'_ensemble-'+stat+'_'+member.scenario+'.nc4'
+							os.system(command+out_file)
+
+							tags_=member.all_tags_dict.copy()
+							tags_['model']='ensemble_'+stat
+							tags_['raw_file']=out_file
+
+							new_data=country_data_object(outer_self=self,**tags_)
+							new_data.add_data(raw=Dataset(out_file).variables[member.original_var_name][:,:,:],lat=member.lat.copy(),lon=member.lon.copy())
+							new_data.add_data(time=member.time.copy(),year=member.year.copy(),month=member.month.copy(),day=member.day.copy())
+							new_data.create_time_stamp()
+
+							os.system('ncatted -h -a tags_values,global,o,c,"'+'**'.join(new_data.all_tags_dict.values())+'" '+out_file)
+
+							if write==False: os.system('rm '+out_file)
 
 	def ensemble_mean(self):
 		'''
@@ -1021,9 +1118,35 @@ class country_analysis(object):
 							nc_out.close()
 							nc_in.close()
 
+
+
 	###########
 	# analysis tools
 	###########
+
+	def seasonal_statistic(self,method='mean',selection=None,overwrite=False,seasons=None):
+
+		if selection is None:
+			selection=self._DATA
+
+		if seasons is None:
+			seasons=self._seasons
+
+		for data in selection:
+			if hasattr(data,'seasonal')==False:
+				data.seasonal={'year_axis':np.array(sorted(set(data.year)))}
+			data.seasonal[method]={}
+			for months,season in zip(seasons.values(),seasons.keys()):
+				data.seasonal[method][season]=np.zeros([len(set(data.year)),len(data.lat),len(data.lon)])*np.nan
+				for yr,t in zip(sorted(set(data.year)),range(len(set(data.year)))):
+					relevenat_time_steps=data.get_relevant_time_steps_in_season(months,np.where(data.year==yr)[0])
+					if method=='max':	
+						data.seasonal['max'][season][t,:,:]=np.nanmax(data.raw[relevenat_time_steps,:,:],axis=0)
+					if method=='min':	
+						data.seasonal['min'][season]['min'][t,:,:]=np.nanmin(data.raw[relevenat_time_steps,:,:],axis=0)
+					if method=='mean':
+						#print data.raw[relevenat_time_steps,:,:],np.nanmean(data.raw[relevenat_time_steps,:,:],axis=0)
+						data.seasonal['mean'][season][t,:,:]=np.nanmean(data.raw[relevenat_time_steps,:,:],axis=0)
 
 	def area_average(self,mask_style='lat_weighted',selection=None,overwrite=False,regions=None):
 		'''
@@ -1033,7 +1156,7 @@ class country_analysis(object):
 		overwrite: bool: if True, old file is deleted, new one created
 		'''
 		if selection is None:
-			selection=self._DATA
+			selection=self._DATA[:]
 
 		for data in selection:
 			out_file=self._working_directory+'/area_average/country_mean-'+data.name+'-'+mask_style+'.csv'
@@ -1089,6 +1212,7 @@ class country_analysis(object):
 
 			# save as csv 
 			country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index',encoding='utf-8')
+
 
 	def period_statistics(self,method='mean',threshold=None,below=False,selection=None,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},ref_name='ref'):
 		'''
@@ -1148,6 +1272,11 @@ class country_analysis(object):
 							# compute average
 							if method=='mean':
 								data.period[method][sea][period_name]=np.nanmean(data.raw[relevenat_time_steps,:,:],axis=0)
+							if method=='max':
+								data.period[method][sea][period_name]=np.nanmax(data.raw[relevenat_time_steps,:,:],axis=0)
+							if method=='min':
+								data.period[method][sea][period_name]=np.nanmin(data.raw[relevenat_time_steps,:,:],axis=0)		
+
 							# threshold exceeding
 							if threshold is not None:
 								data.period[method][sea][period_name]=np.zeros([data.raw.shape[1],data.raw.shape[2]])*np.nan
@@ -1200,7 +1329,7 @@ class country_analysis(object):
 						ensemble['mean'].agreement[method][sea]={}
 
 						# ensemble mean
-						for period in member.period[method][sea].keys():
+						for period in member.period[method][sea].keys():							
 							ensemble['mean'].period[method][sea][period]=member.period[method][sea][period].copy()*0
 							for member in ensemble['models'].values():
 								ensemble['mean'].period[method][sea][period]+=member.period[method][sea][period]
@@ -1315,25 +1444,26 @@ class country_analysis(object):
 					compute=True
 
 			if compute:
-				print data.data_type,data.var_name,data.scenario
-				ensemble=self.find_ensemble([data.data_type,data.var_name,data.scenario])
+				if data.model in self.find_ensemble([data.data_type,data.var_name,data.scenario])['models'].keys():
+					print data.data_type,data.var_name,data.scenario,data.model
+					ensemble=self.find_ensemble([data.data_type,data.var_name,data.scenario])
 
-				ensemble['mean'].steps_in_year=sorted(set(ensemble['mean'].time_in_year_num))
+					ensemble['mean'].steps_in_year=sorted(set(ensemble['mean'].time_in_year_num))
 
-				for member in ensemble['models'].values():
-					remaining.remove(member)
+					for member in ensemble['models'].values():
+						remaining.remove(member)
 
-				# annual cycle ensemble mean
-				if hasattr(member,'annual_cycle'):
-					if hasattr(ensemble['mean'],'annual_cycle')==False:			ensemble['mean'].annual_cycle={}
-					for mask_style in member.annual_cycle.keys():
-						if mask_style not in ensemble['mean'].annual_cycle.keys():		ensemble['mean'].annual_cycle[mask_style]={}
-						if regions is None:
-							regions=self._masks[data.grid][mask_style].keys()
-						for region in regions:
-							ensemble['mean'].annual_cycle[mask_style][region]={}
-							for period in member.annual_cycle[mask_style][region].keys():
-								ensemble['mean'].annual_cycle[mask_style][region][period]=np.nanmean(np.vstack([member.annual_cycle[mask_style][region][period] for member in ensemble['models'].values()]),axis=0)
+					# annual cycle ensemble mean
+					if hasattr(member,'annual_cycle'):
+						if hasattr(ensemble['mean'],'annual_cycle')==False:			ensemble['mean'].annual_cycle={}
+						for mask_style in member.annual_cycle.keys():
+							if mask_style not in ensemble['mean'].annual_cycle.keys():		ensemble['mean'].annual_cycle[mask_style]={}
+							if regions is None:
+								regions=self._masks[data.grid][mask_style].keys()
+							for region in regions:
+								ensemble['mean'].annual_cycle[mask_style][region]={}
+								for period in member.annual_cycle[mask_style][region].keys():
+									ensemble['mean'].annual_cycle[mask_style][region][period]=np.nanmean(np.vstack([member.annual_cycle[mask_style][region][period] for member in ensemble['models'].values()]),axis=0)
 
 class country_data_object(object):
 	'''
@@ -1467,6 +1597,31 @@ class country_data_object(object):
 		new_data.add_data(lat=SELF.lat,lon=SELF.lon)
 		SELF.outer_self.fill_gaps_in_time_axis(new_data,out_file.replace('.nc','_tmp.nc'),out_file)
 
+	def seas_max(SELF,new_var_name,season):
+		'''
+		computes annual max using 'cdo yearmax'. this function could be used as a template for other functions of this kind
+		new_var_name: str: given new var name
+		'''
+		if hasattr(SELF,'model'):
+			if SELF.model=='ensemble_mean':
+				return 'not a good idea to apply yearmax on ensemble mean'
+
+		kwargs=SELF.all_tags_dict
+		kwargs['var_name']=SELF.original_var_name
+		kwargs['given_var_name']=new_var_name
+		kwargs['time_format']='yearly'
+
+		out_file=SELF.raw_file.replace(SELF.var_name,new_var_name)
+		os.system('cdo -seasmax '+SELF.raw_file+' '+out_file.replace('.nc','_tmp1.nc'))
+		os.system('cdo -selseas,'+season+' '+out_file.replace('.nc','_tmp1.nc')+' '+out_file.replace('.nc','_tmp.nc'))
+		os.system('rm '+out_file.replace('.nc','_tmp1.nc'))
+
+		new_data=country_data_object(outer_self=SELF.outer_self,**kwargs)
+		new_data.raw_file=out_file	
+		new_data.original_var_name=SELF.original_var_name		
+		new_data.add_data(lat=SELF.lat,lon=SELF.lon)
+		SELF.outer_self.fill_gaps_in_time_axis(new_data,out_file.replace('.nc','_tmp.nc'),out_file)
+
 	def details(SELF,detailed=True):
 		'''
 		show details of country_data_object
@@ -1475,9 +1630,9 @@ class country_data_object(object):
 		if detailed:
 			text=SELF.name.replace('_',' ')
 			text+='\t\t\tcoverage: '+str(int(min(SELF.year)))+'-'+str(int(max(SELF.year)))
-			if hasattr(SELF,'period'):
-				for key in SELF.period.keys():
-					text+='\nperiod '+key+': '+','.join(sorted(SELF.period[key]['year'].keys()))
+			# if hasattr(SELF,'period'):
+			# 	for key in SELF.period.keys():
+			# 		text+='\nperiod '+key+': '+','.join(sorted(SELF.period[key][].keys()))
 			return(text)
 		else:
 			return(SELF.name)
@@ -1588,7 +1743,6 @@ class country_data_object(object):
 							ctr=polygons[name].centroid.xy
 							plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)
 				except Exception,e: 
-					print str(e)
 					areas=[]
 					for shape in polygons[name]:
 						areas.append(shape.area)
@@ -1721,7 +1875,7 @@ class country_data_object(object):
 		except:
 			print 'no mask has been created for '+mask_style+' and '+region
 
-	def plot_transients(SELF,mask_style='lat_weighted',season='year',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None,x_range=[1960,2100],extra_shading=False):
+	def plot_transients(SELF,mask_style='lat_weighted',season='annual',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None,x_range=[1960,2100],ref_period=None,shading_range=None,shading_opacity=0.2,plot_median=False):
 		'''
 		plot transient of countrywide average
 		mask_style: str: weighting used to compute countrywide averages
@@ -1757,27 +1911,39 @@ class country_data_object(object):
 			if season!='year':
 				return(0)
 
-		
-		ax.plot(SELF.plot_time[relevenat_time_steps],running_mean_func(np.array(SELF.area_average[mask_style][region][relevenat_time_steps]), running_mean),linestyle='-',label=label,color=color)
+		if ref_period is None:	
+			y=running_mean_func(SELF.area_average[mask_style][region][relevenat_time_steps], running_mean)
+		if ref_period is not None:	
+			ref_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season],np.where((SELF.year>=ref_period[0]) & (SELF.year<ref_period[1]))[0])
+			ref_mean=np.nanmean(SELF.area_average[mask_style][region][ref_time_steps])
+			y=(running_mean_func(SELF.area_average[mask_style][region][relevenat_time_steps], running_mean)-ref_mean)/ref_mean*100
 
+		if plot_median==False:
+			ax.plot(SELF.plot_time[relevenat_time_steps],y,linestyle='-',label=label,color=color)
 
 		if hasattr(SELF,'model'):
 			if SELF.model=='ensemble_mean':
 				ensemble=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])
 
-				relevenat_time_steps=ensemble['mean'].get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
-				time_axis=ensemble['mean'].time_stamp_num[relevenat_time_steps]
+				time_axis=ensemble['mean'].time_stamp_num
 
-				ensemble_range=np.zeros([len(ensemble['models'].values()),len(time_axis)])*np.nan
+				ensemble_range=np.zeros([len(ensemble['models'].values()),len(time_axis[relevenat_time_steps])])*np.nan
 
 				for member,i in zip(ensemble['models'].values(),range(len(ensemble['models'].values()))):
-					relevenat_time_steps=member.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
-					member_runmean=np.array(running_mean_func(member.area_average[mask_style][region][relevenat_time_steps], running_mean))
-					for t in member.time_stamp_num[relevenat_time_steps]:
-						ensemble_range[i,np.where(time_axis==t)]=member_runmean[np.where(member.time_stamp_num[relevenat_time_steps]==t)]
+					if ref_period is None:	
+						member_runmean=running_mean_func(member.area_average[mask_style][region][relevenat_time_steps], running_mean)
+					if ref_period is not None:	
+						ref_mean=np.nanmean(member.area_average[mask_style][region][ref_time_steps])
+						member_runmean=(running_mean_func(member.area_average[mask_style][region][relevenat_time_steps], running_mean)-ref_mean)/ref_mean*100
 
-				ax.fill_between(time_axis,np.percentile(ensemble_range,0,axis=0),np.percentile(ensemble_range,100,axis=0),alpha=0.10,color=color)
-				if extra_shading: ax.fill_between(time_axis,np.percentile(ensemble_range,20,axis=0),np.percentile(ensemble_range,80,axis=0),alpha=0.20,color=color)
+					for t in time_axis:
+						ensemble_range[i,np.where(time_axis[relevenat_time_steps]==t)]=member_runmean[np.where(member.time_stamp_num[relevenat_time_steps]==t)]
+
+				if shading_range is not None:
+					ax.fill_between(SELF.plot_time[relevenat_time_steps],np.nanpercentile(ensemble_range,shading_range[0],axis=0),np.nanpercentile(ensemble_range,shading_range[1],axis=0),alpha=shading_opacity,color=color)
+				if plot_median:
+					ax.plot(SELF.plot_time[relevenat_time_steps],np.nanpercentile(ensemble_range,50,axis=0),color=color,linestyle='-',label=label)
+
 
 		if ylabel is None:ylabel=SELF.var_name.replace('_',' ')
 		ax.set_ylabel(ylabel)
@@ -1796,7 +1962,101 @@ class country_data_object(object):
 
 		return(1)
 
-	def plot_annual_cycle(SELF,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',xlabel=True,extra_shading=False):
+	def plot_ensemble_transients(SELF,mask_style='lat_weighted',season='annual',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None,x_range=[1960,2100],ref_period=None,shading_range=None,shading_opacity=0.2,plot_median=False):
+		'''
+		plot transient of countrywide average
+		mask_style: str: weighting used to compute countrywide averages
+		running_mean: int: years to be averaged in moving average		
+		ax: subplot: subplot on which the map will be plotted
+		out_file: str: location where the plot is saved
+		title: str: title of the plot
+		ylabel: str: labe to put on y-axis
+		show: logical: show the subplot?
+		'''
+
+		'''
+		restructure the compeletely messy prol_transients
+		'''
+
+		if ax is not None:
+			show=False
+
+		if ax is None:
+			show=True
+			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(6,4))
+
+		if region is None:
+			region=SELF.outer_self._iso
+
+		if SELF.time_format=='monthly':
+			running_mean=running_mean_years*len(SELF.outer_self._seasons[season])
+			relevenat_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
+
+		if SELF.time_format=='10day':
+			running_mean=running_mean_years*len(SELF.outer_self._seasons[season])*3
+			relevenat_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
+
+		if SELF.time_format=='yearly':
+			running_mean=running_mean_years
+			relevenat_time_steps=range(len(SELF.year))
+			if season!='year':
+				return(0)
+
+		if ref_period is None:	
+			y=running_mean_func(SELF.area_average[mask_style][region][relevenat_time_steps], running_mean)
+		if ref_period is not None:	
+			ref_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons,np.where((SELF.year>=ref_period[0]) & (SELF.year<ref_period[1]))[0])
+			ref_mean=np.nanmean(SELF.area_average[mask_style][region][ref_time_steps])
+			y=(running_mean_func(SELF.area_average[mask_style][region][relevenat_time_steps], running_mean)-ref_mean)/ref_mean*100
+
+		if plot_median==False:
+			ax.plot(SELF.plot_time[relevenat_time_steps],y,linestyle='-',label=label,color=color)
+
+		if hasattr(SELF,'model'):
+			if SELF.model=='ensemble_mean' and shading_range is not None:
+				ensemble=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])
+
+				time_axis=ensemble['mean'].time_stamp_num
+
+				ensemble_range=np.zeros([len(ensemble['models'].values()),len(time_axis)])*np.nan
+
+				for member,i in zip(ensemble['models'].values(),range(len(ensemble['models'].values()))):
+					if SELF.time_format=='yearly':	relevenat_time_steps=range(len(member.year))
+					if SELF.time_format!='yearly':	relevenat_time_steps=member.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
+
+					if ref_period is None:	
+						member_runmean=running_mean_func(member.area_average[mask_style][region][relevenat_time_steps], running_mean)
+					if ref_period is not None:	
+						ref_mean=np.nanmean(member.area_average[mask_style][region][ref_time_steps])
+						member_runmean=(running_mean_func(member.area_average[mask_style][region][relevenat_time_steps], running_mean)-ref_mean)/ref_mean*100
+						print member_runmean
+
+					for t in member.time_stamp_num:
+						ensemble_range[i,np.where(time_axis==t)]=member_runmean[np.where(member.time_stamp_num==t)]
+
+				ax.fill_between(time_axis,np.nanpercentile(ensemble_range,shading_range[0],axis=0),np.nanpercentile(ensemble_range,shading_range[1],axis=0),alpha=shading_opacity,color=color)
+				if plot_median:
+					ax.plot(time_axis,np.nanpercentile(ensemble_range,50,axis=0),color=color,linestyle='-',label=label)
+
+
+		if ylabel is None:ylabel=SELF.var_name.replace('_',' ')
+		ax.set_ylabel(ylabel)
+		if title is None:title=SELF.name.replace('_',' ')
+		ax.set_title(title)
+
+		if y_range is not None:
+			ax.set_ylim(y_range)
+
+		if x_range is not None:
+			ax.set_xlim(x_range)
+		
+		if show==True:ax.legend(loc='best')
+		if out_file is None and show==True:plt.show()
+		if out_file is not None:plt.savefig(out_file)
+
+		return(1)
+
+	def plot_annual_cycle(SELF,mask_style='lat_weighted',region=None,period=None,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',xlabel=True,shading_range=None,shading_opacity=0.2,plot_median=False):
 		'''
 		plot transient of countrywide average
 		meta_data: list of strs: meta information required to acces data
@@ -1822,16 +2082,17 @@ class country_data_object(object):
 		if region is None:
 			region=SELF._iso
 
-		ax.plot(SELF.steps_in_year,SELF.annual_cycle[mask_style][region][period],linestyle='-',label=label,color=color)
+		if plot_median==False:
+			ax.plot(SELF.steps_in_year,SELF.annual_cycle[mask_style][region][period],linestyle='-',label=label,color=color)
 
 		if hasattr(SELF,'model'):
-			if SELF.model=='ensemble_mean':
+			if SELF.model=='ensemble_mean' and shading_range is not None:
 				ensemble=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])
 				ensemble_annual_cycle=np.vstack([member.annual_cycle[mask_style][region][period] for member in ensemble['models'].values()])
 
-				ax.fill_between(SELF.steps_in_year,np.percentile(ensemble_annual_cycle,0,axis=0),np.percentile(ensemble_annual_cycle,100,axis=0),alpha=0.10,color=color)
-				if extra_shading: ax.fill_between(SELF.steps_in_year,np.percentile(ensemble_annual_cycle,20,axis=0),np.percentile(ensemble_annual_cycle,80,axis=0),alpha=0.20,color=color)
-
+				ax.fill_between(SELF.steps_in_year,np.nanpercentile(ensemble_annual_cycle,shading_range[0],axis=0),np.nanpercentile(ensemble_annual_cycle,shading_range[1],axis=0),alpha=shading_opacity,color=color)
+				if plot_median:
+					ax.plot(SELF.steps_in_year,np.nanpercentile(ensemble_annual_cycle,50,axis=0),color=color,linestyle='-',label=label)
 
 		if xlabel==True:
 			ax.set_xticks(np.arange(1/24.,25./24.,1/12.)) 
@@ -1886,6 +2147,29 @@ class country_data_object(object):
 
 
 
+	# def area_average_seasonal_statistic(self,method='mean',mask_style='lat_weighted',selection=None,overwrite=False,regions=None,seasons=None):
+
+	# 	if selection is None:
+	# 		selection=self._DATA
+
+	# 	if seasons is None:
+	# 		seasons=self._seasons
+
+	# 	if regions is None:
+	# 		regions=self._masks[data.grid][mask_style].keys()
+
+	# 	for data in selection:
+	# 		for season,season_name in zip(seasons.values(),seasons.keys()):
+	# 			for name in regions:
+	# 				data.average[mask_style][name]['seasonal'][season]['max']=data.year.copy()*np.nan
+	# 				for yr,t in zip(data.year,range(len(data.year))):
+	# 					relevenat_time_steps=data.get_relevant_time_steps_in_season(season,[yr])
+	# 					if method=='max':	
+	# 						data.average[mask_style][name]['seasonal'][season]['max'][t]=np.nanmax(data.average[mask_style][name]['annual'][relevenat_time_steps])
+	# 					if method=='min':	
+	# 						data.average[mask_style][name]['seasonal'][season]['min'][t]=np.nanmin(data.average[mask_style][name]['annual'][relevenat_time_steps])
+	# 					if method=='mean':	
+	# 						data.average[mask_style][name]['seasonal'][season]['mean'][t]=np.nanmean(data.average[mask_style][name]['annual'][relevenat_time_steps])
 
 
 
