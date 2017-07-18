@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import sys,glob,os,pickle
+import sys,glob,os,cPickle
 import numpy as np
 from netCDF4 import Dataset,netcdftime,num2date
 import pandas as pd
@@ -18,21 +18,24 @@ os.chdir('/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/')
 
 os.chdir('/Users/peterpfleiderer/Documents/Projects/')
 
-BEN=country_analysis('BEN','country_analysis/data/BEN/',seasons={'year':range(1,13),'Apr-Jul':[4,5,6,7]})
-BEN.load_data()
+BEN=country_analysis('SEN','country_analysis/data/SEN/',seasons={'year':range(1,13),'Apr-Jul':[4,5,6,7]})
+#BEN.load_data(filename_filter='tas')
+BEN.load_data(quiet=True,load_mask=True,load_raw=False,load_area_averages=False,load_region_polygons=True)
+
+
 
 #BEN.get_warming_slices(GMT_path='wlcalculator/data/cmip5_ver002/',model_real_names={'IPSL':'ipsl-cm5a-lr','HADGEM2':'hadgem2-es','ECEARTH':'hadgem2-es','MPIESM':'mpi-esm-lr'})
 
 # plot a transient
-tas=BEN.selection(['tas'])
-BEN.unit_conversions()
+# tas=BEN.selection(['tas'])
+# BEN.unit_conversions()
 
-BEN.merge_adm_regions(['Mono','Kouffo'])
-BEN.create_mask_admin(tas[0].raw_file,'tas',regions=['Kouffo+Mono'])
-BEN.area_average('lat_weighted',overwrite=False,regions=['Alibori'],selection=tas)
-BEN.area_average('lat_weighted',overwrite=False,regions=['Kouffo+Mono'],selection=tas)
+# BEN.merge_adm_regions(['Mono','Kouffo'])
+# BEN.create_mask_admin(tas[0].raw_file,'tas',regions=['Kouffo+Mono'])
+# BEN.area_average('lat_weighted',overwrite=False,regions=['Alibori'],selection=tas)
+# BEN.area_average('lat_weighted',overwrite=False,regions=['Kouffo+Mono'],selection=tas)
 
-tas[0].plot_transients()
+# tas[0].plot_transients()
 
 
 #tas[0].plot_map(to_plot='empty',show_region_names=True,color_bar=False)
@@ -44,12 +47,6 @@ tas[0].plot_transients()
 # BEN.get_warming_slices(warming_lvls=[1.5,2,2.5,3],ref_period=[1986,2006],model_real_names={'IPSL':'ipsl-cm5a-lr','HADGEM2':'hadgem2-es','ECEARTH':'ec-earth','MPIESM':'mpi-esm-lr'},wlcalculator_path='/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/')
 
 # print BEN._warming_slices
-
-
-
-
-
-
 
 
 

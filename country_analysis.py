@@ -6,12 +6,12 @@ Peter Pfleiderer
 peter.pfleiderer@climateanalytics.org
 '''
 
-import sys,glob,os,itertools,datetime,pickle,subprocess
+import sys,glob,os,itertools,datetime,pickle,subprocess,time
 import numpy as np
 from netCDF4 import Dataset,netcdftime,num2date
 import pandas as pd
 from mpl_toolkits.basemap import Basemap
-from shapely.geometry import Polygon, MultiPolygon
+from shapely.geometry import mapping, Polygon, MultiPolygon
 import matplotlib.pylab as plt 
 import matplotlib as mpl
 
@@ -89,70 +89,79 @@ class country_analysis(object):
 			os.system('tar -zcf '+self._working_directory[0:-1]+'_'+subfolder+'.tar.gz '+self._working_directory.split('/')[-2]+'/'+subfolder)
 		os.chdir(actual_path)
 
-	def load_data(self,quiet=True,filename_filter=''):
+	def load_data(self,quiet=True,filename_filter='',load_mask=True,load_raw=True,load_area_averages=True,load_region_polygons=True):
 		'''
 		Loads data from existing country_analysis project
 		quiet: bool: if quiet, no file-names are printed
 		'''
-		for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
-			# need the country mask first
-			if 'admin' not in file.split('_'):
-				file_new=self._working_directory+'/masks'+file.split('masks')[-1]
+		if load_mask:
+			for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
+				# need the country mask first
+				if 'admin' not in file.split('_'):
+					file_new=self._working_directory+'/masks'+file.split('masks')[-1]
+					if quiet==False:print file_new
+					self.load_masks(file_new)
+
+			for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
+				if 'admin' in file.split('_'):
+					file_new=self._working_directory+'/masks'+file.split('masks')[-1]
+					if quiet==False:print file_new
+					self.load_masks(file_new)
+
+
+		if load_raw:
+			for file in glob.glob(self._working_directory_raw+'/*'+filename_filter+'*'):
+				file_new=self._working_directory_raw+file.split('raw'+self._additional_tag)[-1]
 				if quiet==False:print file_new
-				self.load_masks(file_new)
+				nc_out=Dataset(file_new,"r")
+				tags={}
+				for key,val in zip(nc_out.getncattr('tags_keys').split('**'),nc_out.getncattr('tags_values').split('**')):
+					tags[key]=val
+				try:
+					var_name=tags['original_var_name']
+				except:
+					var_name=tags['var_name']
 
-		for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
-			if 'admin' in file.split('_'):
-				file_new=self._working_directory+'/masks'+file.split('masks')[-1]
-				if quiet==False:print file_new
-				self.load_masks(file_new)
-
-
-		for file in glob.glob(self._working_directory_raw+'/*'+filename_filter+'*'):
-			file_new=self._working_directory_raw+file.split('raw'+self._additional_tag)[-1]
-			if quiet==False:print file_new
-			nc_out=Dataset(file_new,"r")
-			tags={}
-			for key,val in zip(nc_out.getncattr('tags_keys').split('**'),nc_out.getncattr('tags_values').split('**')):
-				tags[key]=val
-			try:
-				var_name=tags['original_var_name']
-			except:
-				var_name=tags['var_name']
-
-			new_data=country_data_object(outer_self=self,**tags)
-			new_data.raw_file=file_new
-			new_data.add_data(raw=nc_out.variables[var_name][:,:,:],lat=nc_out.variables['lat'][:],lon=nc_out.variables['lon'][:],time=nc_out.variables['time'][:],year=nc_out.variables['year'][:],month=nc_out.variables['month'][:])
-			try:
-				new_data.add_data(day=nc_out.variables['day'][:])
-			except:
-				print 'no days'
-			new_data.create_time_stamp()
+				new_data=country_data_object(outer_self=self,**tags)
+				new_data.raw_file=file_new
+				new_data.add_data(raw=nc_out.variables[var_name][:,:,:],lat=nc_out.variables['lat'][:],lon=nc_out.variables['lon'][:],time=nc_out.variables['time'][:],year=nc_out.variables['year'][:],month=nc_out.variables['month'][:])
+				try:
+					new_data.add_data(day=nc_out.variables['day'][:])
+				except:
+					print 'no days'
+				new_data.create_time_stamp()
 				
 
-		for file in glob.glob(self._working_directory+'/area_average/*'):
-			mask_style=file.split('-')[-1].split('.')[0]
-			name=file.split('-')[-2]
+		if load_area_averages:
+			for file in glob.glob(self._working_directory+'/area_average/*'):
+				mask_style=file.split('-')[-1].split('.')[0]
+				name=file.split('-')[-2]
 
-			file_new=self._working_directory+'/area_average'+file.split('area_average')[-1]
-			if quiet==False:print file_new
-			for data in self._DATA:
-				if sorted(data.name.split('_'))==sorted(name.split('_')):
-					table=pd.read_csv(file_new,sep=';')
-					for key in table.keys():
-						if key not in ['time','year','month','index']:
-							if mask_style not in data.area_average.keys():	data.area_average[mask_style]={}
-							if 'unidecode' in sys.modules:
-								data.area_average[mask_style][unidecode(key)]=np.array(table[key])
-							if 'unidecode' not in sys.modules:
-								data.area_average[mask_style][key]=np.array(table[key])
+				file_new=self._working_directory+'/area_average'+file.split('area_average')[-1]
+				if quiet==False:print file_new
+				for data in self._DATA:
+					if sorted(data.name.split('_'))==sorted(name.split('_')):
+						table=pd.read_csv(file_new,sep=';')
+						for key in table.keys():
+							if key not in ['time','year','month','index']:
+								if mask_style not in data.area_average.keys():	data.area_average[mask_style]={}
+								if 'unidecode' in sys.modules:
+									data.area_average[mask_style][unidecode(key)]=np.array(table[key])
+								if 'unidecode' not in sys.modules:
+									data.area_average[mask_style][key]=np.array(table[key])
 
 
 
 
 		# try to load polygons of adm regions for plotting
-		try:
-			self._adm_polygons=self.get_admin_polygons(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1')
+		if load_region_polygons:
+			print 'load regions'
+			start_time=time.time()
+			# if os.path.isfile(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1_simplified.pkl'):
+			# 	self._adm_polygons=self.simplify_adm_polygons(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1_simplified')
+			# else:
+			self._adm_polygons=self.simplify_adm_polygons(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1',tolerance=0.02)
+			print 'regions loaded'+str(time.time()-start_time)
 			for region_name in self._regions.keys():
 				if '+' in region_name:
 					sub_regs=region_name.split('+')
@@ -161,9 +170,6 @@ class country_analysis(object):
 						self._adm_polygons[region_name] = \
 						self._adm_polygons[region_name].symmetric_difference(self._adm_polygons[region])
 
-
-		except:
-			pass
 
 	def get_historical_extreme_events(self,path):
 		'''
@@ -477,15 +483,9 @@ class country_analysis(object):
 		count=0			
 		for shape, region in zip(m.admin, m.admin_info):
 			region = {k.lower():v for k,v in region.items()}	
-			
-
 			if 'unidecode' in sys.modules: name = unidecode(region['name_1'].decode('utf-8'))
 			if 'unidecode' not in sys.modules: name = region['name_1']
-			region = {k.lower():v for k,v in region.items()}
-			if 'unidecode' in sys.modules:
-				name = unidecode(region['name_1'].decode('utf-8'))
-			if 'unidecode' not in sys.modules:
-				name = region['name_1']
+
 			if name in region_polygons.keys():
 				region_polygons[name] = \
 				region_polygons[name].symmetric_difference(Polygon(shape))
@@ -493,6 +493,43 @@ class country_analysis(object):
 				region_polygons[name] = Polygon(shape)
 
 		return region_polygons
+
+	def simplify_adm_polygons(self,shape_file,tolerance=0.05):
+		# load shape file
+		m = Basemap()
+		m.readshapefile(shape_file, 'admin', drawbounds=False)
+
+		# collect all shapes of region
+		region_polygons={}
+		count=0			
+		for shape, region in zip(m.admin, m.admin_info):
+			region = {k.lower():v for k,v in region.items()}	
+			if 'unidecode' in sys.modules: name = unidecode(region['name_1'].decode('utf-8'))
+			if 'unidecode' not in sys.modules: name = region['name_1']
+
+			if name in region_polygons.keys():
+				region_polygons[name] = \
+				region_polygons[name].symmetric_difference(Polygon(shape).simplify(tolerance))
+			else:
+				region_polygons[name] = Polygon(shape).simplify(tolerance)
+
+		import fiona
+
+		# Define a polygon feature geometry with one attribute
+		schema = {
+		    'geometry': 'Polygon',
+		    'properties': {'name_1': 'str'},
+		}
+
+		# Write a new Shapefile
+		with fiona.open(shape_file+'_simplified.shp', 'w', 'ESRI Shapefile', schema) as c:
+		    for region_name,shape in zip(region_polygons.keys(),region_polygons.values()):
+			    c.write({
+			        'geometry': mapping(shape),
+			        'properties': {'name_1': region_name},
+			    })
+
+		return region_polygons		
 
 	def merge_adm_regions(self,region_names,new_region_name=None):
 		if new_region_name is None:
@@ -1651,7 +1688,7 @@ class country_data_object(object):
 				relevenat_time_steps.append(yr)
 		return(relevenat_time_steps)		
 
-	def plot_map(SELF,to_plot,limits=None,ax=None,out_file=None,title='',polygons=None,grey_area=None,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,highlight_region=None,show_region_names=False,show_merged_region_names=False):
+	def plot_map(SELF,to_plot,limits=None,ax=None,out_file=None,title='',polygons=None,grey_area=None,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,highlight_region=None,show_all_adm_polygons=False,show_region_names=False,show_merged_region_names=False):
 		'''
 		this function creates a map
 		to_plot: np.ndarray: values to plot
@@ -1734,24 +1771,25 @@ class country_data_object(object):
 		# add polygons
 		if polygons is None and hasattr(SELF.outer_self,'_adm_polygons'):
 			polygons=SELF.outer_self._adm_polygons
-			for name in polygons.keys():
-				try: 
-					x,y=polygons[name].exterior.xy
-					m.plot(x,y,color='black',linewidth=0.5)
-					if show_region_names:
-						if show_merged_region_names or len(name.split('+'))==1:
-							ctr=polygons[name].centroid.xy
-							plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)
-				except Exception,e: 
-					areas=[]
-					for shape in polygons[name]:
-						areas.append(shape.area)
-						x,y=shape.exterior.xy
+			if show_all_adm_polygons:
+				for name in polygons.keys():
+					try: 
+						x,y=polygons[name].exterior.xy
 						m.plot(x,y,color='black',linewidth=0.5)
-					if show_region_names:
-						if show_merged_region_names or len(name.split('+'))==1:
-							ctr=polygons[name][areas.index(max(areas))].centroid.xy
-							plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)					
+						if show_region_names:
+							if show_merged_region_names or len(name.split('+'))==1:
+								ctr=polygons[name].centroid.xy
+								plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)
+					except Exception,e: 
+						areas=[]
+						for shape in polygons[name]:
+							areas.append(shape.area)
+							x,y=shape.exterior.xy
+							m.plot(x,y,color='black',linewidth=0.5)
+						if show_region_names:
+							if show_merged_region_names or len(name.split('+'))==1:
+								ctr=polygons[name][areas.index(max(areas))].centroid.xy
+								plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)					
 
 			# highlight one region
 			if highlight_region is not None:
@@ -1782,7 +1820,7 @@ class country_data_object(object):
 
 		return(im,color_range)
 
-	def display_map(SELF,period=None,method='mean',season='year',show_agreement=True,limits=None,ax=None,out_file=None,title=None,polygons=None,color_bar=True,color_label=None,color_palette=None,color_range=None,time=None,highlight_region=None,show_region_names=False,show_merged_region_names=False):
+	def display_map(SELF,period=None,method='mean',season='year',show_agreement=True,limits=None,ax=None,out_file=None,title=None,polygons=None,color_bar=True,color_label=None,color_palette=None,color_range=None,time=None,highlight_region=None,show_all_adm_polygons=True,show_region_names=False,show_merged_region_names=False):
 		'''
 		plot maps of data. 
 		period: str: if  the averag over a period is to be plotted specify the period name
@@ -1842,7 +1880,7 @@ class country_data_object(object):
 				elif np.mean(color_range)>0:					color_palette=plt.cm.Blues_r
 
 
-		im,color_range=SELF.plot_map(to_plot,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons,highlight_region=highlight_region,show_region_names=show_region_names,show_merged_region_names=show_merged_region_names)
+		im,color_range=SELF.plot_map(to_plot,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons,highlight_region=highlight_region,show_all_adm_polygons=show_all_adm_polygons,show_region_names=show_region_names,show_merged_region_names=show_merged_region_names)
 		return(im,color_range)
 
 	def display_mask(SELF,mask_style=None,region=None):
