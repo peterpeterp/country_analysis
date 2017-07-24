@@ -339,7 +339,7 @@ class country_analysis(object):
 						x[x>above]=np.nan
 						x[x<below]=np.nan
 
-	def get_warming_slices(self,warming_lvls=[1.5,2,2.5,3],ref_period=[1986,2006],model_real_names=None,wlcalculator_path='/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/'):
+	def get_warming_slices(self,warming_lvls=[1,1.5,2,2.5,3],ref_period=[1980,2000],ref_period_name='0.5',model_real_names=None,wlcalculator_path='/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/'):
 		'''
 		get model specific periods corresponding to global mean temperature warming levels
 		GMT_path: path: Path to GMT files (wlcalculator)
@@ -362,7 +362,7 @@ class country_analysis(object):
 				if data.model not in self._warming_slices.keys() and data.model!='ensemble_mean':
 					self._warming_slices[data.model]={}
 					if data.scenario not in self._warming_slices[data.model].keys():
-						self._warming_slices[data.model][data.scenario]={'ref':ref_period}
+						self._warming_slices[data.model][data.scenario]={ref_period_name:ref_period}
 
 						# model names from cordex are not explicit!
 						if model_real_names is not None:		model_name=model_real_names[data.model]
@@ -376,7 +376,7 @@ class country_analysis(object):
 						lvls=cmipdata.exceedance_tm
 
 						for wlvl in lvls.wlevel:
-							self._warming_slices[data.model][data.scenario][str(wlvl)]=[lvls[scenario][wlvl]-20,lvls[scenario][wlvl]]
+							self._warming_slices[data.model][data.scenario][str(wlvl)]=[lvls[scenario][wlvl]-10,lvls[scenario][wlvl]+10]
 
 		os.chdir(current_path)
 

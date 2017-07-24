@@ -25,10 +25,10 @@ COU.load_data(quiet=True,load_mask=True,load_raw=True,load_area_averages=False,l
 COU.get_warming_slices(wlcalculator_path='/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/',model_real_names={'IPSL':'ipsl-cm5a-lr','HADGEM2':'hadgem2-es','ECEARTH':'ec-earth','MPIESM':'mpi-esm-lr'})
 
 
-ens_mean=COU.selection(['tas','CORDEX_BC','ensemble_mean'])[0]
-COU.period_statistics(periods=COU._warming_slices,selection=COU.selection(['tas','CORDEX_BC']),ref_name='ref')
-COU.period_model_agreement(ref_name='ref')
-ens_mean.display_map(period='diff_2.5-ref')
+# ens_mean=COU.selection(['tas','CORDEX_BC','ensemble_mean'])[0]
+# COU.period_statistics(periods=COU._warming_slices,selection=COU.selection(['tas','CORDEX_BC']),ref_name='ref')
+# COU.period_model_agreement(ref_name='ref')
+# ens_mean.display_map(period='diff_2.5-ref')
 
 # plot a transient
 # tas=COU.selection(['tas'])
