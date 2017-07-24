@@ -112,24 +112,25 @@ class country_analysis(object):
 		if load_raw:
 			for file in glob.glob(self._working_directory_raw+'/*'+filename_filter+'*'):
 				file_new=self._working_directory_raw+file.split('raw'+self._additional_tag)[-1]
-				if quiet==False:print file_new
-				nc_out=Dataset(file_new,"r")
-				tags={}
-				for key,val in zip(nc_out.getncattr('tags_keys').split('**'),nc_out.getncattr('tags_values').split('**')):
-					tags[key]=val
-				try:
-					var_name=tags['original_var_name']
-				except:
-					var_name=tags['var_name']
+				if file_new not in [data.raw_file for data in self._DATA]:
+					if quiet==False:print file_new
+					nc_out=Dataset(file_new,"r")
+					tags={}
+					for key,val in zip(nc_out.getncattr('tags_keys').split('**'),nc_out.getncattr('tags_values').split('**')):
+						tags[key]=val
+					try:
+						var_name=tags['original_var_name']
+					except:
+						var_name=tags['var_name']
 
-				new_data=country_data_object(outer_self=self,**tags)
-				new_data.raw_file=file_new
-				new_data.add_data(raw=nc_out.variables[var_name][:,:,:],lat=nc_out.variables['lat'][:],lon=nc_out.variables['lon'][:],time=nc_out.variables['time'][:],year=nc_out.variables['year'][:],month=nc_out.variables['month'][:])
-				try:
-					new_data.add_data(day=nc_out.variables['day'][:])
-				except:
-					print 'no days'
-				new_data.create_time_stamp()
+					new_data=country_data_object(outer_self=self,**tags)
+					new_data.raw_file=file_new
+					new_data.add_data(raw=nc_out.variables[var_name][:,:,:],lat=nc_out.variables['lat'][:],lon=nc_out.variables['lon'][:],time=nc_out.variables['time'][:],year=nc_out.variables['year'][:],month=nc_out.variables['month'][:])
+					try:
+						new_data.add_data(day=nc_out.variables['day'][:])
+					except:
+						print 'no days'
+					new_data.create_time_stamp()
 				
 
 		if load_area_averages:
@@ -169,7 +170,6 @@ class country_analysis(object):
 					for region in sub_regs[1:]:
 						self._adm_polygons[region_name] = \
 						self._adm_polygons[region_name].symmetric_difference(self._adm_polygons[region])
-
 
 	def get_historical_extreme_events(self,path):
 		'''
@@ -351,6 +351,8 @@ class country_analysis(object):
 
 		current_path=os.getcwd()
 		os.chdir(wlcalculator_path)
+		sys.path.append(wlcalculator_path)
+		os.system('ls')
 		import wacalc.CmipData as CmipData; reload(CmipData)
 		import wacalc.hadcrut_warming as hadcrut_warming; reload(hadcrut_warming)
 
@@ -360,7 +362,7 @@ class country_analysis(object):
 				if data.model not in self._warming_slices.keys() and data.model!='ensemble_mean':
 					self._warming_slices[data.model]={}
 					if data.scenario not in self._warming_slices[data.model].keys():
-						self._warming_slices[data.model][data.scenario]={}
+						self._warming_slices[data.model][data.scenario]={'ref':ref_period}
 
 						# model names from cordex are not explicit!
 						if model_real_names is not None:		model_name=model_real_names[data.model]
@@ -374,7 +376,7 @@ class country_analysis(object):
 						lvls=cmipdata.exceedance_tm
 
 						for wlvl in lvls.wlevel:
-							self._warming_slices[data.model][data.scenario][wlvl]=[lvls[scenario][wlvl]-20,lvls[scenario][wlvl]]
+							self._warming_slices[data.model][data.scenario][str(wlvl)]=[lvls[scenario][wlvl]-20,lvls[scenario][wlvl]]
 
 		os.chdir(current_path)
 
@@ -431,7 +433,7 @@ class country_analysis(object):
 			if name not in ['lat','lon']:
 				if 'unidecode' in sys.modules:
 					self._masks[grid][mask_style][unidecode(name)] = nc_mask.variables[name][:,:]
-					if unidecode(name) not in self._regions.keys(): self._regions[unidecode(name)]=name
+					if unidecode(name) not in self._regions.keys(): self._regions[unidecode(name).replace(' ','_')]=name
 					self.zoom_mask(grid,mask_style,unidecode(name))
 				if 'unidecode' not in sys.modules:
 					self._masks[grid][mask_style][name] = nc_mask.variables[name][:,:]
@@ -483,8 +485,8 @@ class country_analysis(object):
 		count=0			
 		for shape, region in zip(m.admin, m.admin_info):
 			region = {k.lower():v for k,v in region.items()}	
-			if 'unidecode' in sys.modules: name = unidecode(region['name_1'].decode('utf-8'))
-			if 'unidecode' not in sys.modules: name = region['name_1']
+			if 'unidecode' in sys.modules: name = unidecode(region['name_1'].decode('utf-8')).replace(' ','_')
+			if 'unidecode' not in sys.modules: name = region['name_1'].replace(' ','_')
 
 			if name in region_polygons.keys():
 				region_polygons[name] = \
@@ -504,8 +506,8 @@ class country_analysis(object):
 		count=0			
 		for shape, region in zip(m.admin, m.admin_info):
 			region = {k.lower():v for k,v in region.items()}	
-			if 'unidecode' in sys.modules: name = unidecode(region['name_1'].decode('utf-8'))
-			if 'unidecode' not in sys.modules: name = region['name_1']
+			if 'unidecode' in sys.modules: name = unidecode(region['name_1'].decode('utf-8')).replace(' ','_')
+			if 'unidecode' not in sys.modules: name = region['name_1'].replace(' ','_')
 
 			if name in region_polygons.keys():
 				region_polygons[name] = \
@@ -538,6 +540,7 @@ class country_analysis(object):
 				for split in region.split('+'):
 					single_regions.append(split)
 			new_region_name='+'.join(sorted(single_regions))
+			self._regions[new_region_name]='+'.join([self._regions[reg] for reg in sorted(single_regions)])
 		self._adm_polygons[new_region_name]=self._adm_polygons[region_names[0]]
 		for region in region_names[1:]:
 			self._adm_polygons[new_region_name] = \
@@ -1155,8 +1158,6 @@ class country_analysis(object):
 							nc_out.close()
 							nc_in.close()
 
-
-
 	###########
 	# analysis tools
 	###########
@@ -1250,7 +1251,6 @@ class country_analysis(object):
 			# save as csv 
 			country_mean_csv.to_csv(out_file,na_rep='NaN',sep=';',index_label='index',encoding='utf-8')
 
-
 	def period_statistics(self,method='mean',threshold=None,below=False,selection=None,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]},ref_name='ref'):
 		'''
 		computes time averages for each grid-cell for a given period. possible to compute mean or frequency above or below threshold
@@ -1326,7 +1326,7 @@ class country_analysis(object):
 											data.period[method][sea][period_name][y,x]=len(np.where(diff>0)[0])/float(n_steps)*100
 
 						else: 
-							print 'years missing for',period_name,'in',data.name
+							#print 'years missing for',period_name,'in',data.name
 							data.period[method][sea][period_name]=np.zeros([data.raw.shape[1],data.raw.shape[2]])*np.nan
 
 				# period diff
@@ -1354,6 +1354,7 @@ class country_analysis(object):
 			member=ensemble['models'].values()[0]
 
 			if hasattr(member,'period'):
+				print 'got here'
 				if member.time_format=='monthly':		seasons=self._seasons
 				if member.time_format=='10day':		seasons=self._seasons
 				if member.time_format=='yearly':		seasons={'year':range(1,13)}
@@ -1366,7 +1367,7 @@ class country_analysis(object):
 						ensemble['mean'].agreement[method][sea]={}
 
 						# ensemble mean
-						for period in member.period[method][sea].keys():							
+						for period in member.period[method][sea].keys():
 							ensemble['mean'].period[method][sea][period]=member.period[method][sea][period].copy()*0
 							for member in ensemble['models'].values():
 								ensemble['mean'].period[method][sea][period]+=member.period[method][sea][period]
@@ -1773,13 +1774,17 @@ class country_data_object(object):
 			polygons=SELF.outer_self._adm_polygons
 			if show_all_adm_polygons:
 				for name in polygons.keys():
+					print name+'-----'
 					try: 
 						x,y=polygons[name].exterior.xy
 						m.plot(x,y,color='black',linewidth=0.5)
 						if show_region_names:
 							if show_merged_region_names or len(name.split('+'))==1:
 								ctr=polygons[name].centroid.xy
-								plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)
+								#plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)
+								print SELF.outer_self._regions[name]
+								plt.text(ctr[0][0],ctr[1][0],SELF.outer_self._regions[name],horizontalalignment='center',verticalalignment='center',fontsize=8)
+
 					except Exception,e: 
 						areas=[]
 						for shape in polygons[name]:
@@ -1789,7 +1794,11 @@ class country_data_object(object):
 						if show_region_names:
 							if show_merged_region_names or len(name.split('+'))==1:
 								ctr=polygons[name][areas.index(max(areas))].centroid.xy
-								plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)					
+								#plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)
+								print SELF.outer_self._regions[name]
+								plt.text(ctr[0][0],ctr[1][0],SELF.outer_self._regions[name],horizontalalignment='center',verticalalignment='center',fontsize=8)
+
+			print 'done here'
 
 			# highlight one region
 			if highlight_region is not None:
@@ -1913,7 +1922,7 @@ class country_data_object(object):
 		except:
 			print 'no mask has been created for '+mask_style+' and '+region
 
-	def plot_transients(SELF,mask_style='lat_weighted',season='annual',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None,x_range=[1960,2100],ref_period=None,shading_range=None,shading_opacity=0.2,plot_median=False):
+	def plot_transients(SELF,mask_style='lat_weighted',season='annual',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None,x_range=[1960,2090],ref_period=None,shading_range=None,shading_opacity=0.2,plot_median=False,show_all_models=False):
 		'''
 		plot transient of countrywide average
 		mask_style: str: weighting used to compute countrywide averages
@@ -1976,6 +1985,8 @@ class country_data_object(object):
 
 					for t in time_axis:
 						ensemble_range[i,np.where(time_axis[relevenat_time_steps]==t)]=member_runmean[np.where(member.time_stamp_num[relevenat_time_steps]==t)]
+
+					if show_all_models:	ax.plot(SELF.plot_time[relevenat_time_steps],ensemble_range[i,:],linestyle='--',label=member.model,color=color)
 
 				if shading_range is not None:
 					ax.fill_between(SELF.plot_time[relevenat_time_steps],np.nanpercentile(ensemble_range,shading_range[0],axis=0),np.nanpercentile(ensemble_range,shading_range[1],axis=0),alpha=shading_opacity,color=color)
