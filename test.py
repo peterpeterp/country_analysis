@@ -11,11 +11,6 @@ except:pass
 from country_analysis import country_analysis
 sys.path.append('/Users/peterpfleiderer/Documents/')
 
-os.chdir('/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/')
-import wacalc.CmipData as CmipData; reload(CmipData)
-import wacalc.hadcrut_warming as hadcrut_warming; reload(hadcrut_warming)
-os.chdir('/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/')
-
 os.chdir('/Users/peterpfleiderer/Documents/Projects/')
 
 COU=country_analysis('BEN','country_analysis/data/BEN/',seasons={'year':range(1,13),'Apr-Jul':[4,5,6,7]})
@@ -24,18 +19,32 @@ COU.load_data(quiet=True,load_mask=True,load_raw=True,load_area_averages=False,l
 
 COU.get_warming_slices(wlcalculator_path='/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/',model_real_names={'IPSL':'ipsl-cm5a-lr','HADGEM2':'hadgem2-es','ECEARTH':'ec-earth','MPIESM':'mpi-esm-lr'})
 
-def running_mean_func(xx,N):
-    x=np.ma.masked_invalid(xx.copy())
-    ru_mean=x.copy()*np.nan
-    for t in range(int(N/2)+1,len(x)-int(N/2)):
-        ru_mean[t]=np.nanmean(x[t-int(N/2):t+int(N/2)])
-    return ru_mean
 
-tas=COU.selection(['pr'])
-COU.area_average('lat_weighted',overwrite=False,selection=tas)
-for data in tas:
-	print data.name
-	print running_mean_func(data.area_average['lat_weighted']['BEN'],240)[np.where((data.year>=1989) & (data.year<=2003))]
+if len(COU.selection(['year_RX5']))<2:
+	for data in COU.selection(['RX5']): data.year_max('year_RX5')
+	for data in COU.selection(['year_RX5','ensemble_mean']): COU._DATA.remove(data)
+	COU.ensemble_mean()
+
+COU.summary()
+
+
+
+
+
+
+
+# def running_mean_func(xx,N):
+#     x=np.ma.masked_invalid(xx.copy())
+#     ru_mean=x.copy()*np.nan
+#     for t in range(int(N/2)+1,len(x)-int(N/2)):
+#         ru_mean[t]=np.nanmean(x[t-int(N/2):t+int(N/2)])
+#     return ru_mean
+
+# tas=COU.selection(['TXx'])
+# COU.area_average('lat_weighted',overwrite=False,selection=tas)
+# for data in tas:
+# 	print data.name
+# 	print np.nanmean(running_mean_func(data.area_average['lat_weighted']['BEN'],240)[np.where((data.year>=1989) & (data.year<=2003))])-273.15
 
 
 # ens_mean=COU.selection(['tas','CORDEX_BC','ensemble_mean'])[0]

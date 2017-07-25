@@ -45,7 +45,7 @@ for country_iso in isos:
 
 
 
-		if COU.selection(['year_RX5'])<2:
+		if len(COU.selection(['year_RX5']))<2:
 			for data in COU.selection(['RX5']): data.year_max('year_RX5')
 			for data in COU.selection(['year_RX5','ensemble_mean']): COU._DATA.remove(data)
 			COU.ensemble_mean()

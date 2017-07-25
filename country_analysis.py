@@ -339,7 +339,7 @@ class country_analysis(object):
 						x[x>above]=np.nan
 						x[x<below]=np.nan
 
-	def get_warming_slices(self,warming_lvls=[1,1.5,2,2.5,3],ref_period=[1980,2000],ref_period_name='0.5',model_real_names=None,wlcalculator_path='/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/'):
+	def get_warming_slices(self,warming_lvls=[1.5,2],ref_period=[1986,2006],ref_period_name='ref',model_real_names=None,wlcalculator_path='/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/'):
 		'''
 		get model specific periods corresponding to global mean temperature warming levels
 		GMT_path: path: Path to GMT files (wlcalculator)
@@ -376,7 +376,7 @@ class country_analysis(object):
 						lvls=cmipdata.exceedance_tm
 
 						for wlvl in lvls.wlevel:
-							self._warming_slices[data.model][data.scenario][str(wlvl)]=[lvls[scenario][wlvl]-10,lvls[scenario][wlvl]+10]
+							self._warming_slices[data.model][data.scenario][str(wlvl)]=[round(lvls[scenario][wlvl]-10.),round(lvls[scenario][wlvl]+10.)]
 
 		os.chdir(current_path)
 
@@ -1354,7 +1354,6 @@ class country_analysis(object):
 			member=ensemble['models'].values()[0]
 
 			if hasattr(member,'period'):
-				print 'got here'
 				if member.time_format=='monthly':		seasons=self._seasons
 				if member.time_format=='10day':		seasons=self._seasons
 				if member.time_format=='yearly':		seasons={'year':range(1,13)}
@@ -1483,7 +1482,6 @@ class country_analysis(object):
 
 			if compute:
 				if data.model in self.find_ensemble([data.data_type,data.var_name,data.scenario])['models'].keys():
-					print data.data_type,data.var_name,data.scenario,data.model
 					ensemble=self.find_ensemble([data.data_type,data.var_name,data.scenario])
 
 					ensemble['mean'].steps_in_year=sorted(set(ensemble['mean'].time_in_year_num))
@@ -1780,8 +1778,6 @@ class country_data_object(object):
 						if show_region_names:
 							if show_merged_region_names or len(name.split('+'))==1:
 								ctr=polygons[name].centroid.xy
-								#plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)
-								print SELF.outer_self._regions[name]
 								plt.text(ctr[0][0],ctr[1][0],SELF.outer_self._regions[name],horizontalalignment='center',verticalalignment='center',fontsize=8)
 
 					except Exception,e: 
@@ -1793,8 +1789,6 @@ class country_data_object(object):
 						if show_region_names:
 							if show_merged_region_names or len(name.split('+'))==1:
 								ctr=polygons[name][areas.index(max(areas))].centroid.xy
-								#plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)
-								print SELF.outer_self._regions[name]
 								plt.text(ctr[0][0],ctr[1][0],SELF.outer_self._regions[name],horizontalalignment='center',verticalalignment='center',fontsize=8)
 
 			# highlight one region

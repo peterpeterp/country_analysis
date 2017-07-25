@@ -394,13 +394,6 @@ for country_iso in isos:
 			COU.ensemble_mean()
 
 			COU.summary()
-			
-			if COU.selection(['year_RX5'])<2:
-				for data in COU.selection(['RX5']): data.year_max('year_RX5')
-				for data in COU.selection(['year_RX5','ensemble_mean']): COU._DATA.remove(data)
-				COU.ensemble_mean()
-
-			COU.summary()
 
 			# COU.area_average('lat_weighted',overwrite=True)
 
