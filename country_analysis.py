@@ -1774,7 +1774,6 @@ class country_data_object(object):
 			polygons=SELF.outer_self._adm_polygons
 			if show_all_adm_polygons:
 				for name in polygons.keys():
-					print name+'-----'
 					try: 
 						x,y=polygons[name].exterior.xy
 						m.plot(x,y,color='black',linewidth=0.5)
@@ -1797,8 +1796,6 @@ class country_data_object(object):
 								#plt.text(ctr[0][0],ctr[1][0],unidecode(name.decode('utf-8')),horizontalalignment='center',verticalalignment='center',fontsize=8)
 								print SELF.outer_self._regions[name]
 								plt.text(ctr[0][0],ctr[1][0],SELF.outer_self._regions[name],horizontalalignment='center',verticalalignment='center',fontsize=8)
-
-			print 'done here'
 
 			# highlight one region
 			if highlight_region is not None:
