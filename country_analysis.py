@@ -1004,7 +1004,7 @@ class country_analysis(object):
 			#lons=sorted(np.where(lon_mean!=0)[0])
 			lons=sorted(np.where(np.isfinite(lon_mean))[0])
 
-			lat_mean=np.mean(country_mask,1)
+			lat_mean=np.nanmean(country_mask,1)
 			#lats=sorted(np.where(lat_mean!=0)[0])
 			lats=sorted(np.where(np.isfinite(lat_mean))[0])
 
