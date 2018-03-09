@@ -6,7 +6,7 @@ from netCDF4 import Dataset,netcdftime,num2date
 import pandas as pd
 
 sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/country_analysis_scripts/')
-try:del sys.modules['country_analysis'] 
+try:del sys.modules['country_analysis']
 except:pass
 from country_analysis import country_analysis
 sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
@@ -15,19 +15,19 @@ sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
 all_isos=['AGO', 'DZA', 'EGY', 'GNQ', 'BEN', 'NGA', 'NER', 'ZWE', 'NAM', 'GNB', 'SWZ', 'GHA', 'COG', 'SLE', 'ETH', 'COM', 'ERI', 'CPV', 'LBR', 'LBY', 'LSO', 'UGA', 'RWA', 'SOM', 'MDG', 'CMR', 'TZA', 'BWA', 'SEN', 'TCD', 'GAB', 'BFA', 'MWI', 'MOZ', 'MRT', 'GMB', 'MLI', 'BDI', 'STP', 'DJI', 'GIN', 'ESH', 'KEN', 'MAR', 'COD', 'ZMB', 'ZAF', 'TGO', 'TUN', 'CAF', 'SSD', 'SDN', 'CIV']
 #all_isos=['EGY', 'GNQ', 'ZWE', 'NAM', 'SWZ', 'COG', 'ETH', 'COM', 'ERI', 'CPV', 'UGA', 'RWA', 'SOM', 'MDG', 'CMR', 'TZA', 'SEN', 'MWI', 'MOZ', 'STP', 'ESH', 'KEN', 'MAR', 'COD', 'ZAF', 'CAF', 'SSD', 'SDN']
 
-# ##############
-# # Pre-Prepare
-# ##############
-# for country_iso in ['GHA']:
-# 	print country_iso
-# 	COU=country_analysis(country_iso,'data/'+country_iso+'/',additional_tag='')
+##############
+# Pre-Prepare
+##############
+for country_iso in ['CPV']:
+	print country_iso
+	COU=country_analysis(country_iso,'data/'+country_iso+'/',additional_tag='')
 
-# 	os.chdir(COU._working_directory)
-# 	os.system('wget biogeo.ucdavis.edu/data/gadm2.8/shp/'+country_iso+'_adm_shp.zip')
-# 	os.system('mkdir '+country_iso+'_adm_shp')
-# 	os.system('ls')
-# 	os.chdir(COU._working_directory+country_iso+'_adm_shp')
-# 	os.system('unzip ../'+country_iso+'_adm_shp.zip')
+	os.chdir(COU._working_directory)
+	os.system('wget biogeo.ucdavis.edu/data/gadm2.8/shp/'+country_iso+'_adm_shp.zip')
+	os.system('mkdir '+country_iso+'_adm_shp')
+	os.system('ls')
+	os.chdir(COU._working_directory+country_iso+'_adm_shp')
+	os.system('unzip ../'+country_iso+'_adm_shp.zip')
 
 
 try:
@@ -38,7 +38,7 @@ try:
 	print isos
 
 except:
-	isos=['SEN']	
+	isos=['CPV']
 
 for country_iso in isos:
 	print country_iso
@@ -73,7 +73,7 @@ for country_iso in isos:
 			# #CMIP5_BC
 			# ##############
 
-			#tas 
+			#tas
 			all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_*')
 			for in_file in all_files:
 				model=in_file.split('/')[-1].split('_')[2]
@@ -81,7 +81,7 @@ for country_iso in isos:
 				print rcp,model,in_file
 				COU.country_zoom(in_file,var_name='tas',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-			#TXx 
+			#TXx
 			all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/TXx/mon_TXx_*')
 			for in_file in all_files:
 				model=in_file.split('/')[-1].split('_')[2]
@@ -89,7 +89,7 @@ for country_iso in isos:
 				print rcp,model,in_file
 				COU.country_zoom(in_file,var_name='tasmax',given_var_name='TXx',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-			#pr 
+			#pr
 			all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*')
 			for in_file in all_files:
 				model=in_file.split('/')[-1].split('_')[2]
@@ -97,7 +97,7 @@ for country_iso in isos:
 				print rcp,model,in_file
 				COU.country_zoom(in_file,var_name='pr',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-			#RX5 
+			#RX5
 			all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/RX5/mon_RX5_*')
 			for in_file in all_files:
 				model=in_file.split('/')[-1].split('_')[2]
@@ -105,7 +105,7 @@ for country_iso in isos:
 				print rcp,model,in_file
 				COU.country_zoom(in_file,var_name='pr',given_var_name='RX5',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-			#RX1 
+			#RX1
 			all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/RX1/mon_RX1_*')
 			for in_file in all_files:
 				model=in_file.split('/')[-1].split('_')[2]
@@ -113,7 +113,7 @@ for country_iso in isos:
 				print rcp,model,in_file
 				COU.country_zoom(in_file,var_name='pr',given_var_name='RX1',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-			# #year_CDD 
+			# #year_CDD
 			# all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/CDD/year_cdd_*')
 			# for in_file in all_files:
 			# 	model=in_file.split('/')[-1].split('_')[4]
@@ -129,7 +129,7 @@ for country_iso in isos:
 			# 	print rcp,model,in_file
 			# 	COU.country_zoom(in_file,var_name='consecutive_dry_days_index_per_time_period',given_var_name='Apr_Jul_cdd',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='yearly',overwrite=True)
 
-			# #Jun_Sep_cdd 
+			# #Jun_Sep_cdd
 			# all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/CDD/Jun-Sep_cdd_*')
 			# for in_file in all_files:
 			# 	model=in_file.split('/')[-1].split('_')[4]
@@ -137,7 +137,7 @@ for country_iso in isos:
 			# 	print rcp,model,in_file
 			# 	COU.country_zoom(in_file,var_name='consecutive_dry_days_index_per_time_period',given_var_name='Jun_Sep_cdd',data_type='CMIP5_BC',scenario=rcp,model=model,time_format='yearly',overwrite=True)
 
-			# #May_Oct_cdd 
+			# #May_Oct_cdd
 			# all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/CDD/May-Oct_cdd_*')
 			# for in_file in all_files:
 			# 	model=in_file.split('/')[-1].split('_')[4]
@@ -177,47 +177,47 @@ for country_iso in isos:
 			# # CORDEX
 			# ##############
 
-			#tas 
-			all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/tas/mon_tas_*')
-			for in_file in all_files:
-				model=in_file.split('/')[-1].split('_')[2]
-				rcp=in_file.split('/')[-1].split('_')[3]
-				print rcp,model,in_file
-				COU.country_zoom(in_file,var_name='tas',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+			# #tas
+			# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/tas/mon_tas_*')
+			# for in_file in all_files:
+			# 	model=in_file.split('/')[-1].split('_')[2]
+			# 	rcp=in_file.split('/')[-1].split('_')[3]
+			# 	print rcp,model,in_file
+			# 	COU.country_zoom(in_file,var_name='tas',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+            #
+			# #TXx
+			# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/TXx/mon_TXx_*')
+			# for in_file in all_files:
+			# 	model=in_file.split('/')[-1].split('_')[2]
+			# 	rcp=in_file.split('/')[-1].split('_')[3]
+			# 	print rcp,model,in_file
+			# 	COU.country_zoom(in_file,var_name='tasmax',given_var_name='TXx',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+            #
+			# #pr
+			# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/pr/mon_pr_*')
+			# for in_file in all_files:
+			# 	model=in_file.split('/')[-1].split('_')[2]
+			# 	rcp=in_file.split('/')[-1].split('_')[3]
+			# 	print rcp,model,in_file
+			# 	COU.country_zoom(in_file,var_name='pr',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+            #
+			# #RX5
+			# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/RX5/mon_RX5_*')
+			# for in_file in all_files:
+			# 	model=in_file.split('/')[-1].split('_')[2]
+			# 	rcp=in_file.split('/')[-1].split('_')[3]
+			# 	print rcp,model,in_file
+			# 	COU.country_zoom(in_file,var_name='pr',given_var_name='RX5',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
+            #
+			# #RX1
+			# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/RX1/mon_RX1_*')
+			# for in_file in all_files:
+			# 	model=in_file.split('/')[-1].split('_')[2]
+			# 	rcp=in_file.split('/')[-1].split('_')[3]
+			# 	print rcp,model,in_file
+			# 	COU.country_zoom(in_file,var_name='pr',given_var_name='RX1',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-			#TXx 
-			all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/TXx/mon_TXx_*')
-			for in_file in all_files:
-				model=in_file.split('/')[-1].split('_')[2]
-				rcp=in_file.split('/')[-1].split('_')[3]
-				print rcp,model,in_file
-				COU.country_zoom(in_file,var_name='tasmax',given_var_name='TXx',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
-
-			#pr 
-			all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/pr/mon_pr_*')
-			for in_file in all_files:
-				model=in_file.split('/')[-1].split('_')[2]
-				rcp=in_file.split('/')[-1].split('_')[3]
-				print rcp,model,in_file
-				COU.country_zoom(in_file,var_name='pr',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
-
-			#RX5 
-			all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/RX5/mon_RX5_*')
-			for in_file in all_files:
-				model=in_file.split('/')[-1].split('_')[2]
-				rcp=in_file.split('/')[-1].split('_')[3]
-				print rcp,model,in_file
-				COU.country_zoom(in_file,var_name='pr',given_var_name='RX5',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
-
-			#RX1 
-			all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/RX1/mon_RX1_*')
-			for in_file in all_files:
-				model=in_file.split('/')[-1].split('_')[2]
-				rcp=in_file.split('/')[-1].split('_')[3]
-				print rcp,model,in_file
-				COU.country_zoom(in_file,var_name='pr',given_var_name='RX1',data_type='CORDEX',scenario=rcp,model=model,time_format='monthly',overwrite=True)
-
-			# #year_CDD 
+			# #year_CDD
 			# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/CDD/year_cdd_*')
 			# for in_file in all_files:
 			# 	model=in_file.split('/')[-1].split('_')[2]
@@ -233,7 +233,7 @@ for country_iso in isos:
 			# 	print rcp,model,in_file
 			# 	COU.country_zoom(in_file,var_name='consecutive_dry_days_index_per_time_period',given_var_name='Apr_Jul_cdd',data_type='CORDEX',scenario=rcp,model=model,time_format='yearly',overwrite=True)
 
-			# #Jun_Sep_cdd 
+			# #Jun_Sep_cdd
 			# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/CDD/Jun-Sep_cdd_*')
 			# for in_file in all_files:
 			# 	model=in_file.split('/')[-1].split('_')[2]
@@ -241,7 +241,7 @@ for country_iso in isos:
 			# 	print rcp,model,in_file
 			# 	COU.country_zoom(in_file,var_name='consecutive_dry_days_index_per_time_period',given_var_name='Jun_Sep_cdd',data_type='CORDEX',scenario=rcp,model=model,time_format='yearly',overwrite=True)
 
-			# #May_Oct_cdd 
+			# #May_Oct_cdd
 			# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMinput/monthly/CDD/May-Oct_cdd_*')
 			# for in_file in all_files:
 			# 	model=in_file.split('/')[-1].split('_')[2]
@@ -271,7 +271,7 @@ for country_iso in isos:
 			# #CORDEX BC
 			# ##############
 
-			#tas 
+			#tas
 			all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMoutput/monthly/tas/mon_tas_*')
 			for in_file in all_files:
 				model=in_file.split('/')[-1].split('_')[2]
@@ -279,7 +279,7 @@ for country_iso in isos:
 				print rcp,model,in_file
 				COU.country_zoom(in_file,var_name='tas',data_type='CORDEX_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-			#TXx 
+			#TXx
 			all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMoutput/monthly/TXx/mon_TXx_*')
 			for in_file in all_files:
 				model=in_file.split('/')[-1].split('_')[2]
@@ -287,7 +287,7 @@ for country_iso in isos:
 				print rcp,model,in_file
 				COU.country_zoom(in_file,var_name='tasmax',given_var_name='TXx',data_type='CORDEX_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-			#pr 
+			#pr
 			all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMoutput/monthly/pr/mon_pr_*')
 			for in_file in all_files:
 				model=in_file.split('/')[-1].split('_')[2]
@@ -295,7 +295,7 @@ for country_iso in isos:
 				print rcp,model,in_file
 				COU.country_zoom(in_file,var_name='pr',data_type='CORDEX_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-			#RX5 
+			#RX5
 			all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMoutput/monthly/RX5/mon_RX5_*')
 			for in_file in all_files:
 				model=in_file.split('/')[-1].split('_')[2]
@@ -303,7 +303,7 @@ for country_iso in isos:
 				print rcp,model,in_file
 				COU.country_zoom(in_file,var_name='pr',given_var_name='RX5',data_type='CORDEX_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-			#RX1 
+			#RX1
 			all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMoutput/monthly/RX1/mon_RX1_*')
 			for in_file in all_files:
 				model=in_file.split('/')[-1].split('_')[2]
@@ -311,7 +311,7 @@ for country_iso in isos:
 				print rcp,model,in_file
 				COU.country_zoom(in_file,var_name='pr',given_var_name='RX1',data_type='CORDEX_BC',scenario=rcp,model=model,time_format='monthly',overwrite=True)
 
-			# #year_CDD 
+			# #year_CDD
 			# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMoutput/monthly/CDD/year_cdd_*')
 			# for in_file in all_files:
 			# 	model=in_file.split('/')[-1].split('_')[2]
@@ -327,7 +327,7 @@ for country_iso in isos:
 			# 	print rcp,model,in_file
 			# 	COU.country_zoom(in_file,var_name='consecutive_dry_days_index_per_time_period',given_var_name='Apr_Jul_cdd',data_type='CORDEX_BC',scenario=rcp,model=model,time_format='yearly',overwrite=True)
 
-			# #Jun_Sep_cdd 
+			# #Jun_Sep_cdd
 			# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMoutput/monthly/CDD/Jun-Sep_cdd_*')
 			# for in_file in all_files:
 			# 	model=in_file.split('/')[-1].split('_')[2]
@@ -335,7 +335,7 @@ for country_iso in isos:
 			# 	print rcp,model,in_file
 			# 	COU.country_zoom(in_file,var_name='consecutive_dry_days_index_per_time_period',given_var_name='Jun_Sep_cdd',data_type='CORDEX_BC',scenario=rcp,model=model,time_format='yearly',overwrite=True)
 
-			# #May_Oct_cdd 
+			# #May_Oct_cdd
 			# all_files=glob.glob('/p/projects/ikiimp/RCM_BC/ISIMIP2b_bc/GCMoutput/monthly/CDD/May-Oct_cdd_*')
 			# for in_file in all_files:
 			# 	model=in_file.split('/')[-1].split('_')[2]
@@ -400,7 +400,7 @@ for country_iso in isos:
 				for data in COU.selection(['year_RX5','ensemble_mean']): COU._DATA.remove(data)
 				COU.ensemble_mean()
 
-			COU.summary()	
+			COU.summary()
 
 
 			COU.area_average('lat_weighted',overwrite=True)
@@ -410,12 +410,6 @@ for country_iso in isos:
 
 			COU.zip_it()
 
-		except Exception,e: 
+		except Exception,e:
 			print str(e)
 			print 'issues with '+country_iso
-
-
-
-
-
-
