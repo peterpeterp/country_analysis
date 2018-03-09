@@ -1222,38 +1222,26 @@ class country_analysis(object):
 
 			# load input data
 			var_in=data.raw.copy()
-			print var_in.shape
 			try:	# handle masked array
 				masked=np.ma.getmask(var_in)
 				var_in=np.ma.getdata(var_in)
 				var_in[masked]=np.nan
 			except: pass
-			print var_in.shape
-			print data.time
+
 
 			# get mask
-			print data.name
 			for name in regions:
 				if name not in data.area_average[mask_style].keys() or overwrite:
 					mask=self._masks[self._grid_dict[data.grid]][mask_style][name]
 
-					print data.grid
-					print mask.shape
-					print var_in.shape
-
 					country_area=np.where(mask>0)
-
 
 					data.area_average[mask_style][name]=data.time.copy()*np.nan
 					for i in range(len(data.time)):
-						print country_area
-						print var_in.shape
 						var_of_area=var_in[i,:,:][country_area]
-						print var_of_area
-						print mask[country_area]
+
 						# NA handling: sum(mask*var)/sum(mask) for the area where var is not NA
 						not_missing_in_var=np.where(np.isfinite(var_of_area))[0]	# np.where()[0] because of array([],)
-						print np.where(np.isfinite(var_of_area))
 						if len(not_missing_in_var)>0:
 							data.area_average[mask_style][name][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
 
