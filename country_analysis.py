@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 '''
 Class to analyze climate data on national (& sub national) scale
@@ -625,7 +624,7 @@ class country_analysis(object):
 			# shift back to original longitudes
 			self._masks[grid][mask_style][name]=np.roll(output,shift,axis=1)
 		else:
-			print 'something went wring with the mask'
+			print 'something went wrong with the mask'
 
 	def create_mask_country(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file='',overwrite=False,lat_name='lat',lon_name='lon'):
 		'''
