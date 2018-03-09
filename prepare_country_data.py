@@ -42,9 +42,6 @@ except:
 		isos=['CPV']
 
 	if args.get_shapefile:
-		##############
-		# Pre-Prepare
-		##############
 		for country_iso in isos:
 			print country_iso
 			COU=country_analysis(country_iso,'data/'+country_iso+'/',additional_tag='')
