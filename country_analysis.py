@@ -1233,6 +1233,9 @@ class country_analysis(object):
 				if name not in data.area_average[mask_style].keys() or overwrite:
 					mask=self._masks[self._grid_dict[data.grid]][mask_style][name]
 
+					print mask.shape
+					print varin.shape
+
 					country_area=np.where(mask>0)
 
 
