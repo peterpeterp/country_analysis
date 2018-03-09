@@ -51,29 +51,29 @@ except:
 
 
 for country_iso in isos:
-	try:
-		print country_iso
+	# try:
+	print country_iso
 
-		COU=country_analysis(country_iso,'country_analysis/data/'+country_iso+'/')
-		COU.load_data(quiet=False,load_region_polygons=False)
-
-
-
-		if len(COU.selection(['year_RX5']))<2:
-			for data in COU.selection(['RX5']): data.year_max('year_RX5')
-			for data in COU.selection(['year_RX5','ensemble_mean']): COU._DATA.remove(data)
-			COU.ensemble_mean()
-
-		COU.summary()
+	COU=country_analysis(country_iso,'country_analysis/data/'+country_iso+'/')
+	COU.load_data(quiet=False,load_region_polygons=False)
 
 
-		COU.area_average('lat_weighted',overwrite=True)
-		# COU.area_average('pop2015_weighted',overwrite=False)
-		# COU.area_average('pop1990_weighted',overwrite=False)
+
+	if len(COU.selection(['year_RX5']))<2:
+		for data in COU.selection(['RX5']): data.year_max('year_RX5')
+		for data in COU.selection(['year_RX5','ensemble_mean']): COU._DATA.remove(data)
+		COU.ensemble_mean()
+
+	COU.summary()
 
 
-		COU.zip_it()
+	COU.area_average('lat_weighted',overwrite=True)
+	# COU.area_average('pop2015_weighted',overwrite=False)
+	# COU.area_average('pop1990_weighted',overwrite=False)
 
-	except Exception,e:
-		print str(e)
-		print 'issues with '+country_iso
+
+	COU.zip_it()
+
+	# except Exception,e:
+	# 	print str(e)
+	# 	print 'issues with '+country_iso
