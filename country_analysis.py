@@ -1218,11 +1218,14 @@ class country_analysis(object):
 
 			# load input data
 			var_in=data.raw.copy()
+			print var_in.shape
 			try:	# handle masked array
 				masked=np.ma.getmask(var_in)
 				var_in=np.ma.getdata(var_in)
 				var_in[masked]=np.nan
 			except: pass
+			print var_in.shape
+			print data.time
 
 			# get mask
 			print data.name
