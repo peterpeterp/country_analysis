@@ -1001,24 +1001,20 @@ class country_analysis(object):
 
 			# find relevant area (as rectangle)
 			lon_mean=np.nanmean(country_mask,0)
-			lons=sorted(np.where(lon_mean!=0)[0])
+			#lons=sorted(np.where(lon_mean!=0)[0])
 			lons=sorted(np.where(np.isfinite(lon_mean))[0])
 
 			lat_mean=np.mean(country_mask,1)
-			lats=sorted(np.where(lat_mean!=0)[0])
+			#lats=sorted(np.where(lat_mean!=0)[0])
 			lats=sorted(np.where(np.isfinite(lat_mean))[0])
 
 			nx,ny=len(lons),len(lats)
 
 			lon=lon_mask[list(lons)]
 			lat=lat_mask[list(lats)]
-			print lon,lat
 
 			# zoom to relevant area
-			print 'cdo -O sellonlatbox,'+str(min(lon))+','+str(max(lon))+','+str(min(lat))+','+str(max(lat))+' '+input_file+' '+out_file.replace('.nc','_tmp.nc')
 			os.system('cdo -O sellonlatbox,'+str(min(lon))+','+str(max(lon))+','+str(min(lat))+','+str(max(lat))+' '+input_file+' '+out_file.replace('.nc','_tmp.nc'))
-
-			asdas
 
 			new_data=country_data_object(outer_self=self,var_name=var_name,grid=grid,**kwargs)
 			new_data.raw_file=out_file
