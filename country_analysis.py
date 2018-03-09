@@ -999,7 +999,9 @@ class country_analysis(object):
 			lon_mask=self._masks[grid]['lon_mask']
 
 			# find relevant area (as rectangle)
-			lon_mean=np.mean(country_mask,0)
+			print country_mask
+			print np.ma.getdata(country_mask)
+			lon_mean=np.nanmean(country_mask,0)
 			lons=sorted(np.where(lon_mean!=0)[0])
 			print lon_mean
 			lons=sorted(np.where(np.isfinite(lon_mean))[0])
