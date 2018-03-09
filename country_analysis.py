@@ -1009,9 +1009,13 @@ class country_analysis(object):
 
 			lon=lon_mask[list(lons)]
 			lat=lat_mask[list(lats)]
+			print lon,lat
 
 			# zoom to relevant area
+			print 'cdo -O sellonlatbox,'+str(min(lon))+','+str(max(lon))+','+str(min(lat))+','+str(max(lat))+' '+input_file+' '+out_file.replace('.nc','_tmp.nc')
 			os.system('cdo -O sellonlatbox,'+str(min(lon))+','+str(max(lon))+','+str(min(lat))+','+str(max(lat))+' '+input_file+' '+out_file.replace('.nc','_tmp.nc'))
+
+			asdas
 
 			new_data=country_data_object(outer_self=self,var_name=var_name,grid=grid,**kwargs)
 			new_data.raw_file=out_file
