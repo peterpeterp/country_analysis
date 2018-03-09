@@ -434,8 +434,6 @@ class country_analysis(object):
 		grid=nc_mask.getncattr('original_grid')
 		mask_style=nc_mask.getncattr('mask_style')
 
-		print '________'
-
 		if grid not in self._masks.keys():
 			self._masks[grid]={}
 		if mask_style not in self._masks[grid].keys():
@@ -445,9 +443,7 @@ class country_analysis(object):
 		self._masks[grid]['lon_mask'] = nc_mask.variables['lon'][:]
 
 		# get all variables (regions)
-		print mask_file
 		for name in nc_mask.variables.keys():
-			print name
 			if name not in ['lat','lon']:
 				if 'unidecode' in sys.modules:
 					self._masks[grid][mask_style][unidecode(name)] = nc_mask.variables[name][:,:]
@@ -802,7 +798,6 @@ class country_analysis(object):
 		cou_mask=self._masks[grid][mask_style][self._iso]
 		cou_mask=np.ma.getdata(cou_mask)
 
-		print cou_mask
 		lon_mean=np.nanmean(cou_mask,0)
 		#lons=np.where(lon_mean!=0)[0]
 		lons=sorted(np.where(np.isfinite(lon_mean))[0])
