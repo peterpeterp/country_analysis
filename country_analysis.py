@@ -434,6 +434,8 @@ class country_analysis(object):
 		grid=nc_mask.getncattr('original_grid')
 		mask_style=nc_mask.getncattr('mask_style')
 
+		print '________'
+
 		if grid not in self._masks.keys():
 			self._masks[grid]={}
 		if mask_style not in self._masks[grid].keys():
