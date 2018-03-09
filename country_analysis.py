@@ -1001,6 +1001,7 @@ class country_analysis(object):
 			# find relevant area (as rectangle)
 			lon_mean=np.mean(country_mask,0)
 			lons=sorted(np.where(lon_mean!=0)[0])
+			lons=sorted(np.where(np.isfinite(lon_mean))[0])
 
 			lat_mean=np.mean(country_mask,1)
 			lats=sorted(np.where(lat_mean!=0)[0])
