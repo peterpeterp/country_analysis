@@ -1652,6 +1652,34 @@ class country_data_object(object):
 		new_data.add_data(lat=SELF.lat,lon=SELF.lon)
 		SELF.outer_self.fill_gaps_in_time_axis(new_data,out_file.replace('.nc','_tmp.nc'),out_file)
 
+	def year_max(SELF,new_var_name):
+		'''
+		computes annual max using 'cdo yearmax'. this function could be used as a template for other functions of this kind
+		new_var_name: str: given new var name
+		'''
+		if hasattr(SELF,'model'):
+			if SELF.model=='ensemble_mean':
+				return 'not a good idea to apply yearmax on ensemble mean'
+
+		year_new=np.array(sorted(set(SELF.year)))
+		dat=np.zeros([len(year_new),len(SELF.lat),len(SELF.lon)])*np.nan
+		for yr,i in zip(year_new,range(len(year_new))):
+			dat[i,:,:]=np.nanmax(SELF.raw[np.where(SELF.year==yr)[0],:,:],axis=0)
+
+		kwargs=SELF.all_tags_dict
+		kwargs['var_name']=SELF.original_var_name
+		kwargs['given_var_name']=new_var_name
+		kwargs['time_format']='yearly'
+
+		out_file=SELF.raw_file.replace(SELF.var_name,new_var_name)
+		os.system('cdo yearmax '+SELF.raw_file+' '+out_file.replace('.nc','_tmp.nc'))
+
+		new_data=country_data_object(outer_self=SELF.outer_self,**kwargs)
+		new_data.raw_file=out_file
+		new_data.original_var_name=SELF.original_var_name
+		new_data.add_data(lat=SELF.lat,lon=SELF.lon)
+		SELF.outer_self.fill_gaps_in_time_axis(new_data,out_file.replace('.nc','_tmp.nc'),out_file)
+
 	def details(SELF,detailed=True):
 		'''
 		show details of country_data_object
