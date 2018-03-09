@@ -1238,8 +1238,11 @@ class country_analysis(object):
 					data.area_average[mask_style][name]=data.time.copy()*np.nan
 					for i in range(len(data.time)):
 						var_of_area=var_in[i,:,:][country_area]
+						print var_of_area
+						print mask[country_area]
 						# NA handling: sum(mask*var)/sum(mask) for the area where var is not NA
 						not_missing_in_var=np.where(np.isfinite(var_of_area))[0]	# np.where()[0] because of array([],)
+						print np.where(np.isfinite(var_of_area))
 						if len(not_missing_in_var)>0:
 							data.area_average[mask_style][name][i]=sum(mask[country_area][not_missing_in_var]*var_of_area[not_missing_in_var])/sum(mask[country_area][not_missing_in_var])
 
