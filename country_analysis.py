@@ -623,8 +623,10 @@ class country_analysis(object):
 			output=np.ma.masked_invalid(output)
 			# shift back to original longitudes
 			self._masks[grid][mask_style][name]=np.roll(output,shift,axis=1)
+			return True
 		else:
 			print 'something went wrong with the mask'
+			return False
 
 	def create_mask_country(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file='',overwrite=False,lat_name='lat',lon_name='lon'):
 		'''
@@ -773,8 +775,8 @@ class country_analysis(object):
 			for name in selected_regions:
 				print name,region_polygons.keys()
 				region_shape = region_polygons[name]
-				self.grid_polygon_overlap(grid,lon, lat, grid_polygons, region_shape, shift, mask_style, ext_poly, name, pop_mask)
-				outVar = nc_mask.createVariable(name, 'f', ('lat','lon',),fill_value='NaN') ; outVar[:]=self._masks[grid][mask_style][name][:,:]
+				if self.grid_polygon_overlap(grid,lon, lat, grid_polygons, region_shape, shift, mask_style, ext_poly, name, pop_mask):
+					outVar = nc_mask.createVariable(name, 'f', ('lat','lon',),fill_value='NaN') ; outVar[:]=self._masks[grid][mask_style][name][:,:]
 
 			nc_mask.setncattr('original_grid',grid)
 			nc_mask.setncattr('mask_style',mask_style)
