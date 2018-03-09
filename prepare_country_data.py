@@ -15,20 +15,6 @@ sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
 all_isos=['AGO', 'DZA', 'EGY', 'GNQ', 'BEN', 'NGA', 'NER', 'ZWE', 'NAM', 'GNB', 'SWZ', 'GHA', 'COG', 'SLE', 'ETH', 'COM', 'ERI', 'CPV', 'LBR', 'LBY', 'LSO', 'UGA', 'RWA', 'SOM', 'MDG', 'CMR', 'TZA', 'BWA', 'SEN', 'TCD', 'GAB', 'BFA', 'MWI', 'MOZ', 'MRT', 'GMB', 'MLI', 'BDI', 'STP', 'DJI', 'GIN', 'ESH', 'KEN', 'MAR', 'COD', 'ZMB', 'ZAF', 'TGO', 'TUN', 'CAF', 'SSD', 'SDN', 'CIV']
 #all_isos=['EGY', 'GNQ', 'ZWE', 'NAM', 'SWZ', 'COG', 'ETH', 'COM', 'ERI', 'CPV', 'UGA', 'RWA', 'SOM', 'MDG', 'CMR', 'TZA', 'SEN', 'MWI', 'MOZ', 'STP', 'ESH', 'KEN', 'MAR', 'COD', 'ZAF', 'CAF', 'SSD', 'SDN']
 
-# ##############
-# # Pre-Prepare
-# ##############
-# for country_iso in ['SYC']:
-# 	print country_iso
-# 	COU=country_analysis(country_iso,'data/'+country_iso+'/',additional_tag='')
-#
-# 	os.chdir(COU._working_directory)
-# 	os.system('wget biogeo.ucdavis.edu/data/gadm2.8/shp/'+country_iso+'_adm_shp.zip')
-# 	os.system('mkdir '+country_iso+'_adm_shp')
-# 	os.system('ls')
-# 	os.chdir(COU._working_directory+country_iso+'_adm_shp')
-# 	os.system('unzip ../'+country_iso+'_adm_shp.zip')
-#
 
 try:
 	job_id=int(os.environ["SLURM_ARRAY_TASK_ID"])
@@ -42,6 +28,7 @@ except:
 	parser = argparse.ArgumentParser()
 	parser.add_argument("--country",'-c', help="country iso",required=False)
 	parser.add_argument("--overwrite",'-o', help="overwrite output files",action="store_true")
+	parser.add_argument("--get_shapefile", help="overwrite output files",action="store_true")
 	args = parser.parse_args()
 
 	if args.overwrite:
@@ -53,6 +40,23 @@ except:
 		isos=[args.country]
 	else:
 		isos=['CPV']
+
+	if args.get_shapefile:
+		##############
+		# Pre-Prepare
+		##############
+		for country_iso in isos:
+			print country_iso
+			COU=country_analysis(country_iso,'data/'+country_iso+'/',additional_tag='')
+
+			os.chdir(COU._working_directory)
+			os.system('wget biogeo.ucdavis.edu/data/gadm2.8/shp/'+country_iso+'_adm_shp.zip')
+			os.system('mkdir '+country_iso+'_adm_shp')
+			os.system('ls')
+			os.chdir(COU._working_directory+country_iso+'_adm_shp')
+			os.system('unzip ../'+country_iso+'_adm_shp.zip')
+
+
 
 for country_iso in isos:
 	print country_iso
