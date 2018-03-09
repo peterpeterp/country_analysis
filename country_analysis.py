@@ -443,7 +443,9 @@ class country_analysis(object):
 		self._masks[grid]['lon_mask'] = nc_mask.variables['lon'][:]
 
 		# get all variables (regions)
+		print mask_file
 		for name in nc_mask.variables.keys():
+			print name
 			if name not in ['lat','lon']:
 				if 'unidecode' in sys.modules:
 					self._masks[grid][mask_style][unidecode(name)] = nc_mask.variables[name][:,:]
