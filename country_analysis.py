@@ -995,18 +995,18 @@ class country_analysis(object):
 			lon_in,lat_in,grid,lon_shift = self.identify_grid(input_file,lat_name,lon_name)
 
 			country_mask=self._masks[grid][mask_style][self._iso]
+			country_mask=np.ma.getdata(country_mask)
 			lat_mask=self._masks[grid]['lat_mask']
 			lon_mask=self._masks[grid]['lon_mask']
 
 			# find relevant area (as rectangle)
-			country_mask=np.ma.getdata(country_mask)
 			lon_mean=np.nanmean(country_mask,0)
 			lons=sorted(np.where(lon_mean!=0)[0])
-			print lon_mean
 			lons=sorted(np.where(np.isfinite(lon_mean))[0])
 
 			lat_mean=np.mean(country_mask,1)
 			lats=sorted(np.where(lat_mean!=0)[0])
+			lats=sorted(np.where(np.isfinite(lat_mean))[0])
 
 			nx,ny=len(lons),len(lats)
 
