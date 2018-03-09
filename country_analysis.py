@@ -800,12 +800,16 @@ class country_analysis(object):
 		lon_mask=self._masks[grid]['lon_mask']
 
 		cou_mask=self._masks[grid][mask_style][self._iso]
-		lat_mean=np.mean(cou_mask,1)
-		lats=np.where(lat_mean!=0)[0]
+		cou_mask=np.ma.getdata(cou_mask)
+
+		lat_mean=np.nanmean(cou_mask,1)
+		#lats=np.where(lat_mean!=0)[0]
+		lats=sorted(np.where(np.isfinite(lat_mean))[0])
 		lat_=lat_mask[lats]
 
-		lon_mean=np.mean(cou_mask,0)
-		lons=np.where(lon_mean!=0)[0]
+		lon_mean=np.nanmean(cou_mask,0)
+		#lons=np.where(lon_mean!=0)[0]
+		lons=sorted(np.where(np.isfinite(lon_mean))[0])
 		lon_=lon_mask[lons]
 
 		small_grid=str(len(lat_))+'x'+str(len(lon_))+'_lat_'+str(lat_[0])+'_'+str(lat_[-1])+'_lon_'+str(lon_[0])+'_'+str(lon_[-1])
