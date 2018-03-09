@@ -773,7 +773,7 @@ class country_analysis(object):
  				selected_regions=regions
 
 			for name in selected_regions:
-				print name,region_polygons.keys()
+				#print name,region_polygons.keys()
 				region_shape = region_polygons[name]
 				if self.grid_polygon_overlap(grid,lon, lat, grid_polygons, region_shape, shift, mask_style, ext_poly, name, pop_mask):
 					outVar = nc_mask.createVariable(name, 'f', ('lat','lon',),fill_value='NaN') ; outVar[:]=self._masks[grid][mask_style][name][:,:]
@@ -957,7 +957,7 @@ class country_analysis(object):
 		**kwargs: dict: tags given to the dataset. These tags are going to be interpreted in country_data_object() __init__()
 		'''
 
-		print kwargs
+		#print kwargs
 		#out_file=self._working_directory_raw+'/'+input_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
 		if 'given_var_name' in kwargs.keys():
 			out_file=self._working_directory_raw+'/'+self._iso+'_'+kwargs['given_var_name']
