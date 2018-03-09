@@ -1225,6 +1225,7 @@ class country_analysis(object):
 			except: pass
 
 			# get mask
+			print data.name
 			for name in regions:
 				if name not in data.area_average[mask_style].keys() or overwrite:
 					mask=self._masks[self._grid_dict[data.grid]][mask_style][name]
