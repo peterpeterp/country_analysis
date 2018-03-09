@@ -1235,8 +1235,11 @@ class country_analysis(object):
 
 					country_area=np.where(mask>0)
 
+
 					data.area_average[mask_style][name]=data.time.copy()*np.nan
 					for i in range(len(data.time)):
+						print country_area
+						print var_in.shape
 						var_of_area=var_in[i,:,:][country_area]
 						print var_of_area
 						print mask[country_area]
