@@ -1,5 +1,5 @@
 old_stuff
 data/*
-/data/SEN
-/data/BEN
+!data/SEN
+!data/BEN
 .DS_Store
