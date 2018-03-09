@@ -1799,9 +1799,9 @@ class country_data_object(object):
 		if polygons is None and hasattr(SELF.outer_self,'_adm_polygons'):
 			polygons=SELF.outer_self._adm_polygons
 			if show_all_adm_polygons:
-				for name in polygons.keys():
+				for name,polygon in polygons.items():
 					try:
-						x,y=polygons[name].exterior.xy
+						x,y=polygon.exterior.xy
 						m.plot(x,y,color='black',linewidth=0.5)
 						if show_region_names:
 							if (show_merged_region_names or len(name.split('+'))==1) and name!=SELF._iso:
@@ -1809,16 +1809,20 @@ class country_data_object(object):
 								plt.text(ctr[0][0],ctr[1][0],SELF.outer_self._regions[name],horizontalalignment='center',verticalalignment='center',fontsize=8)
 
 					except Exception,e:
-						areas=[]
-						for shape in polygons[name]:
-							areas.append(shape.area)
-							x,y=shape.exterior.xy
-							m.plot(x,y,color='black',linewidth=0.5)
-						if show_region_names:
-							if (show_merged_region_names or len(name.split('+'))==1) and name!=SELF._iso:
-								ctr=polygons[name][areas.index(max(areas))].centroid.xy
-								plt.text(ctr[0][0],ctr[1][0],SELF.outer_self._regions[name],horizontalalignment='center',verticalalignment='center',fontsize=8)
-
+						try:
+							areas=[]
+							for shape in polygon:
+								areas.append(shape.area)
+								x,y=shape.exterior.xy
+								m.plot(x,y,color='black',linewidth=0.5)
+							if show_region_names:
+								if (show_merged_region_names or len(name.split('+'))==1) and name!=SELF._iso:
+									ctr=polygons[name][areas.index(max(areas))].centroid.xy
+									plt.text(ctr[0][0],ctr[1][0],SELF.outer_self._regions[name],horizontalalignment='center',verticalalignment='center',fontsize=8)
+						except:
+							# no idea what goes wrong here, its an issue for some CPV shapes...
+							pass
+							
 			# highlight one region
 			if highlight_region is not None:
 				if highlight_region!=SELF._iso:
