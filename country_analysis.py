@@ -15,7 +15,7 @@ import matplotlib.pylab as plt
 import matplotlib as mpl
 
 '''
-more elegant with subprocess?
+This is a stable but outdated version used in RegioClim
 '''
 
 
@@ -1822,7 +1822,7 @@ class country_data_object(object):
 						except:
 							# no idea what goes wrong here, its an issue for some CPV shapes...
 							pass
-							
+
 			# highlight one region
 			if highlight_region is not None:
 				if highlight_region!=SELF._iso:
