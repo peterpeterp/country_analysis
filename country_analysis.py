@@ -506,21 +506,6 @@ class country_analysis(object):
 
 		return grid_polygons,shift
 
-	def get_admin_polygons(self,shape_file):
-		# load shape file
-		adm_shapefiles=shapereader.Reader(shape_file).records()
-
-		# collect all shapes of region
-		region_polygons={}
-		for item in adm_shapefiles:
-			shape,region=item.geometry,item.attributes
-			region = {k.lower():v for k,v in region.items()}
-			print(region)
-			name = region['name_1'].replace(' ','_')
-			# simplify could be added here to speed up things
-			region_polygons[name]=MultiPolygon(shape)
-		return region_polygons
-
 	def merge_adm_regions(self,region_names,new_region_name=None):
 		if new_region_name is None:
 			single_regions=[]
