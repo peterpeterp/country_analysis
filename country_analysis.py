@@ -28,11 +28,6 @@ plt.rcParams["font.family"] = "sans-serif"
 plt.style.use('classic')
 
 
-try:
-	from unidecode import unidecode
-except:
-	pass
-
 def depth(d, level=1):
     if not isinstance(d, dict) or not d:
         return level
@@ -193,10 +188,7 @@ class country_analysis(object):
 						for key in table.keys():
 							if key not in ['time','year','month','index']:
 								if mask_style not in data.area_average.keys():	data.area_average[mask_style]={}
-								if 'unidecode' in sys.modules:
-									data.area_average[mask_style][unidecode(key)]=np.array(table[key])
-								if 'unidecode' not in sys.modules:
-									data.area_average[mask_style][key]=np.array(table[key])
+								data.area_average[mask_style][key]=np.array(table[key])
 
 
 	def get_historical_extreme_events(self,path):
@@ -462,13 +454,8 @@ class country_analysis(object):
 		# get all variables (regions)
 		for name in nc_mask.variables.keys():
 			if name not in ['lat','lon']:
-				if 'unidecode' in sys.modules:
-					self._masks[grid][mask_style][unidecode(name)] = nc_mask.variables[name][:,:]
-					if unidecode(name) not in self._regions.keys(): self._regions[unidecode(name).replace(' ','_')]=name
-					self.zoom_mask(grid,mask_style,unidecode(name))
-				if 'unidecode' not in sys.modules:
-					self._masks[grid][mask_style][name] = nc_mask.variables[name][:,:]
-					self.zoom_mask(grid,mask_style,name)
+				self._masks[grid][mask_style][name] = nc_mask.variables[name][:,:]
+				self.zoom_mask(grid,mask_style,name)
 
 	def get_grid_polygons(self,grid,lon,lat,lon_shift):
 		'''
