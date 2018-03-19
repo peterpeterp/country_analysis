@@ -9,10 +9,11 @@ import sys,glob,os,itertools,datetime,pickle,subprocess,time
 import numpy as np
 from netCDF4 import Dataset,netcdftime,num2date
 import pandas as pd
-from mpl_toolkits.basemap import Basemap
 from shapely.geometry import mapping, Polygon, MultiPolygon
 import matplotlib.pylab as plt
 import matplotlib as mpl
+import cartopy.crs as ccrs
+import cartopy
 
 '''
 more elegant with subprocess?
@@ -1822,7 +1823,7 @@ class country_data_object(object):
 						except:
 							# no idea what goes wrong here, its an issue for some CPV shapes...
 							pass
-							
+
 			# highlight one region
 			if highlight_region is not None:
 				if highlight_region!=SELF._iso:
