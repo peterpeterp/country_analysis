@@ -711,7 +711,7 @@ class country_analysis(object):
 				if self.grid_polygon_overlap(grid,lon, lat, grid_polygons, region_shape, shift, mask_style, ext_poly, name, pop_mask):
 					outVar = nc_mask.createVariable(name, 'f', ('lat','lon',),fill_value='NaN') ; outVar[:]=self._masks[grid][mask_style][name][:,:]
 				self.zoom_mask(grid,mask_style,name)
-				
+
 			nc_mask.setncattr('original_grid',grid)
 			nc_mask.setncattr('mask_style',mask_style)
 			nc_mask.close()
