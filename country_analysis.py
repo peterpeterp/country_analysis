@@ -601,7 +601,10 @@ class country_analysis(object):
 		if os.path.isfile(mask_file) and overwrite==False:
  			self.load_masks(mask_file)
 
-		else:
+		if os.path.isfile(mask_file) and overwrite:
+			os.system('rm '+mask_file)
+
+		if os.path.isfile(mask_file)==False:
 			grid_polygons,shift = self.get_grid_polygons(grid,lon,lat,lon_shift)
 
 			country_polygons = self._adm_polygons[self._iso]
@@ -623,7 +626,6 @@ class country_analysis(object):
 
 			# save mask
 			print mask_file
-			os.system('rm '+mask_file)
 			nc_mask=Dataset(mask_file,'w')
 			nc_mask.createDimension('lat', len(lat))
 			nc_mask.createDimension('lon', len(lon))
@@ -665,7 +667,10 @@ class country_analysis(object):
 		if os.path.isfile(mask_file) and overwrite==False:
  			self.load_masks(mask_file)
 
-		else:
+		if os.path.isfile(mask_file) and overwrite:
+			os.system('rm '+mask_file)
+
+		if os.path.isfile(mask_file)==False:
 			grid_polygons,shift = self.get_grid_polygons(grid,lon,lat,lon_shift)
 
 			region_polygons=self._adm_polygons
@@ -689,7 +694,6 @@ class country_analysis(object):
 				pop_mask = self.regrid_pop_mask(grid,lon,lat,shift,pop_mask_file,mask_style)
 
 			# prepare outputfile
-			os.system('rm '+mask_file)
 			nc_mask=Dataset(mask_file,'w')
 			nc_mask.createDimension('lat', len(lat))
 			nc_mask.createDimension('lon', len(lon))
@@ -1123,6 +1127,10 @@ class country_analysis(object):
 		selection: list: list of country_data_objects for which the are is computed
 		overwrite: bool: if True, old file is deleted, new one created
 		'''
+
+		print self._masks
+		print self._grid_dict
+
 		if selection is None:
 			selection=self._DATA[:]
 
