@@ -12,9 +12,11 @@ import pandas as pd
 from shapely.geometry import mapping, Polygon, MultiPolygon
 import matplotlib.pylab as plt
 import matplotlib as mpl
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import cartopy.crs as ccrs
 import cartopy
-
+import cartopy.feature as cfeature
+import cartopy.io.shapereader as shapereader
 '''
 more elegant with subprocess?
 '''
@@ -77,6 +79,47 @@ class country_analysis(object):
 		if os.path.isdir(self._working_directory+'/plots')==False:os.system('mkdir '+self._working_directory+'/plots')
 		if os.path.isdir(self._working_directory_raw)==False:os.system('mkdir '+self._working_directory_raw)
 		if os.path.isdir(self._working_directory+'/area_average')==False:os.system('mkdir '+self._working_directory+'/area_average')
+
+		# get shapefiles for country
+		if os.path.isdir(self._working_directory+'/'+iso+'_adm_shp')==False:
+			current_dir=os.getcwd()
+			os.chdir(self._working_directory)
+			os.system('wget biogeo.ucdavis.edu/data/gadm2.8/shp/'+iso+'_adm_shp.zip')
+			os.system('mkdir '+iso+'_adm_shp')
+			os.system('ls')
+			os.chdir(self._working_directory+iso+'_adm_shp')
+			os.system('unzip ../'+iso+'_adm_shp.zip')
+			os.chdir(current_dir)
+
+		# load required shapefiles
+		print 'load regions'
+		start_time=time.time()
+		adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1').records()
+
+		# collect all shapes of region
+		self._adm_polygons={}
+		for item in adm_shapefiles:
+			shape,region=item.geometry,item.attributes
+			region = {k.lower():v for k,v in region.items()}
+			name = region['name_1'].replace(' ','_')
+			# simplify could be added here to speed up things
+			self._adm_polygons[name]=MultiPolygon(shape)
+
+		for region_name in self._regions.keys():
+			if '+' in region_name:
+				sub_regs=region_name.split('+')
+				self._adm_polygons[region_name]=self._adm_polygons[sub_regs[0]]
+				for region in sub_regs[1:]:
+					self._adm_polygons[region_name] = \
+					self._adm_polygons[region_name].symmetric_difference(self._adm_polygons[region])
+
+		adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm0').records()
+		name=self._iso
+		self._adm_polygons[self._iso]=MultiPolygon(next(adm_shapefiles).geometry)
+
+		print self._adm_polygons.keys()
+		print 'regions loaded '+str(time.time()-start_time)
+
 
 	def zip_it(self,subfolder=None):
 		'''
@@ -155,33 +198,6 @@ class country_analysis(object):
 								if 'unidecode' not in sys.modules:
 									data.area_average[mask_style][key]=np.array(table[key])
 
-
-
-
-		# try to load polygons of adm regions for plotting
-		if load_region_polygons:
-			print 'load regions'
-			start_time=time.time()
-			self._adm_polygons=self.simplify_adm_polygons(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1',tolerance=0.02)
-			for region_name in self._regions.keys():
-				if '+' in region_name:
-					sub_regs=region_name.split('+')
-					self._adm_polygons[region_name]=self._adm_polygons[sub_regs[0]]
-					for region in sub_regs[1:]:
-						self._adm_polygons[region_name] = \
-						self._adm_polygons[region_name].symmetric_difference(self._adm_polygons[region])
-
-			m = Basemap()
-			m.readshapefile(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm0', 'admin', drawbounds=False)
-			name=self._iso
-			for shape in m.admin:
-				if name in self._adm_polygons.keys():
-					self._adm_polygons[name] = \
-					self._adm_polygons[name].symmetric_difference(Polygon(shape))
-				else:
-					self._adm_polygons[name] = Polygon(shape)
-			print self._adm_polygons.keys()
-			print 'regions loaded '+str(time.time()-start_time)
 
 	def get_historical_extreme_events(self,path):
 		'''
@@ -492,58 +508,17 @@ class country_analysis(object):
 
 	def get_admin_polygons(self,shape_file):
 		# load shape file
-		m = Basemap()
-		m.readshapefile(shape_file, 'admin', drawbounds=False)
+		adm_shapefiles=shapereader.Reader(shape_file).records()
 
 		# collect all shapes of region
 		region_polygons={}
-		for shape, region in zip(m.admin, m.admin_info):
+		for item in adm_shapefiles:
+			shape,region=item.geometry,item.attributes
 			region = {k.lower():v for k,v in region.items()}
-			if 'unidecode' in sys.modules: name = unidecode(region['name_1'].decode('utf-8')).replace(' ','_')
-			if 'unidecode' not in sys.modules: name = region['name_1'].replace(' ','_')
-
-			if name in region_polygons.keys():
-				region_polygons[name] = \
-				region_polygons[name].symmetric_difference(Polygon(shape))
-			else:
-				region_polygons[name] = Polygon(shape)
-
-		return region_polygons
-
-	def simplify_adm_polygons(self,shape_file,tolerance=0.05):
-		# load shape file
-		m = Basemap()
-		m.readshapefile(shape_file, 'admin', drawbounds=False)
-
-		# collect all shapes of region
-		region_polygons={}
-		for shape, region in zip(m.admin, m.admin_info):
-			region = {k.lower():v for k,v in region.items()}
-			if 'unidecode' in sys.modules: name = unidecode(region['name_1'].decode('utf-8')).replace(' ','_')
-			if 'unidecode' not in sys.modules: name = region['name_1'].replace(' ','_')
-
-			if name in region_polygons.keys():
-				region_polygons[name] = \
-				region_polygons[name].symmetric_difference(Polygon(shape).simplify(tolerance))
-			else:
-				region_polygons[name] = Polygon(shape).simplify(tolerance)
-
-		import fiona
-
-		# Define a polygon feature geometry with one attribute
-		schema = {
-		    'geometry': 'Polygon',
-		    'properties': {'name_1': 'str'},
-		}
-
-		# Write a new Shapefile
-		with fiona.open(shape_file+'_simplified.shp', 'w', 'ESRI Shapefile', schema) as c:
-		    for region_name,shape in zip(region_polygons.keys(),region_polygons.values()):
-			    c.write({
-			        'geometry': mapping(shape),
-			        'properties': {'name_1': region_name},
-			    })
-
+			print(region)
+			name = region['name_1'].replace(' ','_')
+			# simplify could be added here to speed up things
+			region_polygons[name]=MultiPolygon(shape)
 		return region_polygons
 
 	def merge_adm_regions(self,region_names,new_region_name=None):
@@ -629,7 +604,7 @@ class country_analysis(object):
 			print 'something went wrong with the mask'
 			return False
 
-	def create_mask_country(self,input_file,var_name,shape_file,mask_style='lat_weighted',pop_mask_file='',overwrite=False,lat_name='lat',lon_name='lon'):
+	def create_mask_country(self,input_file,var_name,mask_style='lat_weighted',pop_mask_file='',overwrite=False,lat_name='lat',lon_name='lon'):
 		'''
 		create country mask
 		input_file: str: location of example input data (required for the identification of the grid)
@@ -657,19 +632,7 @@ class country_analysis(object):
 		else:
 			grid_polygons,shift = self.get_grid_polygons(grid,lon,lat,lon_shift)
 
-			# load shape file
-			m = Basemap()
-			m.readshapefile(shape_file, 'admin', drawbounds=False)
-
-			# collect all shapes of country
-			for shape, country in zip(m.admin, m.admin_info):
-				country = {k.lower():v for k,v in country.items()}
-				if (country['iso_a3']==self._iso) | (country['adm0_a3']==self._iso):
-					if 'country_polygons' in locals():
-						country_polygons = \
-						country_polygons.symmetric_difference(Polygon(shape))
-					else:
-						country_polygons = Polygon(shape)
+			country_polygons = self._adm_polygons[self._iso]
 
 			# get boundaries for faster computation
 			x1, y1, x2, y2 = country_polygons.bounds
@@ -702,7 +665,7 @@ class country_analysis(object):
 
 			self.zoom_mask(grid,mask_style,self._iso)
 
-	def create_mask_admin(self,input_file,var_name,shape_file=None,mask_style='lat_weighted',pop_mask_file='',overwrite=False,lat_name='lat',lon_name='lon',regions=None):
+	def create_mask_admin(self,input_file,var_name,mask_style='lat_weighted',pop_mask_file='',overwrite=False,lat_name='lat',lon_name='lon',regions=None):
 		'''
 		create country mask
 		input_file: str: location of example input data (required for the identification of the grid)
@@ -733,13 +696,6 @@ class country_analysis(object):
 		else:
 			grid_polygons,shift = self.get_grid_polygons(grid,lon,lat,lon_shift)
 
-			'''
-			not testes yet!!!
-			'''
-			# get admin polygons
-			if hasattr(self,'_adm_polygons')==False:
-				if shape_file is not None:	self._adm_polygons=self.get_admin_polygons(shape_file)
-				if shape_file is None: 		return('no shape_file specified')
 			region_polygons=self._adm_polygons
 
 			# get boundaries for faster computation
@@ -1739,7 +1695,7 @@ class country_data_object(object):
 		lat=SELF.lat.copy()
 		lon=SELF.lon.copy()
 
-		if to_plot=='empty':
+		if to_plot is None:
 			to_plot=np.zeros([len(lat),len(lon)])*np.nan
 			color_range=[0,1]
 
@@ -1747,13 +1703,11 @@ class country_data_object(object):
 			asp=(len(lon)/float(len(lat)))**0.5
 			fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3*asp+1,3/asp))
 
-
 		# handle limits
 		if limits is None:
 			half_lon_step=abs(np.diff(lon.copy(),1)[0]/2)
 			half_lat_step=abs(np.diff(lat.copy(),1)[0]/2)
 			limits=[np.min(lon)-half_lon_step,np.max(lon)+half_lon_step,np.min(lat)-half_lat_step,np.max(lat)+half_lat_step]
-
 
 		# handle 0 to 360 lon
 		if max(lon)>180:
@@ -1766,9 +1720,25 @@ class country_data_object(object):
 		if limits[0]>180:limits[0]-=360
 		if limits[1]>180:limits[1]-=360
 
+		plate_carree = ccrs.PlateCarree()
+		ax = plt.axes(projection=plate_carree)
+		ax.set_xlim((limits[0],limits[1]))
+		ax.set_ylim((limits[2],limits[3]))
+		#ax.add_feature(cfeature.COASTLINE)
 
-		m = Basemap(ax=ax,llcrnrlon=limits[0],urcrnrlon=limits[1],llcrnrlat=limits[2],urcrnrlat=limits[3],resolution="l",projection='cyl')
-		m.drawmapboundary(fill_color='1.')
+		# add polygons
+		if polygons is None and hasattr(SELF.outer_self,'_adm_polygons'):
+			polygons=SELF.outer_self._adm_polygons
+			if show_all_adm_polygons:
+				for name,polygon in polygons.items():
+					ax.add_geometries([polygon], plate_carree, color='black',linewidth=0.5,facecolor='none')
+
+			# highlight one region
+			if highlight_region is not None:
+				if highlight_region!=SELF._iso:
+					ax.add_geometries([polygons[highlight_region]], plate_carree, color='black',linewidth=1.5,facecolor='none')
+					ax.add_geometries([polygons[highlight_region]], plate_carree, color='yellow',linewidth=1.5,linestyle='--',facecolor='none')
+
 
 		# get color_range
 		if color_range is None:
@@ -1780,8 +1750,7 @@ class country_data_object(object):
 		x=np.append(x,[x[-1]+np.diff(x,1)[0]])
 		y=np.append(y,[y[-1]+np.diff(y,1)[0]])
 		x,y=np.meshgrid(x,y)
-		im = m.pcolormesh(x,y,np.ma.masked_invalid(to_plot),cmap=color_palette,vmin=color_range[0],vmax=color_range[1])
-
+		im = ax.pcolormesh(x,y,np.ma.masked_invalid(to_plot),cmap=color_palette,vmin=color_range[0],vmax=color_range[1],transform=plate_carree)
 
 		# mask some grid-cells
 		if grey_area is not None:
@@ -1789,58 +1758,12 @@ class country_data_object(object):
 			to_plot[to_plot==0]=0.5
 			to_plot[to_plot==1]=np.nan
 			to_plot=np.ma.masked_invalid(to_plot)
-			im2 = m.pcolormesh(x,y,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
-
-		# show coastlines and borders
-		m.drawcoastlines()
-		m.drawstates()
-		m.drawcountries()
-
-		# add polygons
-		if polygons is None and hasattr(SELF.outer_self,'_adm_polygons'):
-			polygons=SELF.outer_self._adm_polygons
-			if show_all_adm_polygons:
-				for name,polygon in polygons.items():
-					try:
-						x,y=polygon.exterior.xy
-						m.plot(x,y,color='black',linewidth=0.5)
-						if show_region_names:
-							if (show_merged_region_names or len(name.split('+'))==1) and name!=SELF._iso:
-								ctr=polygons[name].centroid.xy
-								plt.text(ctr[0][0],ctr[1][0],SELF.outer_self._regions[name],horizontalalignment='center',verticalalignment='center',fontsize=8)
-
-					except Exception,e:
-						try:
-							areas=[]
-							for shape in polygon:
-								areas.append(shape.area)
-								x,y=shape.exterior.xy
-								m.plot(x,y,color='black',linewidth=0.5)
-							if show_region_names:
-								if (show_merged_region_names or len(name.split('+'))==1) and name!=SELF._iso:
-									ctr=polygons[name][areas.index(max(areas))].centroid.xy
-									plt.text(ctr[0][0],ctr[1][0],SELF.outer_self._regions[name],horizontalalignment='center',verticalalignment='center',fontsize=8)
-						except:
-							# no idea what goes wrong here, its an issue for some CPV shapes...
-							pass
-
-			# highlight one region
-			if highlight_region is not None:
-				if highlight_region!=SELF._iso:
-					try:
-						x,y=polygons[highlight_region].exterior.xy
-						m.plot(x,y,color='black',linewidth=1.5)
-						m.plot(x,y,color='yellow',linewidth=1.5,linestyle='--')
-					except:
-						for shape in polygons[highlight_region]:
-							x,y=shape.exterior.xy
-							m.plot(x,y,color='black',linewidth=1.5)
-							m.plot(x,y,color='yellow',linewidth=1.5,linestyle='--')
+			im2 = ax.pcolormesh(x,y,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
 
 
 		# add colorbar
 		if color_bar==True:
-			cb = m.colorbar(im,'right', size="5%", pad="2%")
+			cb = plt.colorbar(im, ax=ax)
 			tick_locator = mpl.ticker.MaxNLocator(nbins=5)
 			cb.locator = tick_locator
 			cb.update_ticks()
@@ -1917,7 +1840,7 @@ class country_data_object(object):
 		im,color_range=SELF.plot_map(to_plot,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons,highlight_region=highlight_region,show_all_adm_polygons=show_all_adm_polygons,show_region_names=show_region_names,show_merged_region_names=show_merged_region_names)
 		return(im,color_range)
 
-	def display_mask(SELF,mask_style=None,region=None):
+	def display_mask(SELF,mask_style=None,region=None,show_all_adm_polygons=True):
 		'''
 		show a map of the used mask
 		mask_style: str: mask_style to be shown (see create_mask_country or create_mask_admin)
@@ -1933,7 +1856,7 @@ class country_data_object(object):
 			mask_style=mask_styles[0]
 			print 'mask_style: '+mask_style+'\nother available mask_styles: '+', '.join(mask_styles[1:-1])
 
-		try:
+		if True:
 			to_plot=outer_self._masks[outer_self._grid_dict[SELF.grid]][mask_style][region]
 			lat=outer_self._masks[SELF.grid]['lat_mask'].copy()
 			lon=outer_self._masks[SELF.grid]['lon_mask'].copy()
@@ -1943,9 +1866,9 @@ class country_data_object(object):
 			relevant_lats=lat[np.where(np.isfinite(cou_mask))[0]]
 			relevant_lons=lon[np.where(np.isfinite(cou_mask))[1]]
 			limits=[np.min(relevant_lons)-half_lon_step,np.max(relevant_lons)+half_lon_step,np.min(relevant_lats)-half_lat_step,np.max(relevant_lats)+half_lat_step]
-			SELF.plot_map(to_plot,title=SELF.grid+' '+mask_style,color_label='importance for area average',color_palette=plt.cm.plasma,limits=limits)
-		except:
-			print 'no mask has been created for '+mask_style+' and '+region
+			SELF.plot_map(to_plot,title=SELF.grid+' '+mask_style,color_label='importance for area average',color_palette=plt.cm.plasma,limits=limits,show_all_adm_polygons=show_all_adm_polygons)
+		# except:
+		# 	print 'no mask has been created for '+mask_style+' and '+region
 
 	def plot_transients(SELF,mask_style='lat_weighted',season='year',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None,x_range=[1960,2090],ref_period=None,shading_range=None,shading_opacity=0.2,plot_median=False,show_all_models=False,offset=0.0):
 		'''
