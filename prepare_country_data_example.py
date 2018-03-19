@@ -15,7 +15,7 @@ sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
 
 import argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("--country",'-c', help="country iso",required=False)
+parser.add_argument("--country",'-c', help="country iso",required=True)
 parser.add_argument("--overwrite",'-o', help="overwrite output files",action="store_true")
 args = parser.parse_args()
 
@@ -24,10 +24,9 @@ if args.overwrite:
 else:
     overwrite=False
 
-if args.country is not None:
-	iso=args.country
-else:
-	return 0
+
+iso=args.country
+
 
 print iso
 os.chdir('/p/projects/tumble/carls/shared_folder/country_analysis/')
