@@ -103,7 +103,7 @@ class country_analysis(object):
             # simplify could be added here to speed up things
             self._adm_polygons[name]=MultiPolygon(shape)
 
-        # for region_name in self._regions.keys():
+        # for region_name in self._region_names.keys():
         # 	if '+' in region_name:
         # 		sub_regs=region_name.split('+')
         # 		self._adm_polygons[region_name]=self._adm_polygons[sub_regs[0]]
@@ -346,7 +346,7 @@ class country_analysis(object):
                     data.raw-=273.15
                 for mask_style in data.area_average.keys():
                     for region in data.area_average[mask_style].keys():
-                        if region in self._regions.values()+[self._iso]:
+                        if region in self._region_names.values()+[self._iso]:
                             if np.nanmean(data.area_average[mask_style][region])>100:
                                 data.area_average[mask_style][region]-=273.15
 
@@ -359,7 +359,7 @@ class country_analysis(object):
             data.raw[data.raw<below]=np.nan
             for mask_style in data.area_average.keys():
                 for region in data.area_average[mask_style].keys():
-                    if region in self._regions.keys():
+                    if region in self._region_names.keys():
                         x=data.area_average[mask_style][region].copy()
                         x[x>above]=np.nan
                         x[x<below]=np.nan
@@ -458,8 +458,8 @@ class country_analysis(object):
             if name not in ['lat','lon']:
                 self._masks[grid][mask_style][name] = nc_mask.variables[name][:,:]
                 self.zoom_mask(grid,mask_style,name)
-                # if name not in self._regions.keys():
-                #     self._regions[name.decode('utf8').replace(' ','_')]=name.decode('utf8')
+                # if name not in self._region_names.keys():
+                #     self._region_names[name.decode('utf8').replace(' ','_')]=name.decode('utf8')
 
     def get_grid_polygons(self,grid,lon,lat,lon_shift):
         '''
@@ -504,7 +504,7 @@ class country_analysis(object):
                 for split in region.split('+'):
                     single_regions.append(split)
             new_region_name='+'.join(sorted(single_regions))
-            self._regions[new_region_name]='+'.join([self._regions[reg] for reg in sorted(single_regions)])
+            self._region_names[new_region_name]='+'.join([self._region_names[reg] for reg in sorted(single_regions)])
         self._adm_polygons[new_region_name]=self._adm_polygons[region_names[0]]
         for region in region_names[1:]:
             self._adm_polygons[new_region_name] = \
@@ -719,8 +719,6 @@ class country_analysis(object):
             nc_mask.setncattr('original_grid',grid)
             nc_mask.setncattr('mask_style',mask_style)
             nc_mask.close()
-
-
 
     def zoom_mask(self,grid,mask_style,region):
         '''
@@ -1675,6 +1673,8 @@ class country_data_object(object):
         lat=SELF.lat.copy()
         lon=SELF.lon.copy()
 
+        plate_carree = ccrs.PlateCarree()
+
         if to_plot is None:
             to_plot=np.zeros([len(lat),len(lon)])*np.nan
             color_range=[0,1]
@@ -1700,11 +1700,12 @@ class country_data_object(object):
         if limits[0]>180:limits[0]-=360
         if limits[1]>180:limits[1]-=360
 
-        plate_carree = ccrs.PlateCarree()
         ax = plt.axes(projection=plate_carree)
         ax.set_xlim((limits[0],limits[1]))
         ax.set_ylim((limits[2],limits[3]))
-        #ax.add_feature(cfeature.COASTLINE)
+        # coastline and borders aren't smooth
+        # ax.add_feature(cfeature.COASTLINE)
+        # ax.add_feature(cfeature.BORDERS)
 
         # add polygons
         if polygons is None and hasattr(SELF.outer_self,'_adm_polygons'):
@@ -1712,6 +1713,11 @@ class country_data_object(object):
             if show_all_adm_polygons:
                 for name,polygon in polygons.items():
                     ax.add_geometries([polygon], plate_carree, color='black',linewidth=0.5,facecolor='none')
+                    if show_region_names:
+                        if (show_merged_region_names or len(name.split('+'))==1) and name!=SELF._iso:
+                            ctr=polygons[name].centroid.xy
+                            plt.text(ctr[0][0],ctr[1][0],SELF.outer_self._region_names[name],horizontalalignment='center',verticalalignment='center',fontsize=8)
+
 
             # highlight one region
             if highlight_region is not None:
@@ -1755,7 +1761,7 @@ class country_data_object(object):
         if out_file is None and show==True:plt.show()
         if out_file is not None:plt.savefig(out_file)
 
-        return(im,color_range)
+        return(ax,im,color_range)
 
     def display_map(SELF,period=None,method='mean',season='year',show_agreement=True,limits=None,ax=None,out_file=None,title=None,polygons=None,color_bar=True,color_label=None,color_palette=None,color_range=None,time=None,highlight_region=None,show_all_adm_polygons=True,show_region_names=False,show_merged_region_names=False):
         '''
@@ -1817,7 +1823,7 @@ class country_data_object(object):
                 elif np.mean(color_range)>0:					color_palette=plt.cm.Blues_r
 
 
-        im,color_range=SELF.plot_map(to_plot,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons,highlight_region=highlight_region,show_all_adm_polygons=show_all_adm_polygons,show_region_names=show_region_names,show_merged_region_names=show_merged_region_names)
+        ax,im,color_range=SELF.plot_map(to_plot,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons,highlight_region=highlight_region,show_all_adm_polygons=show_all_adm_polygons,show_region_names=show_region_names,show_merged_region_names=show_merged_region_names)
         return(im,color_range)
 
     def display_mask(SELF,mask_style=None,region=None,show_all_adm_polygons=True):
