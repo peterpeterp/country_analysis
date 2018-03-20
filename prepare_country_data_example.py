@@ -8,7 +8,7 @@ import pandas as pd
 sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
 try:del sys.modules['country_analysis']
 except:pass
-from country_analysis import country_analysis
+import country_analysis; reload(country_analysis)
 sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
 
 
@@ -22,14 +22,14 @@ if args.overwrite:
     overwrite=True
 else:
     overwrite=False
-    
+
 iso=args.country
 
 
 print iso
 os.chdir('/p/projects/tumble/carls/shared_folder/country_analysis/')
 # data will be stored in working_directory
-COU=country_analysis(iso,working_directory='data/'+iso+'/',additional_tag='')
+COU=country_analysis.country_analysis(iso,working_directory='data/'+iso+'/',additional_tag='')
 
 # ##############
 # # MASKS
