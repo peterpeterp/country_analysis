@@ -454,6 +454,8 @@ class country_analysis(object):
 			if name not in ['lat','lon']:
 				self._masks[grid][mask_style][name] = nc_mask.variables[name][:,:]
 				self.zoom_mask(grid,mask_style,name)
+                if name not in self._regions.keys():
+                    self._regions[name.replace(' ','_')]=name
 
 	def get_grid_polygons(self,grid,lon,lat,lon_shift):
 		'''
