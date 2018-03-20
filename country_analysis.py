@@ -17,7 +17,7 @@ import cartopy.crs as ccrs
 import cartopy
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shapereader
-import unidecode
+from unidecode import unidecode
 '''
 more elegant with subprocess?
 '''
