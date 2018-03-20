@@ -97,7 +97,7 @@ class country_analysis(object):
     	for item in adm_shapefiles:
     		shape,region=item.geometry,item.attributes
     		region = {k.lower():v for k,v in region.items()}
-    		name_full = region['name_1']
+            name_full = region['name_1']
             name=unidecode(name_full).replace(' ','_')
             self._region_names[name]=name_full
     		# simplify could be added here to speed up things
