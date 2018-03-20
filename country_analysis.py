@@ -115,7 +115,6 @@ class country_analysis(object):
 		print self._adm_polygons.keys()
 		print 'regions loaded '+str(time.time()-start_time)
 
-
 	def zip_it(self,subfolder=None):
 		'''
 		Prepares a compressed tar
@@ -189,7 +188,6 @@ class country_analysis(object):
 							if key not in ['time','year','month','index']:
 								if mask_style not in data.area_average.keys():	data.area_average[mask_style]={}
 								data.area_average[mask_style][key]=np.array(table[key])
-
 
 	def get_historical_extreme_events(self,path):
 		'''
@@ -2117,10 +2115,6 @@ class country_data_object(object):
 		if show==True:ax.legend(loc='best')
 		if out_file is None and show==True:plt.show()
 		if out_file is not None:plt.savefig(out_file,dpi=300)
-
-
-
-
 
 
 	# def seasonal_statistic(self,method='mean',selection=None,overwrite=False,seasons=None):
