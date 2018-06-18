@@ -669,7 +669,7 @@ class country_analysis(object):
             mask_file=self._working_directory+'/masks/'+self._iso+'_admin_'+grid+'_'+mask_style+'_'+'_'.join(regions)+'.nc4'
 
         if os.path.isfile(mask_file) and overwrite==False:
-                self.load_masks(mask_file)
+            self.load_masks(mask_file)
 
         if os.path.isfile(mask_file) and overwrite:
             os.system('rm '+mask_file)
@@ -737,17 +737,18 @@ class country_analysis(object):
         lon_mean=np.nanmean(cou_mask,0)
         #lons=np.where(lon_mean!=0)[0]
         lons=sorted(np.where(np.isfinite(lon_mean))[0])
-        lon_=lon_mask[lons[0]:lons[-1]]
+        lon_=lon_mask[lons[0]:lons[-1]+1]
 
         lat_mean=np.nanmean(cou_mask,1)
         #lats=np.where(lat_mean!=0)[0]
         lats=sorted(np.where(np.isfinite(lat_mean))[0])
-        lat_=lat_mask[lats[0]:lats[-1]]
+        lat_=lat_mask[lats[0]:lats[-1]+1]
 
         small_grid=str(len(lat_))+'x'+str(len(lon_))+'_lat_'+str(lat_[0])+'_'+str(lat_[-1])+'_lon_'+str(lon_[0])+'_'+str(lon_[-1])
         if small_grid not in self._masks.keys():	self._masks[small_grid]={}
         if mask_style not in self._masks[small_grid].keys():	self._masks[small_grid][mask_style]={}
 
+        print(small_grid,len(lons),len(lats))
         self._masks[small_grid][mask_style][region]=mask[lats[0]:lats[-1]+1,lons[0]:lons[-1]+1]
         self._grid_dict[grid]=small_grid
 
@@ -1723,8 +1724,11 @@ class country_data_object(object):
         ax.set_xlim((limits[0],limits[1]))
         ax.set_ylim((limits[2],limits[3]))
         # coastline and borders aren't smooth
-        # ax.add_feature(cfeature.COASTLINE)
-        # ax.add_feature(cfeature.BORDERS)
+        ax.coastlines(resolution='10m')
+        #ax.border(resolution='10m')
+        # land_50m = cfeature.NaturalEarthFeature('physical', 'borders', '50m',
+        #                                 edgecolor='black')
+        # ax.add_feature(land_50m)
 
         # add polygons
         if polygons is None and hasattr(SELF.outer_self,'_adm_polygons'):
