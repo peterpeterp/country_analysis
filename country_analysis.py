@@ -141,7 +141,7 @@ class country_analysis(object):
         if load_mask:
             for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
                 # need the country mask first
-                if 'admin' not in file.split('_'):
+                if 'admin' not in file.split('_') and len(file.split('+'))==1:
                     file_new=self._working_directory+'/masks'+file.split('masks')[-1]
                     if quiet==False:print file_new
                     self.load_masks(file_new)
@@ -1670,7 +1670,7 @@ class country_data_object(object):
                 relevenat_time_steps.append(yr)
         return(relevenat_time_steps)
 
-    def plot_map(SELF,to_plot,limits=None,ax=None,out_file=None,title='',polygons=None,grey_area=None,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,highlight_region=None,show_all_adm_polygons=False,show_region_names=False,show_merged_region_names=False):
+    def plot_map(SELF,to_plot,limits=None,ax=None,out_file=None,title='',polygons=None,grey_area=None,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,highlight_region=None,show_all_adm_polygons=False,show_region_names=False,show_merged_region_names=False,add_mask=None):
         '''
         this function creates a map
         to_plot: np.ndarray: values to plot
@@ -1763,6 +1763,8 @@ class country_data_object(object):
             to_plot[to_plot==0]=0.5
             to_plot[to_plot==1]=np.nan
             to_plot=np.ma.masked_invalid(to_plot)
+            if add_mask is not None:
+                to_plot[np.isfinite(add_mask)==False]=np.nan
             im2 = ax.pcolormesh(x,y,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=1)
 
 
@@ -1778,11 +1780,11 @@ class country_data_object(object):
             ax.set_title(title.replace('_',' '))
 
         if out_file is None and show==True:plt.show()
-        if out_file is not None:plt.savefig(out_file)
+        if out_file is not None:    plt.tight_layout(); plt.savefig(out_file)
 
         return(ax,im,color_range)
 
-    def display_map(SELF,period=None,method='mean',season='year',show_agreement=True,limits=None,ax=None,out_file=None,title=None,polygons=None,color_bar=True,color_label=None,color_palette=None,color_range=None,time=None,highlight_region=None,show_all_adm_polygons=True,show_region_names=False,show_merged_region_names=False):
+    def display_map(SELF,period=None,method='mean',season='year',show_agreement=True,limits=None,ax=None,out_file=None,title=None,polygons=None,color_bar=True,color_label=None,color_palette=None,color_range=None,time=None,highlight_region=None,show_all_adm_polygons=True,show_region_names=False,show_merged_region_names=False,add_mask=None):
         '''
         plot maps of data.
         period: str: if  the averag over a period is to be plotted specify the period name
@@ -1817,7 +1819,8 @@ class country_data_object(object):
                     grey_area=SELF.agreement[method][season][period].copy()
                     grey_area[np.isfinite(mask)==False]=1
 
-
+        if add_mask is not None:
+            to_plot[np.isfinite(add_mask)==False]=np.nan
 
         if len(np.where(np.isfinite(to_plot)==False)[0])==len(to_plot.flatten()):
             print 'nothing to plot here'
@@ -1846,7 +1849,7 @@ class country_data_object(object):
                 elif np.mean(color_range)<0:					color_palette=plt.cm.Reds
                 elif np.mean(color_range)>0:					color_palette=plt.cm.Blues_r
 
-        ax,im,color_range=SELF.plot_map(to_plot,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons,highlight_region=highlight_region,show_all_adm_polygons=show_all_adm_polygons,show_region_names=show_region_names,show_merged_region_names=show_merged_region_names)
+        ax,im,color_range=SELF.plot_map(to_plot,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons,highlight_region=highlight_region,show_all_adm_polygons=show_all_adm_polygons,show_region_names=show_region_names,show_merged_region_names=show_merged_region_names,add_mask=add_mask)
         return(im,color_range)
 
     def display_mask(SELF,mask_style=None,region=None,show_all_adm_polygons=True):
