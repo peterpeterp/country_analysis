@@ -921,8 +921,9 @@ class country_analysis(object):
         out_file+='.nc4'
         print out_file
 
-        if overwrite:
+        if overwrite and os.path.isfile(out_file):
             os.system('rm '+out_file)
+        if overwrite and os.path.isfile(out_file.replace('.nc','_merged.nc')):
             os.system('rm '+out_file.replace('.nc','_merged.nc'))
 
         if os.path.isfile(out_file):
@@ -1285,18 +1286,22 @@ class country_analysis(object):
                 # period diff
                 self.period_statistic_diff(data,method,sea,ref_name=ref_name)
 
-    def period_statistic_diff(self,data,method,sea,ref_name='ref'):
+    def period_statistic_diff(self,data,method,sea,ref_name='ref',proj_period_names=None):
+        if proj_period_names is None:
+            proj_period_names=data.period[method][sea].keys()
         # period diff
         for sea in data.period[method].keys():
-            for period_name in data.period[method][sea].keys():
+            for period_name in proj_period_names:
                 if period_name!=ref_name and ref_name in data.period[method][sea].keys() and period_name.split('_')[0]!='diff':
                     data.period[method][sea]['diff_'+period_name+'-'+ref_name]=data.period[method][sea][period_name]-data.period[method][sea][ref_name]
                     data.period[method][sea]['diff_relative_'+period_name+'-'+ref_name]=(data.period[method][sea][period_name]-data.period[method][sea][ref_name])/data.period[method][sea][ref_name]*100
 
-    def period_model_agreement(self,ref_name='ref',ens_statistic='mean'):
+    def period_model_agreement(self,ref_name='ref',ens_statistic='mean',proj_period_names=None):
         '''
         computes ensemble mean and model agreement for period means and frequencies
         '''
+
+
         remaining=self.selection(['ensemble_'+ens_statistic],show_selection=False)
 
         for data in remaining:
@@ -1319,8 +1324,11 @@ class country_analysis(object):
                         ensemble[ens_statistic].period[method][sea]={}
                         ensemble[ens_statistic].agreement[method][sea]={}
 
+                        if proj_period_names is None:
+                            proj_period_names=member.period[method][sea].keys()
+
                         # ensemble mean
-                        for period in member.period[method][sea].keys():
+                        for period in proj_period_names:
                             tmp=np.zeros(list(member.period[method][sea][period].shape)+[len(ensemble['models'].keys())])*np.nan
                             for i,member in enumerate(ensemble['models'].values()):
                                 tmp[:,:,i]=member.period[method][sea][period]
@@ -1833,7 +1841,7 @@ class country_data_object(object):
         if color_label is None:color_label=SELF.var_name.replace('_',' ')
 
         if color_range is None:
-            if np.sign(np.nanpercentile(to_plot,[10]))==np.sign(np.nanpercentile(to_plot,[90])):
+            if np.sign(np.nanpercentile(to_plot,[10]))==np.sign(np.nanpercentile(to_plot,[90])) or np.sign(np.nanpercentile(to_plot,[10]))==0 or np.sign(np.nanpercentile(to_plot,[90]))==0:
                 color_range=np.nanpercentile(to_plot,[10,90])
             else:
                 abs_boundary=max(abs(np.nanpercentile(to_plot,[10,90])))
