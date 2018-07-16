@@ -7,7 +7,7 @@ peter.pfleiderer@climateanalytics.org
 
 import sys,glob,os,itertools,datetime,pickle,subprocess,time
 import numpy as np
-from netCDF4 import Dataset,netcdftime,num2date
+from netCDF4 import Dataset,num2date
 import pandas as pd
 from shapely.geometry import mapping, Polygon, MultiPolygon
 import matplotlib.pylab as plt
@@ -1296,7 +1296,7 @@ class country_analysis(object):
                     data.period[method][sea]['diff_'+period_name+'-'+ref_name]=data.period[method][sea][period_name]-data.period[method][sea][ref_name]
                     data.period[method][sea]['diff_relative_'+period_name+'-'+ref_name]=(data.period[method][sea][period_name]-data.period[method][sea][ref_name])/data.period[method][sea][ref_name]*100
 
-    def period_model_agreement(self,ref_name='ref',ens_statistic='mean',proj_period_names=None):
+    def period_model_agreement(self,ref_name='ref',ens_statistic='mean',proj_period_names=None,relChangeThresh=None):
         '''
         computes ensemble mean and model agreement for period means and frequencies
         '''
@@ -1350,6 +1350,8 @@ class country_analysis(object):
 
                                 agreement[agreement<2./3.*len(ensemble['models'].values())]=0
                                 agreement[agreement>=2./3.*len(ensemble['models'].values())]=1
+                                if relChangeThresh is not None and 'relative' in period.split('_'):
+                                    agreement[np.abs(ensemble[ens_statistic].period[method][sea][period])<relChangeThresh]=0
                                 ensemble[ens_statistic].agreement[method][sea][period]=agreement
 
     def period_mean(self,selection=None,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]}):
