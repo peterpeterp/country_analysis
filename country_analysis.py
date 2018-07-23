@@ -1308,6 +1308,7 @@ class country_analysis(object):
             ensemble=self.find_ensemble([data.data_type,data.var_name,data.scenario])
             if hasattr(ensemble[ens_statistic],'period')==False:	ensemble[ens_statistic].period={}
             if hasattr(ensemble[ens_statistic],'agreement')==False:	ensemble[ens_statistic].agreement={}
+            if hasattr(ensemble[ens_statistic],'smallChange')==False:	ensemble[ens_statistic].smallChange={}
 
             member=ensemble['models'].values()[0]
 
@@ -1320,9 +1321,11 @@ class country_analysis(object):
                 for method in member.period.keys():
                     ensemble[ens_statistic].period[method]={}
                     ensemble[ens_statistic].agreement[method]={}
+                    ensemble[ens_statistic].smallChange[method]={}
                     for sea in seasons.keys():
                         ensemble[ens_statistic].period[method][sea]={}
                         ensemble[ens_statistic].agreement[method][sea]={}
+                        ensemble[ens_statistic].smallChange[method][sea]={}
 
                         if proj_period_names is None:
                             proj_period_names=member.period[method][sea].keys()
@@ -1347,12 +1350,17 @@ class country_analysis(object):
                                 agreement=ensemble[ens_statistic].period[method][sea][period].copy()*0
                                 for member in ensemble['models'].values():
                                     agreement+=np.sign(member.period[method][sea][period])==np.sign(ensemble[ens_statistic].period[method][sea][period])
-
                                 agreement[agreement<2./3.*len(ensemble['models'].values())]=0
                                 agreement[agreement>=2./3.*len(ensemble['models'].values())]=1
-                                if relChangeThresh is not None and 'relative' in period.split('_'):
-                                    agreement[np.abs(ensemble[ens_statistic].period[method][sea][period])<relChangeThresh]=0
                                 ensemble[ens_statistic].agreement[method][sea][period]=agreement
+
+                                smallChange=ensemble[ens_statistic].period[method][sea][period].copy()*0
+                                if relChangeThresh is not None and 'relative' in period.split('_'):
+                                    for member in ensemble['models'].values():
+                                        smallChange+=np.abs(member.period[method][sea][period])<relChangeThresh
+                                    smallChange[smallChange<2./3.*len(ensemble['models'].values())]=0
+                                    smallChange[smallChange>=2./3.*len(ensemble['models'].values())]=1
+                                    ensemble[ens_statistic].smallChange[method][sea][period]=smallChange
 
     def period_mean(self,selection=None,periods={'ref':[1986,2006],'2030s':[2025,2045],'2040s':[2035,2055]}):
         '''
@@ -1789,6 +1797,8 @@ class country_data_object(object):
             cb.locator = tick_locator
             cb.update_ticks()
             cb.set_label(color_label, rotation=90)
+        else:
+            cb=None
 
         if title != '':
             ax.set_title(title.replace('_',' '))
@@ -1796,7 +1806,7 @@ class country_data_object(object):
         if out_file is None and show==True:plt.show()
         if out_file is not None:    plt.tight_layout(); plt.savefig(out_file)
 
-        return(ax,im,color_range)
+        return(ax,im,color_range,x,y,cb)
 
     def display_map(SELF,period=None,method='mean',season='year',show_agreement=True,limits=None,ax=None,out_file=None,title=None,polygons=None,color_bar=True,color_label=None,color_palette=None,color_range=None,time=None,highlight_region=None,show_all_adm_polygons=True,show_region_names=False,show_merged_region_names=False,add_mask=None):
         '''
@@ -1863,8 +1873,7 @@ class country_data_object(object):
                 elif np.mean(color_range)<0:					color_palette=plt.cm.Reds
                 elif np.mean(color_range)>0:					color_palette=plt.cm.Blues_r
 
-        ax,im,color_range=SELF.plot_map(to_plot,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons,highlight_region=highlight_region,show_all_adm_polygons=show_all_adm_polygons,show_region_names=show_region_names,show_merged_region_names=show_merged_region_names,add_mask=add_mask)
-        return(im,color_range)
+        return(SELF.plot_map(to_plot,color_bar=color_bar,color_label=color_label,color_palette=color_palette,color_range=color_range,grey_area=grey_area,limits=limits,ax=ax,out_file=out_file,title=title,polygons=polygons,highlight_region=highlight_region,show_all_adm_polygons=show_all_adm_polygons,show_region_names=show_region_names,show_merged_region_names=show_merged_region_names,add_mask=add_mask))
 
     def display_mask(SELF,mask_style=None,region=None,show_all_adm_polygons=True):
         '''
