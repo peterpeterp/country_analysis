@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 '''
 Class to analyze climate data on national (& sub national) scale
-Peter Pfleiderer
-peter.pfleiderer@climateanalytics.org
 '''
+# Author: Peter Pfleiderer <peter.pfleiderer@climateanalytics.org>
+#
+# License: GNU General Public License v3.0
 
 import sys,glob,os,itertools,datetime,pickle,subprocess,time
 import numpy as np
