@@ -664,13 +664,10 @@ class country_analysis(object):
         if mask_style not in self._masks[grid].keys():
             self._masks[grid][mask_style]={}
 
-        print(grid)
-        print(mask_style)
         if regions is None:
             mask_file=self._working_directory+'/masks/'+self._iso+'_admin_'+grid+'_'+mask_style+'_all.nc4'
         if regions is not None:
             mask_file=self._working_directory+'/masks/'+self._iso+'_admin_'+grid+'_'+mask_style+'_'+'_'.join(regions)+'.nc4'
-        print(mask_file)
 
         if os.path.isfile(mask_file) and overwrite==False:
             self.load_masks(mask_file)
