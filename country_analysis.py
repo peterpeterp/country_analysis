@@ -18,6 +18,8 @@ import cartopy
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shapereader
 from unidecode import unidecode
+import dimarray as da
+
 '''
 more elegant with subprocess?
 '''
@@ -27,7 +29,6 @@ from matplotlib import rc
 rc('text', usetex=True)
 plt.rcParams["font.family"] = "sans-serif"
 plt.style.use('classic')
-
 
 def depth(d, level=1):
     if not isinstance(d, dict) or not d:
@@ -69,6 +70,10 @@ class country_analysis(object):
         self._grid_dict={}
         self._DATA=[]
         self._region_names={}
+
+    	year=np.array([[yr]*12 for yr in range(1950,2100)]).flatten()
+    	month=np.array([[mon]*len(range(1950,2100)) for mon in range(12)]).T.flatten()
+        self._time_axis=np.array([yr+float(mn)/12. for yr,mn in zip(year,month)])
 
         if os.path.isdir(self._working_directory)==False:os.system('mkdir '+self._working_directory)
         if os.path.isdir(self._working_directory+'/masks')==False:os.system('mkdir '+self._working_directory+'/masks')
@@ -610,6 +615,8 @@ class country_analysis(object):
 
         if os.path.isfile(mask_file)==False:
             grid_polygons,shift = self.get_grid_polygons(grid,lon,lat,lon_shift)
+            if grid not in self._DATA.keys():
+                self._DATA[grid]=None
 
             country_polygons = self._adm_polygons[self._iso]
 
@@ -657,6 +664,9 @@ class country_analysis(object):
         '''
 
         lon,lat,grid,lon_shift = self.identify_grid(input_file,lat_name,lon_name)
+
+        if grid not in self._DATA.keys():
+            self._DATA[grid]=None
 
         if grid not in self._masks.keys():
             self._masks[grid]={}
@@ -925,22 +935,6 @@ class country_analysis(object):
             os.system('rm '+out_file)
             os.system('rm '+out_file.replace('.nc','_merged.nc'))
 
-        if os.path.isfile(out_file):
-            nc_out=Dataset(out_file,"r")
-            new_data=country_data_object(outer_self=self,var_name=var_name,grid=nc_out.getncattr('original_grid'),**kwargs)
-            new_data.raw_file=out_file
-            new_data.add_data(raw=nc_out.variables[var_name][:,:,:],lat=nc_out.variables['lat'][:],lon=nc_out.variables['lon'][:],time=nc_out.variables['time'][:],year=nc_out.variables['year'][:],month=nc_out.variables['month'][:],day=nc_out.variables['day'][:])
-            new_data.create_time_stamp()
-            nc_out.close()
-
-        if os.path.isfile(out_file.replace('.nc','_merged.nc')):
-            nc_out=Dataset(out_file.replace('.nc','_merged.nc'),"r")
-            new_data=country_data_object(outer_self=self,var_name=var_name,grid=nc_out.getncattr('original_grid'),**kwargs)
-            new_data.raw_file=out_file.replace('.nc','_merged.nc')
-            new_data.add_data(raw=nc_out.variables[var_name][:,:,:],lat=nc_out.variables['lat'][:],lon=nc_out.variables['lon'][:],time=nc_out.variables['time'][:],year=nc_out.variables['year'][:],month=nc_out.variables['month'][:],day=nc_out.variables['day'][:])
-            new_data.create_time_stamp()
-            nc_out.close()
-
         if os.path.isfile(out_file.replace('.nc','_merged.nc'))==False and os.path.isfile(out_file)==False:
             # open file to get information
             print input_file
@@ -966,11 +960,12 @@ class country_analysis(object):
             lat=lat_mask[list(lats)]
 
             # zoom to relevant area
-            os.system('cdo -O sellonlatbox,'+str(min(lon))+','+str(max(lon))+','+str(min(lat))+','+str(max(lat))+' '+input_file+' '+out_file.replace('.nc','_tmp.nc'))
+            os.system('cdo -O sellonlatbox,'+str(min(lon))+','+str(max(lon))+','+str(min(lat))+','+str(max(lat))+' '+input_file+' '+out_file)
+            if self._DATA[gird] is None:
+                input=da.read_nc(out_file)
+                self._DATA[gird] = da.DimArray(axes=[['dummy'],self._time_axis,input.lat,input.lon],dims=['name','time','lat','lon'])
 
-            new_data=country_data_object(outer_self=self,var_name=var_name,grid=grid,**kwargs)
-            new_data.raw_file=out_file
-            self.fill_gaps_in_time_axis(new_data,out_file.replace('.nc','_tmp.nc'),out_file)
+
 
     def hist_merge(self):
         '''
