@@ -16,12 +16,15 @@ COU=country_analysis.country_analysis(iso,working_directory='data/'+iso+'/',addi
 
 COU.load_data()
 
-COU.classify_ensemble(['tas'])
+# members_tas=COU.classify_ensemble(['tas'])
+# COU.ensemble_statistic(members_tas,'tas_ensmedian')
+# COU.save_data()
 
-# COU.period_statistic([1986,2006],'ref_mean')
-# COU.period_statistic([2025,2045],'2030s_mean')
-# COU.period_statistic([2035,2055],'2040s_mean')
-#
+COU.period_statistic([1986,2006],'ref_mean')
+COU.period_statistic([2025,2045],'2030s_mean')
+COU.period_statistic([2035,2055],'2040s_mean')
+
+COU.period_diff('ref_mean','2040s_mean','diff_ref_2040s')
 
 
 

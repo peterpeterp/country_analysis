@@ -130,7 +130,11 @@ class country_analysis(object):
         os.system('rm '+self._working_directory+'/raw/*')
 
     def load_data(self):
-        self._DATA=da.read_nc(self._working_directory+'/data.nc')
+        tmp=da.read_nc(self._working_directory+'/data.nc')
+        self._DATA={}
+        for grid in tmp.keys():
+            self._DATA[grid]=tmp[grid]
+
 
         for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
             # need the country mask first
@@ -555,7 +559,8 @@ class country_analysis(object):
 
             print(name)
             if name in self._DATA[grid]:
-                self._DATA[grid][name,in_time,:,:]=in_nc[var_name]
+                relevant_steps=np.where(np.isfinite(np.nanmean(in_nc[var_name],axis=(-1,-2))))[0]
+                self._DATA[grid][name,in_time,:,:]=in_nc[var_name].ix[relevant_steps,:,:]
 
             else:
                 tmp = da.DimArray(axes=[[name],self._time_axis,in_nc[lat_name].values,in_nc[lon_name].values],dims=['name','time','lat','lon'])
@@ -571,19 +576,26 @@ class country_analysis(object):
             names=[xx for xx in names if filter in xx.split('_')]
         return names
 
-    def ensemble_statistic(self,selection,ens_name,stat='median',grid=None,write=True):
+    def ensemble_statistic(self,members,ens_name,stat='median',grid=None,write=True):
         if grid is None and len(self._DATA)==1:
             grid=self._DATA.keys()[0]
 
-        member0=delf._DATA[grid][names[0],:,:,:]
+        member0=self._DATA[grid][members[0],:,:,:]
         tmp = da.DimArray(axes=[[ens_name],self._time_axis,member0.lat,member0.lon],dims=['name','time','lat','lon'])
+        tmp[ens_name,:,:,:]=np.nanpercentile(self._DATA[grid][members,:,:,:],[50],axis=0)
 
-        tmp[ens_name,:,:,:]=np.nanpercentile(delf._DATA[grid][names,:,:,:],[50],axis=0)
         self._DATA[grid] = da.concatenate((self._DATA[grid],tmp))
+
 
     def period_statistic(self,period,period_name,stat='mean'):
         for grid in self._DATA:
-            self._periods[grid][period_name] = np.nanmean(self._DATA[grid][:,period[0]:period[1],:,:],axis=1)
+
+            self._periods[grid][period_name] = da.DimArray(np.nanmean(self._DATA[grid][:,period[0]:period[1],:,:],axis=1),axes=[self._DATA[grid].name,self._DATA[grid].lat,self._DATA[grid].lon],dims=['name','lat','lon'])
+
+    def period_diff(self,period1,period2,period_name):
+        for grid in self._DATA:
+            self._periods[grid][period_name] = self._periods[grid][period1] - self._periods[grid][period2]
+
 
     def period_events_above_thresh(self,period,period_name,names=None,threshold=0,below=False):
         for grid in self._DATA:
