@@ -558,15 +558,15 @@ class country_analysis(object):
             in_time=np.array([yr+float(mn)/12. for yr,mn in zip(year,month)])
             relevant_steps=np.where(np.isfinite(np.nanmean(in_nc[var_name],axis=(-1,-2))))[0]
             in_time=in_time[relevant_steps]
-            
+
             print(name)
             if name in self._DATA[grid]:
                 print(in_nc[var_name][in_time,:,:].shape)
-                self._DATA[grid][name,in_time,:,:].ix[relevant_steps,:,:]=in_nc[var_name][in_time,:,:]
+                self._DATA[grid][name,in_time,:,:]=in_nc[var_name][in_time,:,:]
 
             else:
                 tmp = da.DimArray(axes=[[name],self._time_axis,in_nc[lat_name].values,in_nc[lon_name].values],dims=['name','time','lat','lon'])
-                tmp[name,in_time,:,:].ix[relevant_steps,:,:]=in_nc[var_name][in_time,:,:]
+                tmp[name,in_time,:,:]=in_nc[var_name][in_time,:,:]
                 self._DATA[grid] = da.concatenate((self._DATA[grid],tmp))
 
     def classify_ensemble(self,filters,grid=None):
