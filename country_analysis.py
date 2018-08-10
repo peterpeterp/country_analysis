@@ -7,7 +7,7 @@ peter.pfleiderer@climateanalytics.org
 
 import sys,glob,os,itertools,datetime,pickle,subprocess,time
 import numpy as np
-from netCDF4 import Dataset,netcdftime,num2date
+from netCDF4 import Dataset,num2date
 import pandas as pd
 from shapely.geometry import mapping, Polygon, MultiPolygon
 import matplotlib.pylab as plt
@@ -68,11 +68,11 @@ class country_analysis(object):
 
         self._masks={}
         self._grid_dict={}
-        self._DATA=[]
+        self._DATA={}
         self._region_names={}
 
-    	year=np.array([[yr]*12 for yr in range(1950,2100)]).flatten()
-    	month=np.array([[mon]*len(range(1950,2100)) for mon in range(12)]).T.flatten()
+    	year=np.array([[yr]*12 for yr in range(1900,2100)]).flatten()
+    	month=np.array([[mon]*len(range(1900,2100)) for mon in range(12)]).T.flatten()
         self._time_axis=np.array([yr+float(mn)/12. for yr,mn in zip(year,month)])
 
         if os.path.isdir(self._working_directory)==False:os.system('mkdir '+self._working_directory)
@@ -124,220 +124,13 @@ class country_analysis(object):
         print self._adm_polygons.keys()
         print 'regions loaded '+str(time.time()-start_time)
 
-    def zip_it(self,subfolder=None):
-        '''
-        Prepares a compressed tar
-        subfolder: str: name of the sub-folder that has to be compressed. If none, all the data for the country is compressed
-        '''
-        actual_path=os.getcwd()
-        os.chdir(self._working_directory)
-        os.chdir('../')
-        if subfolder is None:
-            os.system('tar -zcf '+self._iso+'.tar.gz '+self._iso)
-        else:
-            os.system('tar -zcf '+self._working_directory[0:-1]+'_'+subfolder+'.tar.gz '+self._working_directory.split('/')[-2]+'/'+subfolder)
-        os.chdir(actual_path)
+    def save_data(self):
+        da.Dataset(self._DATA).write_nc(self._working_directory+'/data.nc')
+        os.system('rm '+self._working_directory+'/raw/*')
 
-    def load_data(self,quiet=True,filename_filter='',load_mask=True,load_raw=True,load_area_averages=True,load_region_polygons=True,load_merged_regions=False):
-        '''
-        Loads data from existing country_analysis project
-        quiet: bool: if quiet, no file-names are printed
-        '''
-        if load_mask:
-            for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
-                # need the country mask first
-                if 'admin' not in file.split('_') and len(file.split('+'))==1:
-                    file_new=self._working_directory+'/masks'+file.split('masks')[-1]
-                    if quiet==False:print file_new
-                    self.load_masks(file_new)
-
-            for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
-                if 'admin' in file.split('_'):
-                    if len(file.split('+'))==1 or load_merged_regions: # exclude merged regions
-                        file_new=self._working_directory+'/masks'+file.split('masks')[-1]
-                        if quiet==False:print file_new
-                        self.load_masks(file_new)
-
-
-        if load_raw:
-            for file in glob.glob(self._working_directory_raw+'/*'+filename_filter+'*'):
-                file_new=self._working_directory_raw+file.split('raw'+self._additional_tag)[-1]
-                if file_new not in [data.raw_file for data in self._DATA]:
-                    if quiet==False:print file_new
-                    nc_out=Dataset(file_new,"r")
-                    tags={}
-                    for key,val in zip(nc_out.getncattr('tags_keys').split('**'),nc_out.getncattr('tags_values').split('**')):
-                        tags[key]=val
-                    try:
-                        var_name=tags['original_var_name']
-                    except:
-                        var_name=tags['var_name']
-
-                    new_data=country_data_object(outer_self=self,**tags)
-                    new_data.raw_file=file_new
-                    new_data.add_data(raw=nc_out.variables[var_name][:,:,:],lat=nc_out.variables['lat'][:],lon=nc_out.variables['lon'][:],time=nc_out.variables['time'][:],year=nc_out.variables['year'][:],month=nc_out.variables['month'][:])
-                    try:
-                        new_data.add_data(day=nc_out.variables['day'][:])
-                    except:
-                        print 'no days'
-                    new_data.create_time_stamp()
-
-
-        if load_area_averages:
-            for file in glob.glob(self._working_directory+'/area_average/*'):
-                mask_style=file.split('-')[-1].split('.')[0]
-                name=file.split('-')[-2]
-
-                file_new=self._working_directory+'/area_average'+file.split('area_average')[-1]
-                if quiet==False:print file_new
-                for data in self._DATA:
-                    if sorted(data.name.split('_'))==sorted(name.split('_')):
-                        table=pd.read_csv(file_new,sep=';')
-                        for key in table.keys():
-                            if key not in ['time','year','month','index']:
-                                if mask_style not in data.area_average.keys():	data.area_average[mask_style]={}
-                                data.area_average[mask_style][key]=np.array(table[key])
-
-    def get_historical_extreme_events(self,path):
-        '''
-        Load csv table with historical extreme events.
-        Columns should include: ID, country, start, end, region, description, type
-        '''
-        table=pd.read_csv(path,sep=';').to_dict()
-        event_groups={'flood':['flash floods','floods'],'drought':['drought']}
-        extreme_events={}
-        for event in ['flood','drought']:
-            extreme_events[event]=[]
-            for i in table['ID']:
-                if table['country'][i]=='SEN':
-                    if len(set(table['type'][i].replace(' ','').split(',')).intersection(event_groups[event]))>=1:
-                        extreme_events[event].append({
-                            'start':table['start'][i],
-                            'end':table['end'][i],
-                            'region':table['region'][i],
-                            'description':table['type'][i],
-                            })
-
-        self._extreme_events=extreme_events
-
-    def variables(self):
-        print '\n'.join(sorted(set([dd.var_name for dd in self._DATA])))
-
-    def datasets(self):
-        print '\n'.join(sorted(set([dd.data_type for dd in self._DATA])))
-
-    def short_summary(self):
-        '''
-        display available variables, datasets and scenarios
-        '''
-        types=sorted(set([dd.data_type for dd in self._DATA]))
-        var_names=sorted(set([dd.var_name for dd in self._DATA]))
-
-        scenarios=[]
-        for dd in self._DATA:
-            if hasattr(dd,'scenario'):
-                scenarios.append(dd.scenario)
-        scenarios=sorted(list(set(scenarios)))
-
-        print '--------------Variables------------\n'+'\t'.join(var_names)
-        print '**************Datasets*************\n'+'\t'.join(types)
-        print '______________Scenarios____________\n'+'\t'.join(scenarios)
-
-    def summary(self):
-        '''
-        display available variables, datasets and scenarios
-        '''
-        types=sorted(set([dd.data_type for dd in self._DATA]))
-        var_names=sorted(set([dd.var_name for dd in self._DATA]))
-
-        scenarios=[]
-        for dd in self._DATA:
-            if hasattr(dd,'scenario'):
-                scenarios.append(dd.scenario)
-        scenarios=sorted(list(set(scenarios)))
-
-        for var_name in var_names:
-            print var_name+': '
-            for data_type in types:
-                if len(self.selection([data_type,var_name],show_selection=False))>0:
-                    out='\t-'+data_type+': '
-                    if hasattr(self.selection([data_type,var_name],show_selection=False)[0],'scenario'):
-                        for scenario in scenarios:
-                            if len(self.selection([data_type,var_name,scenario],show_selection=False))>0:
-                                out+=scenario+', '
-                    print out
-
-    def complete_summary(self,detailed=True):
-        '''
-        display available variables, datasets and scenarios
-        '''
-        types=set([dd.data_type for dd in self._DATA])
-        var_names=set([dd.var_name for dd in self._DATA])
-
-        for data_type in types:
-            print '\n\n***********',data_type,'*********************************'
-            for var_name in var_names:
-                if len(self.selection([data_type,var_name],show_selection=False))>0:
-                    print '\n____________',var_name,'___________'
-                    self.selection([data_type,var_name],detailed)
-
-    def selection(self,filters,show_selection=False,detailed=True):
-        '''
-        select datasets for further analysis. returns a list of country_data_objects
-        filters: list: keywords that all selected elements should share
-        show_selection: bool: if True, information about the selected data is shown
-        detailed: bool: if True, detailed information about selected data is shown
-        '''
-        selection=[]
-        for data in self._DATA:
-            selected=True
-            for key in filters:
-                if key not in data.all_tags:
-                    selected=False
-            if selected:
-                selection.append(data)
-        if show_selection==True:
-            for count,data in zip(range(len(selection)),selection):
-                print count,data.details(detailed)
-        return selection
-
-    def find_ensemble(self,filters,quiet=True):
-        '''
-        selects an ensemble for further analysis. returns a dict containing country_data_objects
-        filters: list: keywords that all selected elements should share
-        quiet: bool: if False, information about the selected data is shown
-        '''
-        ensemble={}
-        ensemble_mean=None
-        ensemble_median=None
-        ensemble_min=None
-        ensemble_max=None
-        ensemble_25=None
-        ensemble_75=None
-        for data in self._DATA:
-            selected=True
-            for key in filters:
-                if key not in data.all_tags:
-                    selected=False
-            if selected and data.model not in ['ensemble_mean','ensemble_median','ensemble_min','ensemble_max','ensemble_25','ensemble_75']:
-                ensemble[data.model]=data
-                if quiet==False:
-                    print data.model+': '+data.name+' '+str(min(data.year))+'-'+str(max(data.year))
-            if selected and data.model=='ensemble_mean':
-                ensemble_mean=data
-            if selected and data.model=='ensemble_median':
-                ensemble_median=data
-            if selected and data.model=='ensemble_min':
-                ensemble_min=data
-            if selected and data.model=='ensemble_max':
-                ensemble_max=data
-            if selected and data.model=='ensemble_25':
-                ensemble_25=data
-            if selected and data.model=='ensemble_75':
-                ensemble_75=data
-
-        return {'models':ensemble,'mean':ensemble_mean,'median':ensemble_median,'min':ensemble_min,'max':ensemble_max,'25':ensemble_25,'75':ensemble_75}
-
+    def load_data(self):
+        self._DATA=da.read_nc(self._working_directory+'/data.nc')
+        
     def unit_conversions(self,selection=None):
         '''
         convert K to deg C
@@ -766,145 +559,6 @@ class country_analysis(object):
     # raw data treatment
     ###########
 
-    def understand_time_format(self,nc_in=None,time=None,time_units=None,time_calendar=None):
-        '''
-        interpret time format and store additional information
-        nc_in: file_path: input file. If specified time will be read from the file
-        time: array: if given, this time array will be treated
-        time_units: str: time format units
-        time_calendar: str: calendar information
-        '''
-        if time is None:
-            time=nc_in.variables['time'][:]
-        # issue with hadgem2 file
-        #time[time<0]=-999999
-        time=np.delete(time,np.where(time<0))
-
-        datevar = []
-        # if specified units and calendar
-        if time_units is not None and time_calendar is not None:
-            datevar.append(num2date(time,units = time_units,calendar= time_calendar))
-        # if no specification
-        if time_units is None and time_calendar is None:
-            time_unit=nc_in.variables['time'].units
-            try:
-                cal_temps = nc_in.variables['time'].calendar
-                datevar.append(num2date(time,units = time_unit,calendar = cal_temps))
-            except:
-                datevar.append(num2date(time,units = time_unit))
-        # create index variable
-        year=np.array([int(str(date).split("-")[0])	for date in datevar[0][:]])
-        month=np.array([int(str(date).split("-")[1])	for date in datevar[0][:]])
-        day=np.array([int(str(date).split("-")[2].split(' ')[0])	for date in datevar[0][:]])
-
-        return(time,year,month,day)
-
-    def create_complete_time_axis(self,data_object,yearmin=None,yearmax=None):
-        '''
-        create homogeneous time axis
-        data_object: country_data_object: data_object for which the axis is created
-        yearmin: int: start-year
-        yearmax: int: end-year
-        '''
-        if yearmin is None:	np.nanmin(data_object.year)
-        if yearmax is None:	np.nanmax(data_object.year)
-
-        if len(set(data_object.month))==1:
-            time_axis=[(year,6,15) for year in np.arange(yearmin,yearmax+1,1)]
-        elif len(set(data_object.day))==1:
-            time_axis=[]
-            for year in np.arange(yearmin,yearmax+1,1):
-                for month in sorted(set(data_object.month)):
-                    time_axis.append((year,month,15))
-        elif len(set(data_object.day))>1:
-            time_axis=[]
-            for year in np.arange(yearmin,yearmax+1,1):
-                for month in sorted(set(data_object.month)):
-                    for day in sorted(set(data_object.day)):
-                        time_axis.append((year,month,day))
-
-        return(time_axis)
-
-    def fill_gaps_in_time_axis(self,data_object,in_file,out_file):
-        '''
-        transform data to data with homogeneous time axis. missing time steps will be filled with np.nan
-        data_object: country_data_object: data_object to be transformed
-        in_file: file path: file to be treated
-        out_file: file path: where to store new file
-        '''
-
-        # write additional information in copied file
-        nc_in=Dataset(in_file,"r")
-        raw_data=nc_in.variables[data_object.original_var_name][:,:,:]
-
-        if data_object.time_format!='snapshot':
-            # understand time format and create continuous time axis
-            time,year,month,day=self.understand_time_format(nc_in)
-            data_object.add_data(time=time,year=year,month=month,day=day)
-            data_object.create_time_stamp()
-
-            time_axis=self.create_complete_time_axis(data_object,yearmin=np.nanmin(data_object.year),yearmax=np.nanmax(data_object.year))
-
-            out_data=np.zeros([len(time_axis),len(data_object.lat),len(data_object.lon)])*np.nan
-
-            for t in time_axis:
-                if t in data_object.time_stamp:
-                    # some files have more than one value per time step????
-                    #print t,time_axis[np.where(time_axis==t)[0]],data_object.time_stamp[np.where(data_object.time_stamp==t)[0]]
-                    out_data[time_axis.index(t),:,:]=raw_data[data_object.time_stamp.index(t),:,:]
-
-        if data_object.time_format=='snapshot':
-            # understand time format and create continuous time axis
-            time,year,month,day=np.array([1]),np.array([1]),np.array([1]),np.array([1])
-            data_object.add_data(time=time,year=year,month=month,day=day)
-            data_object.create_time_stamp()
-            time_axis=[(1,1,1)]
-            out_data=raw_data
-
-
-        data_object.time_stamp=time_axis
-        data_object.convert_time_stamp()
-        data_object.add_data(raw=out_data)
-
-        data_object.add_data(lon=nc_in.variables['lon'][:],lat=nc_in.variables['lat'][:])
-
-        os.system('rm '+out_file)
-        nc_out=Dataset(out_file,"w")
-
-        nc_out.createDimension('lat', len(data_object.lat))
-        nc_out.createDimension('lon', len(data_object.lon))
-        nc_out.createDimension('time', len(time_axis))
-
-        varin=nc_in.variables['lat']
-        outVar = nc_out.createVariable('lat', varin.datatype, varin.dimensions)
-        outVar.setncatts({k: varin.getncattr(k) for k in varin.ncattrs()})
-        outVar[:] = varin[:]
-
-        varin=nc_in.variables['lon']
-        outVar = nc_out.createVariable('lon', varin.datatype, varin.dimensions)
-        outVar.setncatts({k: varin.getncattr(k) for k in varin.ncattrs()})
-        outVar[:] = varin[:]
-
-        outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=data_object.time
-        outVar.setncatts({'calendar':'proleptic_gregorian','units':'days since 1950-1-1 00:00:00'})
-
-        outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=data_object.year
-        outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=data_object.month
-        outVar = nc_out.createVariable('day', 'f', ('time',)) ; outVar[:]=data_object.day
-
-        varin=nc_in.variables[data_object.original_var_name]
-        outVar = nc_out.createVariable(data_object.original_var_name, varin.datatype, varin.dimensions)
-        outVar.setncatts({k: varin.getncattr(k) for k in varin.ncattrs()})
-        outVar[:] = out_data
-
-        nc_out.setncattr('original_grid',data_object.grid)
-        nc_out.setncattr('tags_keys','**'.join(data_object.all_tags_dict.keys()))
-        nc_out.setncattr('tags_values','**'.join(data_object.all_tags_dict.values()))
-
-        nc_out.close()
-        nc_in.close()
-        os.system('rm '+in_file)
-
     def country_zoom(self,input_file,var_name,mask_style='lat_weighted',time_units=None,time_calendar=None,lat_name='lat',lon_name='lon',overwrite=False,**kwargs):
         '''
         zoom input_file to area relevant for the country
@@ -961,170 +615,52 @@ class country_analysis(object):
 
             # zoom to relevant area
             os.system('cdo -O sellonlatbox,'+str(min(lon))+','+str(max(lon))+','+str(min(lat))+','+str(max(lat))+' '+input_file+' '+out_file)
-            if self._DATA[gird] is None:
-                input=da.read_nc(out_file)
-                self._DATA[gird] = da.DimArray(axes=[['dummy'],self._time_axis,input.lat,input.lon],dims=['name','time','lat','lon'])
+
+            if 'given_var_name' in kwargs.keys():
+                name = kwargs['given_var_name']
+            else:
+                name = var_name
+            for key in sorted(kwargs.keys()):
+                if key not in ['raw_file','grid','var_name','given_var_name']:
+                    name+='_'+kwargs[key]
+
+            print(self._DATA[grid])
+            in_nc=da.read_nc(out_file)
+
+            if self._DATA[grid] is None:
+                self._DATA[grid] = da.DimArray(axes=[['dummy'],self._time_axis,in_nc[lat_name].values,in_nc[lon_name].values],dims=['name','time','lat','lon'])
 
 
+            datevar=[num2date(tt,units = in_nc['time'].units) for tt in in_nc['time']]
+            year=[date.year for date in datevar]
+            month=[date.month for date in datevar]
+            in_time=np.array([yr+float(mn)/12. for yr,mn in zip(year,month)])
 
-    def hist_merge(self):
-        '''
-        merge historical and rcp-scenarios for each model
-        '''
-        # why are there files missing if I go through self._DATA only once???
-        for data in self._DATA+self._DATA:
-            if hasattr(data,'model'):
-                data__=self.selection([data.model,data.var_name,data.data_type],show_selection=True)
-                for hist in data__[:]:
-                    if hist.scenario.lower() in ['hist','historical']:
-                        delete_hist=False
-                        print '------- merging ',hist.model,hist.var_name,'-----------'
-                        print ' '.join([d_d.raw_file for d_d in data__])
+            print(name)
+            if name in self._DATA[grid]:
+                self._DATA[grid][name,in_time,:,:]=in_nc[var_name]
 
-                        for ddd in data__[:]:
-                            if ddd.scenario.lower() not in ['hist','historical']:
-                                out_file = ddd.raw_file.replace('.nc','_merged.nc')
-                                tmp_file = ddd.raw_file.replace('.nc','_merged_tmp.nc')
+            else:
+                tmp = da.DimArray(axes=[[name],self._time_axis,in_nc[lat_name].values,in_nc[lon_name].values],dims=['name','time','lat','lon'])
+                print(tmp)
+                tmp[name,in_time,:,:]=in_nc[var_name]
+                self._DATA[grid] = da.concatenate((self._DATA[grid],tmp))
 
+    def classify_ensemble(self,filters,grid=None):
+        if grid is None and len(self._DATA)==1:
+            grid=self._DATA.keys()[0]
+        names=self._DATA[grid].name[:]
+        for filter in filters:
+            names=[xx for xx in names if filter in xx.split('_')]
+        return names
 
-                                os.system('cdo -O mergetime '+ddd.raw_file+' '+hist.raw_file+' '+tmp_file)
-                                os.system('rm '+ddd.raw_file)
+    def ensemble_statistic(self,selection,stat='median',write=True):
 
-                                ddd.raw_file=out_file
-                                self.fill_gaps_in_time_axis(ddd,tmp_file,out_file)
+        tmp = da.DimArray(axes=[[name],self._time_axis,in_nc[lat_name].values,in_nc[lon_name].values],dims=['name','time','lat','lon'])
+        print(tmp)
+        tmp[name,in_time,:,:]=in_nc[var_name]
+        self._DATA[grid] = da.concatenate((self._DATA[grid],tmp))
 
-                                delete_hist=True
-
-                        if delete_hist:
-                            self._DATA.remove(hist)
-                            os.system('rm '+hist.raw_file)
-
-    def ensemble_statistic(self,stat='median',selection=None,write=True):
-        '''
-        identify ensembles and compute ensemble mean for each ensemble
-        '''
-        if selection is None:
-            selection=self._DATA[:]
-
-        # why do I need this????? see hist_merge
-        for i in range(2):
-            remaining=selection[:]
-            for data in remaining:
-                if hasattr(data,'model'):
-                    if data.model not in ['ensemble_median','ensemble_mean','ensemble_min','ensemble_max']:
-                        #print '__ ',data.name
-                        ensemble=self.find_ensemble([data.data_type,data.var_name,data.scenario])
-                        if ensemble[stat] is None:
-                            if stat=='median':command='cdo -O enspctl,50 '
-                            if stat=='min':command='cdo -O enspctl,0 '
-                            if stat=='max':command='cdo -O enspctl,100 '
-                            if stat=='25':command='cdo -O enspctl,25 '
-                            if stat=='75':command='cdo -O enspctl,75 '
-                            if stat=='mean':command='cdo -O ensmean '
-
-                            for member in ensemble['models'].values():
-                                command+=member.raw_file+' '
-
-                            out_file=self._working_directory_raw+'/'+self._iso+'_'+member.var_name+'_'+member.data_type+'_ensemble-'+stat+'_'+member.scenario+'.nc4'
-                            os.system(command+out_file)
-
-                            tags_=member.all_tags_dict.copy()
-                            tags_['model']='ensemble_'+stat
-                            tags_['raw_file']=out_file
-
-                            nc_in=Dataset(out_file)
-                            new_data=country_data_object(outer_self=self,**tags_)
-                            new_data.add_data(raw=nc_in.variables[member.original_var_name][:,:,:],lat=member.lat.copy(),lon=member.lon.copy())
-                            new_data.add_data(time=member.time.copy(),year=member.year.copy(),month=member.month.copy(),day=member.day.copy())
-                            new_data.create_time_stamp()
-                            nc_in.close()
-                            os.system('ncatted -h -a tags_values,global,o,c,"'+'**'.join(new_data.all_tags_dict.values())+'" '+out_file)
-
-                            if write==False: os.system('rm '+out_file)
-
-    def ensemble_mean(self,silent=True):
-        '''
-        identify ensembles and compute ensemble mean for each ensemble
-        '''
-        # why do I need this????? see hist_merge
-        for i in range(1):
-            remaining=self._DATA[:]
-            for data in remaining:
-                if hasattr(data,'model'):
-                    if data.model!='ensemble_mean':
-                        if silent==False:
-                            print '---------------- ensemble mean',data.var_name,'--------------------'
-                        ensemble=self.find_ensemble([data.data_type,data.var_name,data.scenario])
-                        if ensemble['mean'] is None:
-                            time_min,time_max=[],[]
-                            for member in ensemble['models'].values():
-                                remaining.remove(member)
-                                time_min.append(min(member.time_stamp))
-                                time_max.append(max(member.time_stamp))
-                            time_axis=self.create_complete_time_axis(member,yearmin=max(time_min)[0],yearmax=min(time_max)[0])
-                            #time_axis=np.around(np.arange(max(time_min),min(time_max),member.time_step),decimals=4)
-                            ensemble_mean=np.zeros([len(ensemble['models'].values()),len(time_axis),len(member.lat),len(member.lon)])*np.nan
-
-                            for member,i in zip(ensemble['models'].values(),range(len(ensemble['models'].values()))):
-                                for t in member.time_stamp:
-                                    if t in time_axis:
-                                        ensemble_mean[i,time_axis.index(t),:,:]=member.raw[member.time_stamp.index(t),:,:]
-
-                            ensemble_mean=np.nanmean(ensemble_mean,axis=0)
-
-                            tags_=member.all_tags_dict.copy()
-                            tags_['model']='ensemble_mean'
-                            out_file=self._working_directory_raw+'/'+self._iso+'_'+member.var_name+'_'+member.data_type+'_ensemble-mean_'+member.scenario+'.nc4'
-                            tags_['raw_file']=out_file
-
-                            new_data=country_data_object(outer_self=self,**tags_)
-                            new_data.add_data(raw=ensemble_mean,lat=member.lat,lon=member.lon)
-
-                            new_data.time_stamp=time_axis
-                            new_data.convert_time_stamp()
-
-                            # write ensemble_mean to file
-                            if silent==False:
-                                print member.name
-                                print member.raw_file
-                            nc_in=Dataset(member.raw_file,"r")
-                            os.system('rm '+out_file)
-                            nc_out=Dataset(out_file,"w")
-
-                            nc_out.createDimension('lat', len(new_data.lat))
-                            nc_out.createDimension('lon', len(new_data.lon))
-                            nc_out.createDimension('time', len(time_axis))
-
-                            varin=nc_in.variables['lat']
-                            outVar = nc_out.createVariable('lat', varin.datatype, varin.dimensions)
-                            outVar.setncatts({k: varin.getncattr(k) for k in varin.ncattrs()})
-                            outVar[:] = varin[:]
-
-                            varin=nc_in.variables['lon']
-                            outVar = nc_out.createVariable('lon', varin.datatype, varin.dimensions)
-                            outVar.setncatts({k: varin.getncattr(k) for k in varin.ncattrs()})
-                            outVar[:] = varin[:]
-
-                            outVar = nc_out.createVariable('time', 'f', ('time',)) ; outVar[:]=new_data.time
-                            outVar.setncatts({'calendar':'proleptic_gregorian','units':'days since 1950-1-1 00:00:00'})
-
-                            outVar = nc_out.createVariable('year', 'f', ('time',)) ; outVar[:]=new_data.year
-                            outVar = nc_out.createVariable('month', 'f', ('time',)) ; outVar[:]=new_data.month
-                            outVar = nc_out.createVariable('day', 'f', ('time',)) ; outVar[:]=new_data.day
-
-                            if silent==False:
-                                print new_data.original_var_name
-                            varin=nc_in.variables[new_data.original_var_name]
-                            outVar = nc_out.createVariable(new_data.original_var_name, varin.datatype, varin.dimensions)
-                            outVar.setncatts({k: varin.getncattr(k) for k in varin.ncattrs()})
-                            outVar[:] = ensemble_mean[:,:,:]
-
-                            nc_out.setncattr('original_grid',new_data.grid)
-                            nc_out.setncattr('tags_keys','**'.join(new_data.all_tags_dict.keys()))
-                            nc_out.setncattr('tags_values','**'.join(new_data.all_tags_dict.values()))
-
-                            nc_out.close()
-                            nc_in.close()
 
     ###########
     # analysis tools
