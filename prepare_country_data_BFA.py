@@ -46,26 +46,26 @@ all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mo
 for in_file in all_files:
 	model=in_file.split('/')[-1].split('_')[2]
 	COU.country_zoom(in_file,name='tas_'+model+'_rcp45_CMIP5_BC',var_name='tas',overwrite=overwrite)
-
-#pr
-all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*rcp45*')
-for in_file in all_files:
-	model=in_file.split('/')[-1].split('_')[2]
-	COU.country_zoom(in_file,name='pr_'+model+'_rcp45_CMIP5_BC',var_name='pr',overwrite=overwrite)
-
-all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*historical*')
-for in_file in all_files:
-	model=in_file.split('/')[-1].split('_')[2]
-	COU.country_zoom(in_file,name='pr_'+model+'_rcp45_CMIP5_BC',var_name='pr',overwrite=overwrite)
-
-
-#SPI
-for months in [3]:
-	all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/SPI/SPI_*'+str(months)+'m*')
-	for in_file in all_files:
-		model=in_file.split('/')[-1].split('_')[1]
-		rcp=in_file.split('/')[-1].split('_')[2]
-		COU.country_zoom(in_file,name='spi3m_'+model+'_rcp45_CMIP5_BC',var_name='spi',overwrite=overwrite)
+#
+# #pr
+# all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*rcp45*')
+# for in_file in all_files:
+# 	model=in_file.split('/')[-1].split('_')[2]
+# 	COU.country_zoom(in_file,name='pr_'+model+'_rcp45_CMIP5_BC',var_name='pr',overwrite=overwrite)
+#
+# all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*historical*')
+# for in_file in all_files:
+# 	model=in_file.split('/')[-1].split('_')[2]
+# 	COU.country_zoom(in_file,name='pr_'+model+'_rcp45_CMIP5_BC',var_name='pr',overwrite=overwrite)
+#
+#
+# #SPI
+# for months in [3]:
+# 	all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/SPI/SPI_*'+str(months)+'m*')
+# 	for in_file in all_files:
+# 		model=in_file.split('/')[-1].split('_')[1]
+# 		rcp=in_file.split('/')[-1].split('_')[2]
+# 		COU.country_zoom(in_file,name='spi3m_'+model+'_rcp45_CMIP5_BC',var_name='spi',overwrite=overwrite)
 
 
 COU.save_data()

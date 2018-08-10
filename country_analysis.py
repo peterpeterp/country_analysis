@@ -556,16 +556,17 @@ class country_analysis(object):
             year=[date.year for date in datevar]
             month=[date.month for date in datevar]
             in_time=np.array([yr+float(mn)/12. for yr,mn in zip(year,month)])
-
+            relevant_steps=np.where(np.isfinite(np.nanmean(in_nc[var_name],axis=(-1,-2))))[0]
+            in_time=in_time[relevant_steps]
+            
             print(name)
             if name in self._DATA[grid]:
-                relevant_steps=np.where(np.isfinite(np.nanmean(in_nc[var_name],axis=(-1,-2))))[0]
-                self._DATA[grid][name,in_time,:,:]=in_nc[var_name].ix[relevant_steps,:,:]
+                print(in_nc[var_name][in_time,:,:].shape)
+                self._DATA[grid][name,in_time,:,:].ix[relevant_steps,:,:]=in_nc[var_name][in_time,:,:]
 
             else:
                 tmp = da.DimArray(axes=[[name],self._time_axis,in_nc[lat_name].values,in_nc[lon_name].values],dims=['name','time','lat','lon'])
-                print(tmp)
-                tmp[name,in_time,:,:]=in_nc[var_name]
+                tmp[name,in_time,:,:].ix[relevant_steps,:,:]=in_nc[var_name][in_time,:,:]
                 self._DATA[grid] = da.concatenate((self._DATA[grid],tmp))
 
     def classify_ensemble(self,filters,grid=None):
@@ -609,6 +610,17 @@ class country_analysis(object):
                         else:
                             self._periods[grid][period_name][name,y,x] = len(np.where(diff>0)[0])/float(diff.shape[1])*100
 
+    def model_agreement(self,ens_name,members,period_name,agreement_name):
+        for grid in self._DATA:
+            ens=self._periods[grid][period_name][ens_name,:,:]
+
+            agreement=ens.copy()*0
+            for member in members:
+                agreement+=np.sign(self._periods[grid][period_name][member,:,:])==np.sign(ens)
+            agreement[agreement<2./3.*len(members)]=1
+            agreement[agreement>=2./3.*len(members)]=np.nan
+            tmp = da.DimArray(agreement ,axes=[[agreement_name],self.lat,self.lon],dims=['name','lat','lon'])
+            self._periods[grid][period_name] = da.concatenate((self._periods[grid][period_name],tmp))
 
 
 

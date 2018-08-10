@@ -16,9 +16,9 @@ COU=country_analysis.country_analysis(iso,working_directory='data/'+iso+'/',addi
 
 COU.load_data()
 
-# members_tas=COU.classify_ensemble(['tas'])
-# COU.ensemble_statistic(members_tas,'tas_ensmedian')
-# COU.save_data()
+members_tas=COU.classify_ensemble(['tas'])
+COU.ensemble_statistic(members_tas,'tas_ensmedian')
+COU.save_data()
 
 COU.period_statistic([1986,2006],'ref_mean')
 COU.period_statistic([2025,2045],'2030s_mean')
