@@ -499,7 +499,7 @@ class country_analysis(object):
     # raw data treatment
     ###########
 
-    def country_zoom(self,input_file,var_name,mask_style='lat_weighted',time_units=None,time_calendar=None,lat_name='lat',lon_name='lon',overwrite=False,**kwargs):
+    def country_zoom(self,input_file,name,var_name,mask_style='lat_weighted',lat_name='lat',lon_name='lon',overwrite=False,**kwargs):
         '''
         zoom input_file to area relevant for the country
         input_file: str: file to be processed
@@ -515,19 +515,8 @@ class country_analysis(object):
 
         #print kwargs
         #out_file=self._working_directory_raw+'/'+input_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
-        if 'given_var_name' in kwargs.keys():
-            out_file=self._working_directory_raw+'/'+self._iso+'_'+kwargs['given_var_name']
-        if 'given_var_name' not in kwargs.keys():
-            out_file=self._working_directory_raw+'/'+self._iso+'_'+var_name
-        for key in sorted(kwargs.keys()):
-            if key not in ['time_format','var_name','given_var_name']:
-                out_file+='_'+kwargs[key]
-        out_file+='.nc4'
+        out_file=self._working_directory_raw+'/'+self._iso+'_'+var_name+'_'+name+'.nc4'
         print out_file
-
-        if overwrite:
-            os.system('rm '+out_file)
-            os.system('rm '+out_file.replace('.nc','_merged.nc'))
 
         if os.path.isfile(out_file.replace('.nc','_merged.nc'))==False and os.path.isfile(out_file)==False:
             # open file to get information
@@ -555,14 +544,6 @@ class country_analysis(object):
 
             # zoom to relevant area
             os.system('cdo -O sellonlatbox,'+str(min(lon))+','+str(max(lon))+','+str(min(lat))+','+str(max(lat))+' '+input_file+' '+out_file)
-
-            if 'given_var_name' in kwargs.keys():
-                name = kwargs['given_var_name']
-            else:
-                name = var_name
-            for key in sorted(kwargs.keys()):
-                if key not in ['raw_file','grid','var_name','given_var_name']:
-                    name+='_'+kwargs[key]
 
             grid=self._grid_dict[grid]
             in_nc=da.read_nc(out_file)

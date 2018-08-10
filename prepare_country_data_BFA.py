@@ -13,7 +13,7 @@ sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
 
 
 country_iso='BFA'
-overwrite=True
+overwrite=False
 
 print country_iso
 COU=country_analysis(country_iso,'data/'+country_iso+'/',additional_tag='')
@@ -40,14 +40,14 @@ all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mo
 for in_file in all_files:
 	model=in_file.split('/')[-1].split('_')[2]
 	print rcp,model,in_file
-	COU.country_zoom(in_file,var_name='tas',data_type='CMIP5_BC',scenario='rcp45',model=model,overwrite=overwrite)
+	COU.country_zoom(in_file,name='tas_'+model+'_rcp45',var_name='tas',overwrite=overwrite)
 
 #tas
 all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_*historical*')
 for in_file in all_files:
 	model=in_file.split('/')[-1].split('_')[2]
 	print rcp,model,in_file
-	COU.country_zoom(in_file,var_name='tas',data_type='CMIP5_BC',scenario='rcp45',model=model,overwrite=overwrite)
+	COU.country_zoom(in_file,name='tas_'+model+'_rcp45',var_name='tas',overwrite=overwrite)
 #
 # #pr
 # all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*rcp45*')
