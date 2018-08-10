@@ -36,7 +36,7 @@ COU.create_mask_admin('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/
 # #CMIP5_BC
 # ##############
 #tas
-all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_*rcp45*')
+all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_*rcp4p5*')
 for in_file in all_files:
 	model=in_file.split('/')[-1].split('_')[2]
 	COU.country_zoom(in_file,name='tas_'+model+'_rcp45_CMIP5_BC',var_name='tas',overwrite=overwrite)
