@@ -560,7 +560,7 @@ class country_analysis(object):
             in_time=in_time[relevant_steps]
 
             print(name)
-            if name in self._DATA[grid]:
+            if name in self._DATA[grid].name:
                 print(in_nc[var_name][in_time,:,:].shape)
                 self._DATA[grid][name,in_time,:,:]=in_nc[var_name].ix[relevant_steps,:,:]
 
