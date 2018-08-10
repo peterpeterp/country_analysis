@@ -71,8 +71,8 @@ class country_analysis(object):
         self._DATA={}
         self._region_names={}
 
-    	year=np.array([[yr]*12 for yr in range(1900,2100)]).flatten()
-    	month=np.array([[mon]*len(range(1900,2100)) for mon in range(12)]).T.flatten()
+    	year=np.array([[yr]*12 for yr in range(1900,2101)]).flatten()
+    	month=np.array([[mon]*len(range(1900,2101)) for mon in range(12)]).T.flatten()
         self._time_axis=np.array([yr+float(mn)/12. for yr,mn in zip(year,month)])
 
         if os.path.isdir(self._working_directory)==False:os.system('mkdir '+self._working_directory)
@@ -130,78 +130,6 @@ class country_analysis(object):
 
     def load_data(self):
         self._DATA=da.read_nc(self._working_directory+'/data.nc')
-        
-    def unit_conversions(self,selection=None):
-        '''
-        convert K to deg C
-        '''
-        if selection is None:
-            selection=self._DATA[:]
-
-        for data in selection:
-            if data.var_name in ['tas','TXx','tasmax'] or 'tas' in data.var_name.split('_'):
-                if np.nanmean(data.raw)>100:
-                    data.raw-=273.15
-                for mask_style in data.area_average.keys():
-                    for region in data.area_average[mask_style].keys():
-                        if region in self._region_names.values()+[self._iso]:
-                            if np.nanmean(data.area_average[mask_style][region])>100:
-                                data.area_average[mask_style][region]-=273.15
-
-    def clean_above_or_below(self,above=999,below=-999):
-        '''
-        delete weird features
-        '''
-        for data in self._DATA:
-            data.raw[data.raw>above]=np.nan
-            data.raw[data.raw<below]=np.nan
-            for mask_style in data.area_average.keys():
-                for region in data.area_average[mask_style].keys():
-                    if region in self._region_names.keys():
-                        x=data.area_average[mask_style][region].copy()
-                        x[x>above]=np.nan
-                        x[x<below]=np.nan
-
-    def get_warming_slices(self,warming_lvls=[1.5,2],ref_period=[1986,2006],window=21,ref_period_name='ref',model_real_names=None,wlcalculator_path='/Users/peterpfleiderer/Documents/Projects/wlcalculator/app/'):
-        '''
-        get model specific periods corresponding to global mean temperature warming levels
-        GMT_path: path: Path to GMT files (wlcalculator)
-        warming_levels: list: GMT warming levels in deg C above preindustrial
-        ref_period: list(start year, end year): reference period
-        warming_of_ref_period: float: GMT of reference period in deg C above preindustrial
-        model_real_names: dict: exact names of models {'given model name in country_analysis class':'corresponding model name in GMT files'}
-        '''
-
-        current_path=os.getcwd()
-        os.chdir(wlcalculator_path)
-        sys.path.append(wlcalculator_path)
-        os.system('ls')
-        import wacalc.CmipData as CmipData; reload(CmipData)
-        import wacalc.hadcrut_warming as hadcrut_warming; reload(hadcrut_warming) # I think I don't need this
-
-        self._warming_slices={}
-        for data in self._DATA:
-            if hasattr(data,'model'):
-                if data.model not in self._warming_slices.keys() and data.model!='ensemble_mean':
-                    self._warming_slices[data.model]={}
-                    if data.scenario not in self._warming_slices[data.model].keys():
-                        self._warming_slices[data.model][data.scenario]={ref_period_name:ref_period}
-
-                        # model names from cordex are not explicit!
-                        if model_real_names is not None:		model_name=model_real_names[data.model]
-                        if model_real_names is None:		model_name=data.model.lower()
-
-                        scenario=data.scenario.replace('4p5','45').replace('2p6','26').replace('6p0','60').replace('8p5','85')
-
-                        cmipdata = CmipData.CmipData('CMIP5',[model_name],[scenario])
-                        cmipdata.get_cmip()
-                        cmipdata.compute_period( ref_period, [1850,1900], warming_lvls, window=window)
-                        lvls=cmipdata.exceedance_tm
-
-                        for wlvl in lvls.wlevel:
-                            self._warming_slices[data.model][data.scenario][str(wlvl)]=[round(lvls[scenario][wlvl]-10.),round(lvls[scenario][wlvl]+10.)]
-
-        os.chdir(current_path)
 
     ###########
     # masks
@@ -654,11 +582,14 @@ class country_analysis(object):
             names=[xx for xx in names if filter in xx.split('_')]
         return names
 
-    def ensemble_statistic(self,selection,stat='median',write=True):
+    def ensemble_statistic(self,selection,ens_name,stat='median',grid=None,write=True):
+        if grid is None and len(self._DATA)==1:
+            grid=self._DATA.keys()[0]
 
-        tmp = da.DimArray(axes=[[name],self._time_axis,in_nc[lat_name].values,in_nc[lon_name].values],dims=['name','time','lat','lon'])
-        print(tmp)
-        tmp[name,in_time,:,:]=in_nc[var_name]
+        member0=delf._DATA[grid][names[0],:,:,:]
+        tmp = da.DimArray(axes=[[ens_name],self._time_axis,member0.lat,member0.lon,dims=['name','time','lat','lon'])
+
+        tmp[ens_name,:,:,:]=np.nanpercentile(delf._DATA[grid][names,:,:,:],[50],axis=0)
         self._DATA[grid] = da.concatenate((self._DATA[grid],tmp))
 
 
