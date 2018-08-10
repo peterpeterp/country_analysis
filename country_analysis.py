@@ -587,7 +587,7 @@ class country_analysis(object):
             grid=self._DATA.keys()[0]
 
         member0=delf._DATA[grid][names[0],:,:,:]
-        tmp = da.DimArray(axes=[[ens_name],self._time_axis,member0.lat,member0.lon,dims=['name','time','lat','lon'])
+        tmp = da.DimArray(axes=[[ens_name],self._time_axis,member0.lat,member0.lon],dims=['name','time','lat','lon'])
 
         tmp[ens_name,:,:,:]=np.nanpercentile(delf._DATA[grid][names,:,:,:],[50],axis=0)
         self._DATA[grid] = da.concatenate((self._DATA[grid],tmp))
