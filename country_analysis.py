@@ -562,11 +562,11 @@ class country_analysis(object):
             print(name)
             if name in self._DATA[grid]:
                 print(in_nc[var_name][in_time,:,:].shape)
-                self._DATA[grid][name,in_time,:,:]=in_nc[var_name][in_time,:,:]
+                self._DATA[grid][name,in_time,:,:]=in_nc[var_name].ix[relevant_steps,:,:]
 
             else:
                 tmp = da.DimArray(axes=[[name],self._time_axis,in_nc[lat_name].values,in_nc[lon_name].values],dims=['name','time','lat','lon'])
-                tmp[name,in_time,:,:]=in_nc[var_name][in_time,:,:]
+                tmp[name,in_time,:,:]=in_nc[var_name].ix[relevant_steps,:,:]
                 self._DATA[grid] = da.concatenate((self._DATA[grid],tmp))
 
     def classify_ensemble(self,filters,grid=None):
