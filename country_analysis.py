@@ -551,7 +551,7 @@ class country_analysis(object):
         grid=self._grid_dict[grid]
         in_nc=da.read_nc(out_file)
 
-        datevar=[num2date(tt,units = in_nc['time'].units) for tt in in_nc['time']]
+        datevar=num2date(in_nc['time'].values,units = in_nc['time'].units)
         year=[date.year for date in datevar]
         month=[date.month for date in datevar]
         in_time=np.array([yr+float(mn)/12. for yr,mn in zip(year,month)])
@@ -560,7 +560,7 @@ class country_analysis(object):
 
         print(name)
         if name in self._DATA[grid].name:
-            print(in_nc[var_name][in_time,:,:].shape)
+            print(in_nc[var_name].ix[relevant_steps,:,:].shape)
             self._DATA[grid][name,in_time,:,:]=in_nc[var_name].ix[relevant_steps,:,:]
 
         else:
