@@ -69,7 +69,7 @@ class country_analysis(object):
         self._masks={}
         self._grid_dict={}
         self._DATA={}
-        self._periods=None
+        self._periods={}
         self._region_names={}
 
     	year=np.array([[yr]*12 for yr in range(1900,2101)]).flatten()
@@ -132,6 +132,18 @@ class country_analysis(object):
     def load_data(self):
         self._DATA=da.read_nc(self._working_directory+'/data.nc')
 
+        for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
+            # need the country mask first
+            if 'admin' not in file.split('_') and len(file.split('+'))==1:
+                file_new=self._working_directory+'/masks'+file.split('masks')[-1]
+                self.load_masks(file_new)
+
+        for file in glob.glob(self._working_directory+'/masks/'+self._iso+'*.nc*'):
+            if 'admin' in file.split('_'):
+                if len(file.split('+'))==1 or load_merged_regions: # exclude merged regions
+                    file_new=self._working_directory+'/masks'+file.split('masks')[-1]
+                    self.load_masks(file_new)
+
     ###########
     # masks
     ###########
@@ -185,8 +197,6 @@ class country_analysis(object):
             if name not in ['lat','lon']:
                 self._masks[grid][mask_style][name] = nc_mask.variables[name][:,:]
                 self.zoom_mask(grid,mask_style,name)
-                # if name not in self._region_names.keys():
-                #     self._region_names[name.decode('utf8').replace(' ','_')]=name.decode('utf8')
 
     def get_grid_polygons(self,grid,lon,lat,lon_shift):
         '''
@@ -480,7 +490,10 @@ class country_analysis(object):
         self._grid_dict[grid]=small_grid
 
         if small_grid not in self._DATA.keys():
-            self._DATA[small_grid]=None
+            self._DATA[small_grid] = da.DimArray(axes=[['dummy'],self._time_axis,np.ma.getdata(lat_),np.ma.getdata(lon_)],dims=['name','time','lat','lon'])
+
+        if small_grid not in self._periods.keys():
+            self._periods[small_grid] = {}
 
     ###########
     # raw data treatment
@@ -554,10 +567,6 @@ class country_analysis(object):
             grid=self._grid_dict[grid]
             in_nc=da.read_nc(out_file)
 
-            if self._DATA[grid] is None:
-                self._DATA[grid] = da.DimArray(axes=[['dummy'],self._time_axis,in_nc[lat_name].values,in_nc[lon_name].values],dims=['name','time','lat','lon'])
-
-
             datevar=[num2date(tt,units = in_nc['time'].units) for tt in in_nc['time']]
             year=[date.year for date in datevar]
             month=[date.month for date in datevar]
@@ -591,14 +600,21 @@ class country_analysis(object):
         tmp[ens_name,:,:,:]=np.nanpercentile(delf._DATA[grid][names,:,:,:],[50],axis=0)
         self._DATA[grid] = da.concatenate((self._DATA[grid],tmp))
 
-    def period_statistic(self,period,stat='mean'):
+    def period_statistic(self,period,period_name,stat='mean'):
+        for grid in self._DATA:
+            self._periods[grid][period_name] = np.nanmean(self._DATA[grid][:,period[0]:period[1],:,:],axis=1)
 
-        for grid in self._masks:
-            pass
-        if self._periods is None:
-
-            self._periods = np.nanmean(self._DATA[grid][:,period[0]:period[1],:,:],axis=1)
-
+    def period_events_above_thresh(self,period,period_name,names=None,threshold=0,below=False):
+        for grid in self._DATA:
+            self._periods[grid][period_name] = np.nanmean(self._DATA[grid][names,period[0]:period[1],:,:],axis=1)*np.nan
+            for name in names:
+                for y in self._DATA[grid].lat:
+                    for x in self._DATA[grid].lon:
+                        diff = self._DATA[grid][name,period[0]:period[1],y,x] - threshold
+                        if below:
+                            self._periods[grid][period_name][name,y,x] = len(np.where(diff<0)[0])/float(diff.shape[1])*100
+                        else:
+                            self._periods[grid][period_name][name,y,x] = len(np.where(diff>0)[0])/float(diff.shape[1])*100
 
 
 
