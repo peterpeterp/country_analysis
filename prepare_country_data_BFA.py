@@ -48,7 +48,7 @@ for in_file in all_files:
 	COU.country_zoom(in_file,name='tas_'+model+'_rcp45_CMIP5_BC',var_name='tas',overwrite=overwrite)
 #
 # #pr
-# all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*rcp45*')
+# all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*rcp4p5*')
 # for in_file in all_files:
 # 	model=in_file.split('/')[-1].split('_')[2]
 # 	COU.country_zoom(in_file,name='pr_'+model+'_rcp45_CMIP5_BC',var_name='pr',overwrite=overwrite)

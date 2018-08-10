@@ -522,52 +522,51 @@ class country_analysis(object):
         out_file=self._working_directory_raw+'/'+self._iso+'_'+var_name+'_'+name+'.nc4'
         print out_file
 
-        if os.path.isfile(out_file.replace('.nc','_merged.nc'))==False and os.path.isfile(out_file)==False:
-            # open file to get information
-            print input_file
-            lon_in,lat_in,grid,lon_shift = self.identify_grid(input_file,lat_name,lon_name)
+        # open file to get information
+        print input_file
+        lon_in,lat_in,grid,lon_shift = self.identify_grid(input_file,lat_name,lon_name)
 
-            country_mask=self._masks[grid][mask_style][self._iso]
-            country_mask=np.ma.getdata(country_mask)
-            lat_mask=self._masks[grid]['lat_mask']
-            lon_mask=self._masks[grid]['lon_mask']
+        country_mask=self._masks[grid][mask_style][self._iso]
+        country_mask=np.ma.getdata(country_mask)
+        lat_mask=self._masks[grid]['lat_mask']
+        lon_mask=self._masks[grid]['lon_mask']
 
-            # find relevant area (as rectangle)
-            lon_mean=np.nanmean(country_mask,0)
-            #lons=sorted(np.where(lon_mean!=0)[0])
-            lons=sorted(np.where(np.isfinite(lon_mean))[0])
+        # find relevant area (as rectangle)
+        lon_mean=np.nanmean(country_mask,0)
+        #lons=sorted(np.where(lon_mean!=0)[0])
+        lons=sorted(np.where(np.isfinite(lon_mean))[0])
 
-            lat_mean=np.nanmean(country_mask,1)
-            #lats=sorted(np.where(lat_mean!=0)[0])
-            lats=sorted(np.where(np.isfinite(lat_mean))[0])
+        lat_mean=np.nanmean(country_mask,1)
+        #lats=sorted(np.where(lat_mean!=0)[0])
+        lats=sorted(np.where(np.isfinite(lat_mean))[0])
 
-            nx,ny=len(lons),len(lats)
+        nx,ny=len(lons),len(lats)
 
-            lon=lon_mask[list(lons)]
-            lat=lat_mask[list(lats)]
+        lon=lon_mask[list(lons)]
+        lat=lat_mask[list(lats)]
 
-            # zoom to relevant area
-            os.system('cdo -O sellonlatbox,'+str(min(lon))+','+str(max(lon))+','+str(min(lat))+','+str(max(lat))+' '+input_file+' '+out_file)
+        # zoom to relevant area
+        os.system('cdo -O sellonlatbox,'+str(min(lon))+','+str(max(lon))+','+str(min(lat))+','+str(max(lat))+' '+input_file+' '+out_file)
 
-            grid=self._grid_dict[grid]
-            in_nc=da.read_nc(out_file)
+        grid=self._grid_dict[grid]
+        in_nc=da.read_nc(out_file)
 
-            datevar=[num2date(tt,units = in_nc['time'].units) for tt in in_nc['time']]
-            year=[date.year for date in datevar]
-            month=[date.month for date in datevar]
-            in_time=np.array([yr+float(mn)/12. for yr,mn in zip(year,month)])
-            relevant_steps=np.where(np.isfinite(np.nanmean(in_nc[var_name],axis=(-1,-2))))[0]
-            in_time=in_time[relevant_steps]
+        datevar=[num2date(tt,units = in_nc['time'].units) for tt in in_nc['time']]
+        year=[date.year for date in datevar]
+        month=[date.month for date in datevar]
+        in_time=np.array([yr+float(mn)/12. for yr,mn in zip(year,month)])
+        relevant_steps=np.where(np.isfinite(np.nanmean(in_nc[var_name],axis=(-1,-2))))[0]
+        in_time=in_time[relevant_steps]
 
-            print(name)
-            if name in self._DATA[grid].name:
-                print(in_nc[var_name][in_time,:,:].shape)
-                self._DATA[grid][name,in_time,:,:]=in_nc[var_name].ix[relevant_steps,:,:]
+        print(name)
+        if name in self._DATA[grid].name:
+            print(in_nc[var_name][in_time,:,:].shape)
+            self._DATA[grid][name,in_time,:,:]=in_nc[var_name].ix[relevant_steps,:,:]
 
-            else:
-                tmp = da.DimArray(axes=[[name],self._time_axis,in_nc[lat_name].values,in_nc[lon_name].values],dims=['name','time','lat','lon'])
-                tmp[name,in_time,:,:]=in_nc[var_name].ix[relevant_steps,:,:]
-                self._DATA[grid] = da.concatenate((self._DATA[grid],tmp))
+        else:
+            tmp = da.DimArray(axes=[[name],self._time_axis,in_nc[lat_name].values,in_nc[lon_name].values],dims=['name','time','lat','lon'])
+            tmp[name,in_time,:,:]=in_nc[var_name].ix[relevant_steps,:,:]
+            self._DATA[grid] = da.concatenate((self._DATA[grid],tmp))
 
     def classify_ensemble(self,filters,grid=None):
         if grid is None and len(self._DATA)==1:
