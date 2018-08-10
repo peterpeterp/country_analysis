@@ -39,14 +39,12 @@ COU.create_mask_admin('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/
 all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_*rcp45*')
 for in_file in all_files:
 	model=in_file.split('/')[-1].split('_')[2]
-	print rcp,model,in_file
 	COU.country_zoom(in_file,name='tas_'+model+'_rcp45',var_name='tas',overwrite=overwrite)
 
 #tas
 all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_*historical*')
 for in_file in all_files:
 	model=in_file.split('/')[-1].split('_')[2]
-	print rcp,model,in_file
 	COU.country_zoom(in_file,name='tas_'+model+'_rcp45',var_name='tas',overwrite=overwrite)
 #
 # #pr
