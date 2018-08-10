@@ -337,8 +337,6 @@ class country_analysis(object):
 
         if os.path.isfile(mask_file)==False:
             grid_polygons,shift = self.get_grid_polygons(grid,lon,lat,lon_shift)
-            if grid not in self._DATA.keys():
-                self._DATA[grid]=None
 
             country_polygons = self._adm_polygons[self._iso]
 
@@ -386,9 +384,6 @@ class country_analysis(object):
         '''
 
         lon,lat,grid,lon_shift = self.identify_grid(input_file,lat_name,lon_name)
-
-        if grid not in self._DATA.keys():
-            self._DATA[grid]=None
 
         if grid not in self._masks.keys():
             self._masks[grid]={}
@@ -484,6 +479,9 @@ class country_analysis(object):
         self._masks[small_grid][mask_style][region]=mask[lats[0]:lats[-1]+1,lons[0]:lons[-1]+1]
         self._grid_dict[grid]=small_grid
 
+        if small_grid not in self._DATA.keys():
+            self._DATA[small_grid]=None
+
     ###########
     # raw data treatment
     ###########
@@ -554,7 +552,6 @@ class country_analysis(object):
                     name+='_'+kwargs[key]
 
             grid=self._grid_dict[grid]
-            print(self._DATA[grid])
             in_nc=da.read_nc(out_file)
 
             if self._DATA[grid] is None:
