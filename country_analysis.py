@@ -12,7 +12,6 @@ import pandas as pd
 from shapely.geometry import mapping, Polygon, MultiPolygon
 import matplotlib.pylab as plt
 import matplotlib as mpl
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 import cartopy.crs as ccrs
 import cartopy
 import cartopy.feature as cfeature
@@ -48,7 +47,7 @@ def running_mean_func(xx,N):
 
 class country_analysis(object):
 
-    def __init__(self,iso,working_directory,seasons={'year':range(1,13)},additional_tag=''):
+    def __init__(self,iso,working_directory,seasons={'year':range(1,13)},additional_tag='',time_axis=None):
         '''
         Prepare directories and meta-data
         iso: str: Country name or iso
@@ -72,9 +71,12 @@ class country_analysis(object):
         self._periods={}
         self._region_names={}
 
-    	year=np.array([[yr]*12 for yr in range(1900,2101)]).flatten()
-    	month=np.array([[mon]*len(range(1900,2101)) for mon in range(12)]).T.flatten()
-        self._time_axis=np.array([yr+float(mn)/12. for yr,mn in zip(year,month)])
+        if time_axis is None:
+            year=np.array([[yr]*12 for yr in range(1900,2101)]).flatten()
+            month=np.array([[mon]*len(range(1900,2101)) for mon in range(12)]).T.flatten()
+            self._time_axis=np.array([yr+float(mn)/12. for yr,mn in zip(year,month)])
+        else:
+            self._time_axis=time_axis
 
         if os.path.isdir(self._working_directory)==False:os.system('mkdir '+self._working_directory)
         if os.path.isdir(self._working_directory+'/masks')==False:os.system('mkdir '+self._working_directory+'/masks')
@@ -125,12 +127,12 @@ class country_analysis(object):
         print self._adm_polygons.keys()
         print 'regions loaded '+str(time.time()-start_time)
 
-    def save_data(self):
-        da.Dataset(self._DATA).write_nc(self._working_directory+'/data.nc')
+    def save_data(self,name):
+        da.Dataset(self._DATA).write_nc(self._working_directory+'/'+name)
         os.system('rm '+self._working_directory+'/raw/*')
 
-    def load_data(self):
-        tmp=da.read_nc(self._working_directory+'/data.nc')
+    def load_data(self,name):
+        tmp=da.read_nc(self._working_directory+'/'+name)
         self._DATA={}
         for grid in tmp.keys():
             self._DATA[grid]=tmp[grid]
@@ -489,7 +491,6 @@ class country_analysis(object):
         if small_grid not in self._masks.keys():	self._masks[small_grid]={}
         if mask_style not in self._masks[small_grid].keys():	self._masks[small_grid][mask_style]={}
 
-        print(small_grid,len(lons),len(lats))
         self._masks[small_grid][mask_style][region]=mask[lats[0]:lats[-1]+1,lons[0]:lons[-1]+1]
         self._grid_dict[grid]=small_grid
 
@@ -503,7 +504,7 @@ class country_analysis(object):
     # raw data treatment
     ###########
 
-    def country_zoom(self,input_file,name,var_name,mask_style='lat_weighted',lat_name='lat',lon_name='lon',overwrite=False,**kwargs):
+    def country_zoom(self,input_file,name,var_name,mask_style='lat_weighted',lat_name='lat',lon_name='lon',in_time=None,overwrite=False,**kwargs):
         '''
         zoom input_file to area relevant for the country
         input_file: str: file to be processed
@@ -520,10 +521,8 @@ class country_analysis(object):
         #print kwargs
         #out_file=self._working_directory_raw+'/'+input_file.split('/')[-1].replace('.nc','_'+self._iso+'.nc')
         out_file=self._working_directory_raw+'/'+self._iso+'_'+var_name+'_'+name+'.nc4'
-        print out_file
 
         # open file to get information
-        print input_file
         lon_in,lat_in,grid,lon_shift = self.identify_grid(input_file,lat_name,lon_name)
 
         country_mask=self._masks[grid][mask_style][self._iso]
@@ -551,16 +550,16 @@ class country_analysis(object):
         grid=self._grid_dict[grid]
         in_nc=da.read_nc(out_file)
 
-        datevar=num2date(in_nc['time'].values,units = in_nc['time'].units)
-        year=[date.year for date in datevar]
-        month=[date.month for date in datevar]
-        in_time=np.array([yr+float(mn)/12. for yr,mn in zip(year,month)])
+        if in_time is None:
+            datevar=num2date(in_nc['time'].values,units = in_nc['time'].units)
+            year=[date.year for date in datevar]
+            month=[date.month for date in datevar]
+            in_time=np.array([yr+float(mn)/12. for yr,mn in zip(year,month)])
+
         relevant_steps=np.where(np.isfinite(np.nanmean(in_nc[var_name],axis=(-1,-2))))[0]
         in_time=in_time[relevant_steps]
 
-        print(name)
         if name in self._DATA[grid].name:
-            print(in_nc[var_name].ix[relevant_steps,:,:].shape)
             self._DATA[grid][name,in_time,:,:]=in_nc[var_name].ix[relevant_steps,:,:]
 
         else:
@@ -592,22 +591,25 @@ class country_analysis(object):
 
             self._periods[grid][period_name] = da.DimArray(np.nanmean(self._DATA[grid][:,period[0]:period[1],:,:],axis=1),axes=[self._DATA[grid].name,self._DATA[grid].lat,self._DATA[grid].lon],dims=['name','lat','lon'])
 
-    def period_diff(self,period1,period2,period_name):
+    def period_diff(self,period_name,ref_period,target_period,relative=False):
         for grid in self._DATA:
-            self._periods[grid][period_name] = self._periods[grid][period1] - self._periods[grid][period2]
+            if relative:
+                self._periods[grid][period_name] = (self._periods[grid][target_period] - self._periods[grid][ref_period]) / self._periods[grid][ref_period] *100
+            if relative==False:
+                self._periods[grid][period_name] = self._periods[grid][target_period] - self._periods[grid][ref_period]
 
 
     def period_events_above_thresh(self,period,period_name,names=None,threshold=0,below=False):
         for grid in self._DATA:
-            self._periods[grid][period_name] = np.nanmean(self._DATA[grid][names,period[0]:period[1],:,:],axis=1)*np.nan
+            self._periods[grid][period_name] = da.DimArray(np.nanmean(self._DATA[grid][:,period[0]:period[1],:,:],axis=1)*np.nan,axes=[self._DATA[grid].name,self._DATA[grid].lat,self._DATA[grid].lon],dims=['name','lat','lon'])
             for name in names:
                 for y in self._DATA[grid].lat:
                     for x in self._DATA[grid].lon:
                         diff = self._DATA[grid][name,period[0]:period[1],y,x] - threshold
                         if below:
-                            self._periods[grid][period_name][name,y,x] = len(np.where(diff<0)[0])/float(diff.shape[1])*100
+                            self._periods[grid][period_name][name,y,x] = len(np.where(diff<0)[0])/float(diff.shape[0])*100
                         else:
-                            self._periods[grid][period_name][name,y,x] = len(np.where(diff>0)[0])/float(diff.shape[1])*100
+                            self._periods[grid][period_name][name,y,x] = len(np.where(diff>0)[0])/float(diff.shape[0])*100
 
     def model_agreement(self,ens_name,members,period_name,agreement_name):
         for grid in self._DATA:
@@ -618,12 +620,121 @@ class country_analysis(object):
                 agreement+=np.sign(self._periods[grid][period_name][member,:,:])==np.sign(ens)
             agreement[agreement<2./3.*len(members)]=1
             agreement[agreement>=2./3.*len(members)]=np.nan
-            tmp = da.DimArray(agreement ,axes=[[agreement_name],self.lat,self.lon],dims=['name','lat','lon'])
+            tmp = da.DimArray(axes=[[agreement_name],ens.lat,ens.lon],dims=['name','lat','lon'])
+            tmp[agreement_name,:,:] = agreement
             self._periods[grid][period_name] = da.concatenate((self._periods[grid][period_name],tmp))
 
+    def small_change(self,ens_name,members,period_name,smallChange_name,ChangeThresh):
+        for grid in self._DATA:
+            ens=self._periods[grid][period_name][ens_name,:,:]
+
+            smallChange=ens.copy()*0
+            for member in members:
+                smallChange+=np.abs(self._periods[grid][period_name][member,:,:])<ChangeThresh
+            smallChange[smallChange<2./3.*len(members)]=1
+            smallChange[smallChange>=2./3.*len(members)]=np.nan
+            tmp = da.DimArray(axes=[[smallChange_name],ens.lat,ens.lon],dims=['name','lat','lon'])
+            tmp[smallChange_name,:,:] = smallChange
+            self._periods[grid][period_name] = da.concatenate((self._periods[grid][period_name],tmp))
+
+    def plot_map(self,to_plot,ax=None,limits=None,out_file=None,title='',polygons=None,grey_area=None,color_bar=True,color_label='',color_palette=plt.cm.plasma,color_range=None,highlight_region=None,show_all_adm_polygons=True,show_region_names=False,show_merged_region_names=False,add_mask=None):
 
 
+        lat=to_plot.lat.copy()
+        lon=to_plot.lon.copy()
 
+        if ax is None:
+            show=True
+            asp=(len(lon)/float(len(lat)))**0.5
+            fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3*asp+1,3/asp),subplot_kw={'projection': ccrs.PlateCarree()})
+        if ax is not None: show=False
+
+        # handle limits
+        if limits is None:
+            half_lon_step=abs(np.diff(lon.copy(),1)[0]/2)
+            half_lat_step=abs(np.diff(lat.copy(),1)[0]/2)
+            limits=[np.min(lon)-half_lon_step,np.max(lon)+half_lon_step,np.min(lat)-half_lat_step,np.max(lat)+half_lat_step]
+
+        # handle 0 to 360 lon
+        if max(lon)>180:
+            problem_start=np.where(lon>180)[0][0]
+            new_order=np.array(range(problem_start,len(lon))+range(0,problem_start))
+            to_plot=to_plot[:,new_order]
+            lon=lon[new_order]
+            lon[lon>180]-=360
+
+        if limits[0]>180:limits[0]-=360
+        if limits[1]>180:limits[1]-=360
+
+        ax.set_extent(limits)
+        # coastline and borders aren't smooth
+        ax.coastlines(resolution='10m')
+        #ax.border(resolution='10m')
+        # land_50m = cfeature.NaturalEarthFeature('physical', 'borders', '50m',
+        #                                 edgecolor='black')
+        # ax.add_feature(land_50m)
+
+        # add polygons
+        if polygons is None and hasattr(self,'_adm_polygons'):
+            polygons=self._adm_polygons
+            if show_all_adm_polygons:
+                for name,polygon in polygons.items():
+                    ax.add_geometries([polygon], ccrs.PlateCarree(), color='black',linewidth=0.5,facecolor='none')
+                    if show_region_names:
+                        if (show_merged_region_names or len(name.split('+'))==1) and name!=self._iso:
+                            ctr=polygons[name].centroid.xy
+                            plt.text(ctr[0][0],ctr[1][0],self._region_names[name],horizontalalignment='center',verticalalignment='center',fontsize=8)
+
+
+            # highlight one region
+            if highlight_region is not None:
+                if highlight_region!=self._iso:
+                    ax.add_geometries([polygons[highlight_region]], ccrs.PlateCarree(), color='black',linewidth=1.5,facecolor='none')
+                    ax.add_geometries([polygons[highlight_region]], ccrs.PlateCarree(), color='yellow',linewidth=1.5,linestyle='--',facecolor='none')
+
+
+        # get color_range
+        if color_range is None:
+            color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
+
+        x,y=lon.copy(),lat.copy()
+        x-=np.diff(x,1)[0]/2.
+        y-=np.diff(y,1)[0]/2.
+        x=np.append(x,[x[-1]+np.diff(x,1)[0]])
+        y=np.append(y,[y[-1]+np.diff(y,1)[0]])
+        x,y=np.meshgrid(x,y)
+
+        if add_mask is not None:
+            to_plot[np.isfinite(add_mask)==False]=np.nan
+
+        im = ax.pcolormesh(x,y,np.ma.masked_invalid(to_plot),cmap=color_palette,vmin=color_range[0],vmax=color_range[1],transform=ccrs.PlateCarree())
+
+        # mask some grid-cells
+        if grey_area is not None:
+            to_plot=grey_area.copy()
+            to_plot=np.ma.masked_invalid(to_plot)
+            if add_mask is not None:
+                to_plot[np.isfinite(add_mask)==False]=np.nan
+            im2 = ax.pcolormesh(x,y,to_plot,cmap=plt.cm.Greys,vmin=0,vmax=2)
+
+
+        # add colorbar
+        if color_bar==True:
+            cb = plt.colorbar(im, ax=ax)
+            tick_locator = mpl.ticker.MaxNLocator(nbins=5)
+            cb.locator = tick_locator
+            cb.update_ticks()
+            cb.set_label(color_label, rotation=90)
+        else:
+            cb=None
+
+        if title != '':
+            ax.set_title(title.replace('_',' '))
+
+        if out_file is None and show==True:plt.show()
+        if out_file is not None:    plt.tight_layout(); plt.savefig(out_file)
+
+        return(ax,im,color_range,x,y,cb)
 
 
 

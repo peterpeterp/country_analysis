@@ -36,27 +36,28 @@ COU.create_mask_admin('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/
 # #CMIP5_BC
 # ##############
 #tas
-all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_*rcp4p5*')
-for in_file in all_files:
-	model=in_file.split('/')[-1].split('_')[2]
-	COU.country_zoom(in_file,name='tas_'+model+'_rcp45_CMIP5_BC',var_name='tas',overwrite=overwrite)
+for rcp in ['rcp2p6','rcp4p5','rcp8p5']:
+	all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_*'+rcp+'*')
+	for in_file in all_files:
+		model=in_file.split('/')[-1].split('_')[2]
+		COU.country_zoom(in_file,name='tas_'+model+'_'+rcp+'_CMIP5_BC',var_name='tas',overwrite=overwrite)
 
-#tas
-all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_*historical*')
-for in_file in all_files:
-	model=in_file.split('/')[-1].split('_')[2]
-	COU.country_zoom(in_file,name='tas_'+model+'_rcp45_CMIP5_BC',var_name='tas',overwrite=overwrite)
+	#tas
+	all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/tas/mon_tas_*historical*')
+	for in_file in all_files:
+		model=in_file.split('/')[-1].split('_')[2]
+		COU.country_zoom(in_file,name='tas_'+model+'_'+rcp+'_CMIP5_BC',var_name='tas',overwrite=overwrite)
 
-#pr
-all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*rcp4p5*')
-for in_file in all_files:
-	model=in_file.split('/')[-1].split('_')[2]
-	COU.country_zoom(in_file,name='pr_'+model+'_rcp45_CMIP5_BC',var_name='pr',overwrite=overwrite)
+	#pr
+	all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*'+rcp+'*')
+	for in_file in all_files:
+		model=in_file.split('/')[-1].split('_')[2]
+		COU.country_zoom(in_file,name='pr_'+model+'_'+rcp+'_CMIP5_BC',var_name='pr',overwrite=overwrite)
 
-all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*historical*')
-for in_file in all_files:
-	model=in_file.split('/')[-1].split('_')[2]
-	COU.country_zoom(in_file,name='pr_'+model+'_rcp45_CMIP5_BC',var_name='pr',overwrite=overwrite)
+	all_files=glob.glob('/p/projects/tumble/carls/shared_folder/CMIP5_monthly/pr/mon_pr_*historical*')
+	for in_file in all_files:
+		model=in_file.split('/')[-1].split('_')[2]
+		COU.country_zoom(in_file,name='pr_'+model+'_'+rcp+'_CMIP5_BC',var_name='pr',overwrite=overwrite)
 
 
 #SPI
@@ -66,6 +67,21 @@ for months in [3]:
 		model=in_file.split('/')[-1].split('_')[1]
 		rcp=in_file.split('/')[-1].split('_')[2]
 		COU.country_zoom(in_file,name='spi3m_'+model+'_rcp45_CMIP5_BC',var_name='spi',overwrite=overwrite)
+
+
+all_files=glob.glob('/p/projects/climber3/knaus/Global/Indices/SPI/CMIP5/spi_*rcp2.6*3m*')
+for in_file in all_files:
+	model=in_file.split('/')[-1].split('_')[1]
+	rcp=in_file.split('/')[-1].split('_')[2]
+	COU.country_zoom(in_file,name='spi3m_'+model+'_rcp26_CMIP5_BC',var_name='SPI',overwrite=overwrite)
+
+all_files=glob.glob('/p/projects/climber3/knaus/Global/Indices/SPI/CMIP5/spi_*rcp8.5*3m*')
+for in_file in all_files:
+	model=in_file.split('/')[-1].split('_')[1]
+	rcp=in_file.split('/')[-1].split('_')[2]
+	COU.country_zoom(in_file,name='spi3m_'+model+'_rcp85_CMIP5_BC',var_name='SPI',overwrite=overwrite)
+
+
 
 
 COU.save_data()
