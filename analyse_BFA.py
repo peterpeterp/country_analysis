@@ -15,7 +15,7 @@ COU=country_analysis.country_analysis(iso,working_directory='data/'+iso+'/',addi
 grid='13x17_lat_15.25_9.25_lon_-5.75_2.25'
 
 # Load all the data
-COU.load_data()
+COU.load_data('BFA.nc4')
 plot_mask=np.ma.getdata(COU._masks[grid]['lat_weighted'][iso])
 
 # This has already been done and saved. No need to run again
@@ -38,7 +38,7 @@ COU.period_diff('diff_ref_2040s',ref_period='ref_mean',target_period='2040s_mean
 COU.period_diff('rel_diff_ref_2040s',ref_period='ref_mean',target_period='2040s_mean',relative=True)
 
 ###############
-# SPI 
+# SPI
 ###############
 
 # define ensemble and specify ensemble median
