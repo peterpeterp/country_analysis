@@ -106,7 +106,7 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                         data_noirr=COU._DATA[grid]['_'.join([crop_short,model,gcm,'noirr'])]
                         data_firr=COU._DATA[grid]['_'.join([crop_short,model,gcm,'firr'])]
 
-                        COU._DATA[grid]['_'.join([crop_short,model,gcm,'total'])]=data_noirr.copy()*rain_mask_01[data_noirr.lat,data_noirr.lon].values+data_firr.copy()*irr_mask_01[data_noirr.lat,data_noirr.lon].values
+                        COU._DATA[grid]['_'.join([crop_short,model,gcm,'total'])] = data_noirr.copy()*rain_mask_01[data_noirr.lat,data_noirr.lon].values + data_firr.copy()*irr_mask_01[data_noirr.lat,data_noirr.lon].values
 
 
 
