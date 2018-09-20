@@ -45,17 +45,13 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
     ds=da.Dataset({'area':cult_frac})
     ds.write_nc('masks/'+crop+'_cultivated_frac.nc')
 
-    irr_frac=da.read_nc('masks/irrig_'+crop+'_0.5.nc')['area'].ix[2,:,:]
-    ds=da.Dataset({'area':irr_frac})
-    ds.write_nc('masks/'+crop+'_irrigated_frac.nc')
+    irr_frac = da.read_nc('masks/irrig_'+crop+'_0.5.nc')['area'].ix[2,:,:]
 
-    rain_frac=cult_frac*(1-irr_frac)
-    ds=da.Dataset({'area':rain_frac})
-    ds.write_nc('masks/'+crop+'_rainfed_frac.nc')
+    rain_frac = 1-(-1*irr_frac.copy())
 
-    cult_mask_01=irr_frac.copy()*0.0+1; cult_mask_01[cult_frac<0.01]=0; cult_mask_01[np.isfinite(cult_frac)==False]=0
-    irr_mask_01=irr_frac.copy()*0.0+1; irr_mask_01[irr_frac<0.01]=0; irr_mask_01[cult_frac<0.01]=0; irr_mask_01[np.isfinite(irr_frac)==False]=0
-    rain_mask_01=irr_frac.copy()*0.0+1; rain_mask_01[irr_mask_01==1]=0; rain_mask_01[cult_frac<0.01]=0; rain_mask_01[np.isfinite(rain_frac)==False]=0
+    cult_mask_01 = irr_frac.copy()*0.0+1; cult_mask_01[cult_frac<0.01]=0; cult_mask_01[np.isfinite(cult_frac)==False]=0
+    cult_irr_mask = irr_frac * cult_frac
+    cult_rain_mask = rain_frac * cult_frac
 
     mask=cult_mask_01.copy()
     mask[mask==0]=np.nan
@@ -106,7 +102,7 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                         data_noirr=COU._DATA[grid]['_'.join([crop_short,model,gcm,'noirr'])]
                         data_firr=COU._DATA[grid]['_'.join([crop_short,model,gcm,'firr'])]
 
-                        COU._DATA[grid]['_'.join([crop_short,model,gcm,'total'])] = data_noirr.copy()*rain_mask_01[data_noirr.lat,data_noirr.lon].values + data_firr.copy()*irr_mask_01[data_noirr.lat,data_noirr.lon].values
+                        COU._DATA[grid]['_'.join([crop_short,model,gcm,'total'])] = data_noirr.copy()*cult_rain_mask[data_noirr.lat,data_noirr.lon].values + data_firr.copy()*cult_irr_mask[data_noirr.lat,data_noirr.lon].values
 
 
 
@@ -151,7 +147,7 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                     except:
                         pass
                     cbar.ax.get_yaxis().set_ticks([])
-                    for j, lab in enumerate(['<-15','-5;-15','5;-5','15;5','>15']):
+                    for j, lab in enumerate(['<-15','-15;-5','-5;5','5;15','>15']):
                         cbar.ax.text(.5, (2 * j + 1) / 10.0, lab, ha='center', va='center',rotation=90,fontsize=8)
                     cbar.ax.get_yaxis().labelpad = 15
                     cbar.ax.set_aspect(10)
@@ -160,8 +156,8 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                     plt.savefig('maps/'+'_'.join([iso,crop,'total',wlvl])+'.pdf')
 
                     ensmedian_firr='ensmedian_'+'_'.join([crop_short,'firr'])
-                    ensmedian_noirr='ensmedian_'+'_'.join([crop_short,'noirr'])
-                    to_plot=(COU._periods[grid][wlvl][ensmedian_firr] - COU._periods[grid][wlvl][ensmedian_noirr] ) / COU._periods[grid][wlvl][ensmedian_noirr] *100
+                    ensmedian_total='ensmedian_'+'_'.join([crop_short,'total'])
+                    to_plot=(COU._periods[grid][wlvl][ensmedian_firr] - COU._periods[grid][wlvl][ensmedian_total] ) / COU._periods[grid][wlvl][ensmedian_total] *100
                     ax,im,range,x,y,cbar=COU.plot_map(to_plot,
                     			add_mask=plot_mask,
                     			color_palette=cmap_adaptation_potential,
