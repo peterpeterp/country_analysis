@@ -140,7 +140,7 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                     #####################
 
                     # png plot
-                    ax,im,range,x,y,cbar=COU.plot_map(to_plot=COU._periods[grid]['rel_diff_hist_'+wlvl][ensmedian],
+                    ax,im,crange,x,y,cbar=COU.plot_map(to_plot=COU._periods[grid]['rel_diff_hist_'+wlvl][ensmedian],
                     			grey_area=COU._periods[grid]['rel_diff_hist_'+wlvl][ensmedian+'_agree'],
                     			add_mask=plot_mask,
                     			color_palette=cmap_change,
@@ -168,7 +168,7 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                     fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(5*asp,5/asp))
                     ax.axis('off')
                     ax=fig.add_axes([0.1,0.25,0.7,0.66],projection=ccrs.PlateCarree())
-                    ax__,im,range,x,y,cbar=COU.plot_map(ax=ax,
+                    ax__,im,crange,x,y,cbar=COU.plot_map(ax=ax,
                                 to_plot=COU._periods[grid]['rel_diff_hist_'+wlvl][ensmedian],
                     			grey_area=COU._periods[grid]['rel_diff_hist_'+wlvl][ensmedian+'_agree'],
                     			add_mask=plot_mask,
@@ -202,7 +202,7 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                     ensmedian_firr='ensmedian_'+'_'.join([crop_short,'firr'])
                     ensmedian_total='ensmedian_'+'_'.join([crop_short,'total'])
                     to_plot=(COU._periods[grid][wlvl][ensmedian_firr] - COU._periods[grid][wlvl][ensmedian_total] ) / COU._periods[grid][wlvl][ensmedian_total] *100
-                    ax,im,range,x,y,cbar=COU.plot_map(to_plot,
+                    ax,im,crange,x,y,cbar=COU.plot_map(to_plot,
                     			add_mask=plot_mask,
                     			color_palette=cmap_adaptation_potential,
                     			color_range=[0,20],
@@ -216,7 +216,7 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                     fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3*asp+1.5,3/asp+2))
                     ax.axis('off')
                     ax=fig.add_axes([0.1,0.25,0.7,0.66],projection=ccrs.PlateCarree())
-                    ax,im,range,x,y,cbar=COU.plot_map(ax=ax,
+                    ax,im,crange,x,y,cbar=COU.plot_map(ax=ax,
                                 to_plot=to_plot,
                     			add_mask=plot_mask,
                     			color_palette=cmap_adaptation_potential,
@@ -234,7 +234,7 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
 
                 # plot png
                 ensmedian='ensmedian_'+'_'.join([crop_short,'total'])
-                ax,im,range,x,y,cbar=COU.plot_map(COU._periods[grid]['hist'][ensmedian],
+                ax,im,crange,x,y,cbar=COU.plot_map(COU._periods[grid]['hist'][ensmedian],
                 			add_mask=plot_mask,
                 			color_palette=cmap_hist,
                             color_range=np.nanpercentile(COU._periods[grid]['hist'][ensmedian],[10,90]),
@@ -248,7 +248,7 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                 fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3*asp+1.5,3/asp+2))
                 ax.axis('off')
                 ax=fig.add_axes([0.1,0.25,0.7,0.66],projection=ccrs.PlateCarree())
-                ax,im,range,x,y,cbar=COU.plot_map(ax=ax,
+                ax,im,crange,x,y,cbar=COU.plot_map(ax=ax,
                             to_plot=COU._periods[grid]['hist'][ensmedian],
                 			add_mask=plot_mask,
                 			color_palette=cmap_hist,
@@ -266,7 +266,7 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                     for wlvl,row in zip(['hist','1p0','1p5','2p0','2p5','3p0'],np.arange(0,6)):
                         ensmedian_total='ensmedian_'+'_'.join([crop_short,'total'])
                         to_plot=(COU._periods[grid][wlvl][ensmedian_total]-COU._periods[grid]['hist'][ensmedian_total]) / COU._periods[grid]['hist'][ensmedian_total] *100
-                        ax,im,range,x,y,cbar=COU.plot_map(to_plot,
+                        ax,im,crange,x,y,cbar=COU.plot_map(to_plot,
                         			add_mask=plot_mask,
                         			color_palette=cmap_change,
                         			color_range=[-25,25],
@@ -275,7 +275,7 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                                     ax=axes[row,0])
                         for irr,ax in zip(['total','noirr','firr'],axes[row,1:4]):
                             ensmedian='ensmedian_'+'_'.join([crop_short,irr])
-                            ax,im,range,x,y,cbar=COU.plot_map(COU._periods[grid][wlvl][ensmedian],
+                            ax,im,crange,x,y,cbar=COU.plot_map(COU._periods[grid][wlvl][ensmedian],
                             			add_mask=plot_mask,
                             			color_palette=cmap_hist,
                             			color_range=[1,2.2],
@@ -285,14 +285,14 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                         ensmedian_firr='ensmedian_'+'_'.join([crop_short,'firr'])
                         ensmedian_noirr='ensmedian_'+'_'.join([crop_short,'noirr'])
                         ensmedian_total='ensmedian_'+'_'.join([crop_short,'total'])
-                        ax,im,range,x,y,cbar=COU.plot_map(COU._periods[grid][wlvl][ensmedian_firr]-COU._periods[grid][wlvl][ensmedian_noirr],
+                        ax,im,crange,x,y,cbar=COU.plot_map(COU._periods[grid][wlvl][ensmedian_firr]-COU._periods[grid][wlvl][ensmedian_noirr],
                         			add_mask=plot_mask,
                         			color_palette=cmap_adaptation_potential,
                         			color_range=[0,1],
                         			color_label='yield',
                         			title='firr - noirr '+wlvl,
                                     ax=axes[row,4])
-                        ax,im,range,x,y,cbar=COU.plot_map(COU._periods[grid][wlvl][ensmedian_total]-COU._periods[grid][wlvl][ensmedian_noirr],
+                        ax,im,crange,x,y,cbar=COU.plot_map(COU._periods[grid][wlvl][ensmedian_total]-COU._periods[grid][wlvl][ensmedian_noirr],
                         			add_mask=plot_mask,
                         			color_palette=cmap_adaptation_potential,
                         			color_range=[0,1],
