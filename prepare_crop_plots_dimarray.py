@@ -14,6 +14,8 @@ import cartopy.feature as cfeature
 import cartopy.io.shapereader as shapereader
 from unidecode import unidecode
 import dimarray as da
+from textwrap import wrap
+
 
 sys.path.append('/Users/peterpfleiderer/Projects/country_analysis/')
 try:del sys.modules['country_analysis']
@@ -30,7 +32,7 @@ cmap_change.set_under('red');cmap_change.set_over('green')
 cmap_adaptation_potential = matplotlib.colors.LinearSegmentedColormap.from_list("", ["white","yellow","green"])
 cmap_adaptation_potential.set_over('green')
 
-all_isos=['NGA','MOZ','DZA','AGO',  'EGY', 'GNQ', 'BEN',  'NER', 'ZWE', 'NAM', 'GNB', 'SWZ', 'GHA', 'COG', 'SLE', 'ETH', 'COM', 'ERI', 'CPV', 'LBR',\
+all_isos=['BEN','NGA','MOZ','DZA','AGO',  'EGY', 'GNQ',  'NER', 'ZWE', 'NAM', 'GNB', 'SWZ', 'GHA', 'COG', 'SLE', 'ETH', 'COM', 'ERI', 'CPV', 'LBR',\
             'LBY', 'LSO', 'UGA', 'RWA', 'SOM', 'MDG', 'CMR', 'TZA', 'BWA', 'SEN', 'TCD', 'GAB', 'BFA', 'MWI',  'MRT', 'GMB', 'MLI', 'BDI', \
              'DJI', 'GIN', 'ESH', 'KEN', 'MAR', 'COD', 'ZMB', 'ZAF', 'TGO', 'TUN', 'CAF', 'SSD', 'SDN', 'CIV','SYC','MUS','STP']
 
@@ -163,9 +165,9 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                     # plot pdf with caption
                     plt.close('all')
                     asp=(len(COU._periods[grid]['hist'].lon)/float(len(COU._periods[grid]['hist'].lat)))**0.5
-                    fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3*asp+1,3/asp+2/asp))
+                    fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(5*asp,5/asp))
                     ax.axis('off')
-                    ax=fig.add_axes([0.1,0.3,0.8,0.66],projection=ccrs.PlateCarree())
+                    ax=fig.add_axes([0.1,0.25,0.7,0.66],projection=ccrs.PlateCarree())
                     ax__,im,range,x,y,cbar=COU.plot_map(ax=ax,
                                 to_plot=COU._periods[grid]['rel_diff_hist_'+wlvl][ensmedian],
                     			grey_area=COU._periods[grid]['rel_diff_hist_'+wlvl][ensmedian+'_agree'],
@@ -188,12 +190,9 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                     cbar.ax.set_aspect(10)
                     cbar.ax.set_ylabel('relative change in yield [%]', rotation=90)
 
-                    txt='Projected change in yield (%) relative to\n 2000 (multi-model ensemble median).\n\
-                        Yellow areas show small level of impacts\n (range [-5;5%]). For larger level of impacts,\n\
-                         grid cells where the models do not agree\n in the sign of change are shown in grey.'
-                    plt.annotate(s=txt, xy=(0.5,0.08), xycoords='figure fraction',va='bottom', ha='center',fontsize=9)
+                    txt='Projected change in yield (%) relative to 2000 (multi-model ensemble median). Yellow areas show small level of impacts (range [-5;5%]). For larger level of impacts, grid cells where the models do not agree in the sign of change are shown in grey.'
+                    plt.annotate(s='\n'.join(wrap(txt,50)), xy=(0.5,0.02), xycoords='figure fraction',va='bottom', ha='center',fontsize=9)
                     plt.savefig('maps/'+'_'.join([iso,crop,'total',wlvl])+'.pdf')
-
 
                     #####################
                     # irrigation potential
@@ -214,9 +213,9 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                     # plot pdf
                     plt.close('all')
                     asp=(len(COU._periods[grid]['hist'].lon)/float(len(COU._periods[grid]['hist'].lat)))**0.5
-                    fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3*asp+1,3/asp+2/asp))
+                    fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3*asp+1.5,3/asp+2))
                     ax.axis('off')
-                    ax=fig.add_axes([0.1,0.3,0.8,0.66],projection=ccrs.PlateCarree())
+                    ax=fig.add_axes([0.1,0.25,0.7,0.66],projection=ccrs.PlateCarree())
                     ax,im,range,x,y,cbar=COU.plot_map(ax=ax,
                                 to_plot=to_plot,
                     			add_mask=plot_mask,
@@ -224,9 +223,8 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                     			color_range=[0,20],
                     			color_label='irrigation potential [%]',
                     			title=title+'  '+wlvl_name)
-                    txt='Relative increase in yield (%) if irrigation\n is applied on present day rainfed harvested\n\
-                         areas, assuming no water limitation (note\n this does not account for actual irrigated\n water availability).'
-                    plt.annotate(s=txt, xy=(0.5,0.08), xycoords='figure fraction',va='bottom', ha='center',fontsize=9)
+                    txt='Relative increase in yield (%) if irrigation is applied on present day rainfed harvested areas, assuming no water limitation (note this does not account for actual irrigated water availability).'
+                    plt.annotate(s='\n'.join(wrap(txt,50)), xy=(0.5,0.02), xycoords='figure fraction',va='bottom', ha='center',fontsize=9)
                     plt.savefig('maps/'+'_'.join([iso,crop,'irr-added-value',wlvl])+'.pdf')
 
 
@@ -247,9 +245,9 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                 # plot pdf
                 plt.close('all')
                 asp=(len(COU._periods[grid]['hist'].lon)/float(len(COU._periods[grid]['hist'].lat)))**0.5
-                fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3*asp+1,3/asp+2/asp))
+                fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(3*asp+1.5,3/asp+2))
                 ax.axis('off')
-                ax=fig.add_axes([0.1,0.3,0.8,0.66],projection=ccrs.PlateCarree())
+                ax=fig.add_axes([0.1,0.25,0.7,0.66],projection=ccrs.PlateCarree())
                 ax,im,range,x,y,cbar=COU.plot_map(ax=ax,
                             to_plot=COU._periods[grid]['hist'][ensmedian],
                 			add_mask=plot_mask,
@@ -257,8 +255,8 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                             color_range=np.nanpercentile(COU._periods[grid]['hist'][ensmedian],[10,90]),
                 			color_label='yield [t/ha/yr]',
                 			title=title+'  historical')
-                txt='Simulated crop yield (t/ha/yr) circa year 2000\n (+0.61$^\circ$C above preindustrial). Data are shown\n for combined present-day irrigated and rainfed\n harvested areas.'
-                plt.annotate(s=txt, xy=(0.5,0.08), xycoords='figure fraction',va='bottom', ha='center',fontsize=9)
+                txt='Simulated crop yield (t/ha/yr) circa year 2000 (+0.61$^\circ$C above preindustrial). Data are shown for combined present-day irrigated and rainfed harvested areas.'
+                plt.annotate(s='\n'.join(wrap(txt,50)), xy=(0.5,0.02), xycoords='figure fraction',va='bottom', ha='center',fontsize=9)
                 plt.savefig('maps/'+'_'.join([iso,crop,'total','hist'])+'.pdf')
 
                 COU.save_data(iso+'_'+crop_short+'.nc')
