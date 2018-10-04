@@ -32,12 +32,12 @@ cmap_change.set_under('red');cmap_change.set_over('green')
 cmap_adaptation_potential = matplotlib.colors.LinearSegmentedColormap.from_list("", ["white","yellow","green"])
 cmap_adaptation_potential.set_over('green')
 
-all_isos=['BEN','NGA','MOZ','DZA','AGO',  'EGY', 'GNQ',  'NER', 'ZWE', 'NAM', 'GNB', 'SWZ', 'GHA', 'COG', 'SLE', 'ETH', 'COM', 'ERI', 'CPV', 'LBR',\
+all_isos=['ZAF', 'BEN', 'GNB','NGA','MOZ','DZA','AGO',  'EGY', 'GNQ',  'NER', 'ZWE', 'NAM', 'SWZ', 'GHA', 'COG', 'SLE', 'ETH', 'COM', 'ERI', 'CPV', 'LBR',\
             'LBY', 'LSO', 'UGA', 'RWA', 'SOM', 'MDG', 'CMR', 'TZA', 'BWA', 'SEN', 'TCD', 'GAB', 'BFA', 'MWI',  'MRT', 'GMB', 'MLI', 'BDI', \
-             'DJI', 'GIN', 'ESH', 'KEN', 'MAR', 'COD', 'ZMB', 'ZAF', 'TGO', 'TUN', 'CAF', 'SSD', 'SDN', 'CIV','SYC','MUS','STP']
+             'DJI', 'GIN', 'ESH', 'KEN', 'MAR', 'COD', 'ZMB', 'TGO', 'TUN', 'CAF', 'SSD', 'SDN', 'CIV','SYC','MUS','STP']
 
 
-for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','soy','mai'][:]):
+for crop,crop_short in zip(['rice','wheat','soybean','maize'][::-1],['ric','whe','soy','mai'][::-1]):
 
     try:
         cult_frac=da.read_nc('masks/'+crop+'_ha_0.5.nc')['cropdata']
@@ -140,7 +140,12 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                     #####################
 
                     # png plot
-                    ax,im,crange,x,y,cbar=COU.plot_map(to_plot=COU._periods[grid]['rel_diff_hist_'+wlvl][ensmedian],
+                    asp=(len(COU._periods[grid]['hist'].lon)/float(len(COU._periods[grid]['hist'].lat)))**0.5
+                    fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(5*asp,4/asp))
+                    ax.axis('off')
+                    ax=fig.add_axes([0.1,0.1,0.8,0.8],projection=ccrs.PlateCarree())
+                    ax,im,crange,x,y,cbar=COU.plot_map(ax=ax,
+                                to_plot=COU._periods[grid]['rel_diff_hist_'+wlvl][ensmedian],
                     			grey_area=COU._periods[grid]['rel_diff_hist_'+wlvl][ensmedian+'_agree'],
                     			add_mask=plot_mask,
                     			color_palette=cmap_change,
@@ -202,7 +207,11 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
                     ensmedian_firr='ensmedian_'+'_'.join([crop_short,'firr'])
                     ensmedian_total='ensmedian_'+'_'.join([crop_short,'total'])
                     to_plot=(COU._periods[grid][wlvl][ensmedian_firr] - COU._periods[grid][wlvl][ensmedian_total] ) / COU._periods[grid][wlvl][ensmedian_total] *100
-                    ax,im,crange,x,y,cbar=COU.plot_map(to_plot,
+                    fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(5*asp,4/asp))
+                    ax.axis('off')
+                    ax=fig.add_axes([0.1,0.1,0.8,0.8],projection=ccrs.PlateCarree())
+                    ax,im,crange,x,y,cbar=COU.plot_map(ax=ax,
+                                to_plot=to_plot,
                     			add_mask=plot_mask,
                     			color_palette=cmap_adaptation_potential,
                     			color_range=[0,20],
@@ -234,7 +243,11 @@ for crop,crop_short in zip(['rice','wheat','soybean','maize'][:],['ric','whe','s
 
                 # plot png
                 ensmedian='ensmedian_'+'_'.join([crop_short,'total'])
-                ax,im,crange,x,y,cbar=COU.plot_map(COU._periods[grid]['hist'][ensmedian],
+                fig, ax = plt.subplots(nrows=1, ncols=1,figsize=(5*asp,4/asp))
+                ax.axis('off')
+                ax=fig.add_axes([0.1,0.1,0.8,0.8],projection=ccrs.PlateCarree())
+                ax,im,crange,x,y,cbar=COU.plot_map(ax=ax,
+                            to_plot=COU._periods[grid]['hist'][ensmedian],
                 			add_mask=plot_mask,
                 			color_palette=cmap_hist,
                             color_range=np.nanpercentile(COU._periods[grid]['hist'][ensmedian],[10,90]),

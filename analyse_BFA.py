@@ -4,6 +4,7 @@ import sys,glob,os,pickle
 import numpy as np
 from netCDF4 import Dataset,num2date
 import pandas as pd
+from pandas import ExcelWriter
 import matplotlib.pyplot as plt
 import matplotlib
 import seaborn as sns
@@ -183,7 +184,18 @@ for rcp,RCP in zip(['rcp2p6','rcp4p5','rcp8p5'],['RCP26','RCP45','RCP85']):
 	plt.savefig(COU._working_directory+'/plots/pr_diff_2040s_overview_'+rcp+'.png',)
 
 
-
+	# save spreadsheets
+	for period in COU._periods[grid].keys():
+		mask = plot_mask.copy()
+		mask[np.isfinite(mask)]=1
+		writer = ExcelWriter(COU._working_directory+'/plots_as_spreadsheets_'+period+'_'+rcp+'.xlsx')
+		for name in [nn for nn in COU._periods[grid]['rel_diff_ref_2040s'].name if 'ensmedian' in nn.split('_') and rcp in nn.split('_')]:
+			tmp=COU._periods[grid][period][name]*mask
+			dftmp = pd.DataFrame(tmp.values)
+			dftmp.columns = tmp.lon
+			dftmp.index  = tmp.lat
+			dftmp.to_excel(writer, sheet_name = '_'.join([iso,name]))
+		writer.save()
 
 
 
