@@ -3,3 +3,4 @@ data
 !data/BEN.tar.gz
 job.sh
 .DS_Store
+.pyc
