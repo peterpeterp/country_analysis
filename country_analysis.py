@@ -91,7 +91,9 @@ class country_analysis(object):
         # load required shapefiles
         print 'load regions'
         start_time=time.time()
-        adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1').records()
+
+        #adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1').records()
+        adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1.shp').records()
 
         # collect all shapes of region
         self._adm_polygons={}
@@ -112,7 +114,8 @@ class country_analysis(object):
         # 			self._adm_polygons[region_name] = \
         # 			self._adm_polygons[region_name].symmetric_difference(self._adm_polygons[region])
 
-        adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm0').records()
+        #adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm0').records()
+        adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm0.shp').records()
         name=self._iso
         self._region_names[name]=name
         self._adm_polygons[self._iso]=MultiPolygon(next(adm_shapefiles).geometry)
