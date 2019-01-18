@@ -98,6 +98,8 @@ class country_analysis(object):
         # collect all shapes of region
         self._adm_polygons={}
         for item in adm_shapefiles:
+            print(item)
+
             shape,region=item.geometry,item.attributes
             region = {k.lower():v for k,v in region.items()}
             name_full = region['name_1']
