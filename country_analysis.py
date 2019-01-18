@@ -106,7 +106,10 @@ class country_analysis(object):
             name=unidecode(name_full.decode('utf8')).replace(' ','_')
             self._region_names[name]=name_full
             # simplify could be added here to speed up things
-            self._adm_polygons[name]=MultiPolygon(shape)
+            try:
+                self._adm_polygons[name]=MultiPolygon(shape)
+            except:
+                self._adm_polygons[name]=Polygon(shape)
 
         # for region_name in self._region_names.keys():
         # 	if '+' in region_name:
@@ -120,7 +123,10 @@ class country_analysis(object):
         adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm0.shp').records()
         name=self._iso
         self._region_names[name]=name
-        self._adm_polygons[self._iso]=MultiPolygon(next(adm_shapefiles).geometry)
+        try:
+            self._adm_polygons[self._iso]=MultiPolygon(next(adm_shapefiles).geometry)
+        except:
+            self._adm_polygons[self._iso]=Polygon(next(adm_shapefiles).geometry)
 
         print self._adm_polygons.keys()
         print 'regions loaded '+str(time.time()-start_time)
