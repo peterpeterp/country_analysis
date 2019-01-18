@@ -2,7 +2,7 @@
 
 import sys,glob,os,pickle
 import numpy as np
-from netCDF4 import Dataset,netcdftime,num2date
+from netCDF4 import Dataset,num2date
 import pandas as pd
 
 sys.path.append('/p/projects/tumble/carls/shared_folder/country_analysis/')
