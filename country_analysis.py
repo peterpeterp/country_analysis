@@ -126,7 +126,7 @@ class country_analysis(object):
         try:
             self._adm_polygons[self._iso]=MultiPolygon(next(adm_shapefiles).geometry)
         except:
-            self._adm_polygons[self._iso]=Polygon(next(adm_shapefiles).geometry)
+            self._adm_polygons[self._iso]=Polygon(adm_shapefiles.geometry)
 
         print self._adm_polygons.keys()
         print 'regions loaded '+str(time.time()-start_time)
