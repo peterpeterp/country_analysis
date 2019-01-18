@@ -120,15 +120,14 @@ class country_analysis(object):
         # 			self._adm_polygons[region_name].symmetric_difference(self._adm_polygons[region])
 
         #adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm0').records()
-        adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm0.shp').records()
+
         name=self._iso
         self._region_names[name]=name
         try:
+            adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm0.shp').records()
             self._adm_polygons[self._iso]=MultiPolygon(next(adm_shapefiles).geometry)
         except:
-            print('------')
-            print(next(adm_shapefiles))
-            print(next(adm_shapefiles).geometry)
+            adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm0.shp').records()
             self._adm_polygons[self._iso]=Polygon(next(adm_shapefiles).geometry)
 
         print self._adm_polygons.keys()
