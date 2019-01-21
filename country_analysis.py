@@ -83,7 +83,6 @@ class country_analysis(object):
             os.chdir(self._working_directory)
             os.system('wget biogeo.ucdavis.edu/data/gadm2.8/shp/'+iso+'_adm_shp.zip')
             os.system('mkdir '+iso+'_adm_shp')
-            os.system('ls')
             os.chdir(self._working_directory+iso+'_adm_shp')
             os.system('unzip ../'+iso+'_adm_shp.zip')
             os.chdir(current_dir)
