@@ -391,7 +391,6 @@ class country_analysis(object):
         current_path=os.getcwd()
         os.chdir(wlcalculator_path)
         sys.path.append(wlcalculator_path)
-        os.system('ls')
         import wacalc.CmipData as CmipData; reload(CmipData)
         import wacalc.hadcrut_warming as hadcrut_warming; reload(hadcrut_warming) # I think I don't need this
 
