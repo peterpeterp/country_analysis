@@ -1781,6 +1781,7 @@ class country_data_object(object):
         if color_range is None:
             color_range=[np.min(to_plot[np.isfinite(to_plot)]),np.max(to_plot[np.isfinite(to_plot)])]
 
+
         x,y=lon.copy(),lat.copy()
         x-=np.diff(x,1)[0]/2.
         y-=np.diff(y,1)[0]/2.
