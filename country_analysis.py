@@ -1752,7 +1752,7 @@ class country_data_object(object):
         ax.set_xlim((limits[0],limits[1]))
         ax.set_ylim((limits[2],limits[3]))
         # coastline and borders aren't smooth
-        # ax.coastlines(resolution='10m')
+        ax.coastlines(resolution='10m')
         #ax.border(resolution='10m')
         # land_50m = cfeature.NaturalEarthFeature('physical', 'borders', '50m',
         #                                 edgecolor='black')
