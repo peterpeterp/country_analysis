@@ -10,7 +10,8 @@ import sys,glob,os,itertools,datetime,pickle,subprocess,time
 import numpy as np
 from netCDF4 import Dataset,num2date
 import pandas as pd
-from shapely.geometry import mapping, Polygon, MultiPolygon
+from shapely.geometry import mapping, Polygon, MultiPolygon, asShape
+from shapely.ops import cascaded_union, unary_union
 import matplotlib.pylab as plt
 import matplotlib as mpl
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -92,42 +93,52 @@ class country_analysis(object):
         print 'load regions'
         start_time=time.time()
 
-        # #adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1').records()
-        # adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1.shp').records()
-        # # collect all shapes of region
-        # self._adm_polygons={}
-        # for item in adm_shapefiles:
-        #     shape,region=item.geometry,item.attributes
-        #     region = {k.lower():v for k,v in region.items()}
-        #     name_full = u''+region['name_1']
-        #     name=unidecode(name_full.decode('utf8')).replace(' ','_')
-        #     self._region_names[name]=name_full
-        #     # simplify could be added here to speed up things
-        #     try:
-        #         self._adm_polygons[name]=MultiPolygon(shape)
-        #     except:
-        #         self._adm_polygons[name]=Polygon(shape)
+        #adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1').records()
+        adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1.shp').records()
+        # collect all shapes of region
+        self._adm_polygons={}
+        for item in adm_shapefiles:
+            shape,region=item.geometry,item.attributes
+            region = {k.lower():v for k,v in region.items()}
+            name_full = u''+region['name_1']
+            name=u''+region[u'hasc_1']
+            self._region_names[name]=name_full
+            # simplify could be added here to speed up things
+            try:
+                self._adm_polygons[name]=MultiPolygon(shape)
+            except:
+                self._adm_polygons[name]=Polygon(shape)
 
+        sf = shapefile.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1.shp', encoding="utf8")
+        for shp,record in zip(sf.shapes(),sf.records()):
+            self._region_names[u''+record[5]]=u''+record[4]
 
+        print(self._region_names)
         # print(self._region_names)
         # with fiona.collection(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1.shp', 'r', encoding='utf8') as layer:
         #     for element in layer:
         #         name = element['properties']['NAME_1'].decode('ISO-8859-1').encode('utf8')
         #         self._region_names[unidecode(name_full.decode('utf8')).replace(' ','_')]=name
 
-        sf = shapefile.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1.shp', encoding="utf8")
-        self._adm_polygons={}
-        for shape,record in zip(sf.shapes(),sf.records()):
-            name_full = u''+record[4]
-            name=unidecode(name_full.decode('utf8')).replace(' ','_')
-            self._region_names[name]=name_full
-            # simplify could be added here to speed up things
-            try:
-                self._adm_polygons[name]=MultiPolygon(shape)
-            except:
-                self._adm_polygons[name]=Polygon(shape.points)
-
-        print(self._region_names)
+        # sf = shapefile.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1.shp', encoding="utf8")
+        # self._adm_polygons={}
+        # for shp,record in zip(sf.shapes(),sf.records()):
+        #     name_full = u''+record[4]
+        #     name=unidecode(name_full.decode('utf8')).replace(' ','_')
+        #     self._region_names[name]=name_full
+        #     # simplify could be added here to speed up things
+        #     if len(shp.parts)>1:
+        #         poli = []
+        #         for pi,part in enumerate(shp.parts[:-1]):
+        #             print(part,shp.parts[pi+1])
+        #             poli.append([shp.points[part:shp.parts[pi+1]],[]])
+        #         print(poli)
+        #         self._adm_polygons[name]=MultiPolygon(poli)
+        #         print(self._adm_polygons[name])
+        #     else:
+        #         self._adm_polygons[name]=Polygon(shp.points)
+        #
+        # print(self._region_names)
 
 
         # for region_name in self._region_names.keys():
