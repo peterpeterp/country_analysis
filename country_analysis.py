@@ -19,6 +19,7 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shapereader
 from unidecode import unidecode
+import fiona,shapefile
 '''
 more elegant with subprocess?
 '''
@@ -91,22 +92,43 @@ class country_analysis(object):
         print 'load regions'
         start_time=time.time()
 
-        #adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1').records()
-        adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1.shp').records()
+        # #adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1').records()
+        # adm_shapefiles=shapereader.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1.shp').records()
+        # # collect all shapes of region
+        # self._adm_polygons={}
+        # for item in adm_shapefiles:
+        #     shape,region=item.geometry,item.attributes
+        #     region = {k.lower():v for k,v in region.items()}
+        #     name_full = u''+region['name_1']
+        #     name=unidecode(name_full.decode('utf8')).replace(' ','_')
+        #     self._region_names[name]=name_full
+        #     # simplify could be added here to speed up things
+        #     try:
+        #         self._adm_polygons[name]=MultiPolygon(shape)
+        #     except:
+        #         self._adm_polygons[name]=Polygon(shape)
 
-        # collect all shapes of region
+
+        # print(self._region_names)
+        # with fiona.collection(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1.shp', 'r', encoding='utf8') as layer:
+        #     for element in layer:
+        #         name = element['properties']['NAME_1'].decode('ISO-8859-1').encode('utf8')
+        #         self._region_names[unidecode(name_full.decode('utf8')).replace(' ','_')]=name
+
+        sf = shapefile.Reader(self._working_directory+self._iso+'_adm_shp/'+self._iso+'_adm1.shp', encoding="utf8")
         self._adm_polygons={}
-        for item in adm_shapefiles:
-            shape,region=item.geometry,item.attributes
-            region = {k.lower():v for k,v in region.items()}
-            name_full = u''+region['name_1']
+        for shape,record in zip(sf.shapes(),sf.records()):
+            name_full = u''+record[4]
             name=unidecode(name_full.decode('utf8')).replace(' ','_')
             self._region_names[name]=name_full
             # simplify could be added here to speed up things
             try:
                 self._adm_polygons[name]=MultiPolygon(shape)
             except:
-                self._adm_polygons[name]=Polygon(shape)
+                self._adm_polygons[name]=Polygon(shape.points)
+
+        print(self._region_names)
+
 
         # for region_name in self._region_names.keys():
         # 	if '+' in region_name:
