@@ -100,6 +100,7 @@ class country_analysis(object):
         for item in adm_shapefiles:
             shape,region=item.geometry,item.attributes
             region = {k.lower():v for k,v in region.items()}
+            print(region)
             name_full = u''+region['name_1']
             name=u''+region[u'hasc_1']
             self._region_names[name]=name_full
