@@ -1310,6 +1310,8 @@ class country_analysis(object):
                                 data.period[method][sea][period_name]=np.nanmax(data.raw[relevenat_time_steps,:,:],axis=0)
                             if method=='min':
                                 data.period[method][sea][period_name]=np.nanmin(data.raw[relevenat_time_steps,:,:],axis=0)
+                            if method=='year_sum':
+                                data.period[method][sea][period_name]=np.nanmean(data.raw[relevenat_time_steps,:,:],axis=0) * len(mons_in_sea)
 
                             # threshold exceeding
                             if threshold is not None:
@@ -1949,7 +1951,7 @@ class country_data_object(object):
         # except:
         # 	print 'no mask has been created for '+mask_style+' and '+region
 
-    def plot_transients(SELF,mask_style='lat_weighted',season='year',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None,x_range=[1960,2090],ref_period=None,shading_range=None,shading_opacity=0.2,plot_median=False,show_all_models=False,offset=0.0):
+    def plot_transients(SELF,mask_style='lat_weighted',season='year',region=None,running_mean_years=1,ax=None,out_file=None,title=None,ylabel=None,label='',color='blue',y_range=None,x_range=[1960,2090],ref_period=None,shading_range=None,shading_opacity=0.2,plot_median=False,show_all_models=False,offset=0.0,method='mean'):
         '''
         plot transient of countrywide average
         mask_style: str: weighting used to compute countrywide averages
@@ -1972,53 +1974,56 @@ class country_data_object(object):
             region=SELF.outer_self._iso
 
         if SELF.time_format=='monthly':
-            running_mean=running_mean_years*len(SELF.outer_self._seasons[season])
+            # running_mean=running_mean_years*len(SELF.outer_self._seasons[season])
             relevenat_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
-
-        if SELF.time_format=='10day':
-            running_mean=running_mean_years*len(SELF.outer_self._seasons[season])*3
-            relevenat_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season])
+            tmp = SELF.area_average[mask_style][region][relevenat_time_steps]
+            if method == 'mean':
+                tmp = np.reshape(tmp,(len(relevenat_time_steps)/len(SELF.outer_self._seasons[season]),len(SELF.outer_self._seasons[season]))).mean(axis=1)
+            if method == 'year_sum':
+                tmp = np.reshape(tmp,(len(relevenat_time_steps)/len(SELF.outer_self._seasons[season]),len(SELF.outer_self._seasons[season]))).sum(axis=1)
+            plot_time = np.reshape(SELF.plot_time[relevenat_time_steps],(len(relevenat_time_steps)/len(SELF.outer_self._seasons[season]),len(SELF.outer_self._seasons[season]))).mean(axis=1)
 
         if SELF.time_format=='yearly':
-            running_mean=running_mean_years
+            # running_mean=running_mean_years
             relevenat_time_steps=range(len(SELF.year))
             if season!='year':
                 return(0)
+            tmp = SELF.area_average[mask_style][region][relevenat_time_steps]
+            plot_time = SELF.plot_time[relevenat_time_steps]
 
-        if ref_period is None:
-            y=running_mean_func(SELF.area_average[mask_style][region][relevenat_time_steps], running_mean)+offset
-        if ref_period is not None:
-            ref_time_steps=SELF.get_relevant_time_steps_in_season(SELF.outer_self._seasons[season],np.where((SELF.year>=ref_period[0]) & (SELF.year<ref_period[1]))[0])
-            ref_mean=np.nanmean(SELF.area_average[mask_style][region][ref_time_steps])
-            y=(running_mean_func(SELF.area_average[mask_style][region][relevenat_time_steps], running_mean)-ref_mean)/ref_mean*100+offset
+        y=running_mean_func(tmp, running_mean_years)#+offset
 
         if plot_median==False:
-            ax.plot(SELF.plot_time[relevenat_time_steps],y,linestyle='-',label=label,color=color)
+            ax.plot(plot_time,y,linestyle='-',label=label,color=color)
 
         if hasattr(SELF,'model'):
             if SELF.model=='ensemble_mean':
                 ensemble=SELF.outer_self.find_ensemble([SELF.data_type,SELF.var_name,SELF.scenario])
 
-                time_axis=ensemble['mean'].time_stamp_num
-
-                ensemble_range=np.zeros([len(ensemble['models'].values()),len(time_axis[relevenat_time_steps])])*np.nan
+                ensemble_range=np.zeros([len(ensemble['models'].values()),len(plot_time)])*np.nan
 
                 for member,i in zip(ensemble['models'].values(),range(len(ensemble['models'].values()))):
-                    if ref_period is None:
-                        member_runmean=running_mean_func(member.area_average[mask_style][region][relevenat_time_steps], running_mean)+offset
-                    if ref_period is not None:
-                        ref_mean=np.nanmean(member.area_average[mask_style][region][ref_time_steps])
-                        member_runmean=(running_mean_func(member.area_average[mask_style][region][relevenat_time_steps], running_mean)-ref_mean)/ref_mean*100+offset
+                    if SELF.time_format=='monthly':
+                        tmp = member.area_average[mask_style][region][relevenat_time_steps]
+                        if method == 'mean':
+                            tmp = np.reshape(tmp,(len(relevenat_time_steps)/len(SELF.outer_self._seasons[season]),len(SELF.outer_self._seasons[season]))).mean(axis=1)
+                        if method == 'year_sum':
+                            tmp = np.reshape(tmp,(len(relevenat_time_steps)/len(SELF.outer_self._seasons[season]),len(SELF.outer_self._seasons[season]))).sum(axis=1)
 
-                    for t in time_axis:
-                        ensemble_range[i,np.where(time_axis[relevenat_time_steps]==t)]=member_runmean[np.where(member.time_stamp_num[relevenat_time_steps]==t)]
+                    if SELF.time_format=='yearly':
+                        tmp = member.area_average[mask_style][region][relevenat_time_steps]
+
+                    ensemble_range[i,:]=running_mean_func(tmp, running_mean_years)
 
                     if show_all_models:	ax.plot(SELF.plot_time[relevenat_time_steps],ensemble_range[i,:],linestyle='--',label=member.model,color=color)
 
                 if shading_range is not None:
-                    ax.fill_between(SELF.plot_time[relevenat_time_steps],np.nanpercentile(ensemble_range,shading_range[0],axis=0),np.nanpercentile(ensemble_range,shading_range[1],axis=0),alpha=shading_opacity,color=color)
+                    ax.fill_between(plot_time,np.nanpercentile(ensemble_range,shading_range[0],axis=0),np.nanpercentile(ensemble_range,shading_range[1],axis=0),alpha=shading_opacity,color=color)
+                print(np.nanpercentile(ensemble_range,shading_range,axis=0))
                 if plot_median:
-                    ax.plot(SELF.plot_time[relevenat_time_steps],np.nanpercentile(ensemble_range,50,axis=0),color=color,linestyle='-',label=label)
+                    ax.plot(plot_time,np.nanpercentile(ensemble_range,50,axis=0),color=color,linestyle='-',label=label)
+
+                print(np.nanpercentile(ensemble_range,50,axis=0))
 
 
         if ylabel is None:ylabel=SELF.var_name.replace('_',' ')
