@@ -13,7 +13,7 @@ import cartopy
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shapereader
 from unidecode import unidecode
-import dimarray as da
+ 
 
 sys.path.append('/Users/peterpfleiderer/Projects/country_analysis/')
 try:del sys.modules['country_analysis']
